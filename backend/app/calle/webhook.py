@@ -10,20 +10,47 @@ five-minute window on top. Verification runs over the exact raw bytes,
 before any JSON parsing.
 """
 
+import logging
+import os
 import time
 from collections.abc import Mapping
 from typing import Any
 
 from calle.errors import CalleWebhookSignatureError
 from calle.webhooks import CalleWebhooks
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+
+from app import db as app_db
+from app import runs
 
 TIMESTAMP_WINDOW_SECONDS = 300
 
 _webhooks = CalleWebhooks()
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
 
 
 class WebhookVerificationError(Exception):
     pass
+
+
+@router.post("/calle/webhook", status_code=202)
+async def calle_webhook(request: Request, background: BackgroundTasks) -> dict[str, bool]:
+    """Terminal result webhook. Raw bytes captured BEFORE any JSON parsing,
+    HMAC verified over those exact bytes, 202 returned fast, terminal write
+    applied asynchronously. A replayed delivery is a database-level no-op.
+    """
+    secret = os.environ.get("CALLE_WEBHOOK_SECRET", "")
+    if not secret:
+        raise HTTPException(status_code=503, detail="webhook verification unavailable")
+    raw = await request.body()
+    try:
+        payload = verify_and_parse_webhook(raw_body=raw, headers=request.headers, secret=secret)
+    except WebhookVerificationError:
+        raise HTTPException(status_code=400, detail="invalid webhook") from None
+    background.add_task(runs.apply_terminal_payload, app_db.db_path(), payload)
+    return {"received": True}
 
 
 def verify_and_parse_webhook(
