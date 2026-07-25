@@ -30,13 +30,23 @@ export default function RunsPage() {
 
   return (
     <section aria-labelledby="runs-heading">
-      <h1 id="runs-heading" className="font-display text-4xl font-semibold">
-        Verification runs
-      </h1>
-      <p className="mt-2 max-w-2xl text-ink-soft">
-        One disclosed call per record. Every answer carries its supporting span
-        from the transcript, or an explicit abstention.
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 id="runs-heading" className="font-display text-4xl font-semibold">
+            Verification runs
+          </h1>
+          <p className="mt-2 max-w-2xl text-ink-soft">
+            One disclosed call per record. Every answer carries its supporting
+            span from the transcript, or an explicit abstention.
+          </p>
+        </div>
+        <Link
+          to="/runs/new"
+          className="rounded-md border border-rule px-4 py-2 font-evidence text-xs uppercase tracking-widest text-ink transition-colors hover:border-trust hover:text-trust focus-visible:outline-2 focus-visible:outline-trust"
+        >
+          + live verification
+        </Link>
+      </div>
       <ul className="ledger mt-8 border-t border-rule">
         {runs.map((run, index) => (
           <motion.li

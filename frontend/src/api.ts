@@ -105,6 +105,33 @@ export const fetchRuns = () => get<{ runs: RunSummary[] }>("/api/runs");
 export const fetchRun = (runId: string) => get<RunDetail>(`/api/runs/${runId}`);
 export const fetchMetrics = () => get<Metrics>("/api/metrics");
 
+export async function startRun(input: {
+  judgeKey: string;
+  org: string;
+  phone: string;
+  task: string;
+  claims: Record<string, string>;
+}): Promise<{ run_id: string }> {
+  const response = await fetch(`${BASE}/internal/runs`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Attest-Key": input.judgeKey,
+    },
+    body: JSON.stringify({
+      task: input.task,
+      phone: input.phone,
+      org: input.org,
+      claims: input.claims,
+    }),
+  });
+  if (response.status === 403) throw new Error("That key was not accepted.");
+  if (response.status === 503) throw new Error("Live calling is not enabled on this deployment.");
+  if (response.status === 422) throw new Error("Phone must be E.164, like +15550101234.");
+  if (!response.ok) throw new Error(`Run creation failed (${response.status}).`);
+  return (await response.json()) as { run_id: string };
+}
+
 export function transcriptOf(detail: RunDetail): TranscriptTurn[] {
   for (const recipient of detail.payload?.recipients ?? []) {
     for (const attempt of recipient.attempts ?? []) {

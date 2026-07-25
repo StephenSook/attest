@@ -103,9 +103,20 @@ export default function RunDetailPage() {
 
   useEffect(() => {
     if (!runId) return;
-    fetchRun(runId)
-      .then(setDetail)
-      .catch(() => setError("Could not load this run."));
+    let timer: number | undefined;
+    const load = () => {
+      fetchRun(runId)
+        .then((data) => {
+          setDetail(data);
+          // Poll while the call is in flight, stop once terminal.
+          if (data.state === "submitted" || data.state === "created") {
+            timer = window.setTimeout(load, 5000);
+          }
+        })
+        .catch(() => setError("Could not load this run."));
+    };
+    load();
+    return () => window.clearTimeout(timer);
   }, [runId]);
 
   if (error) return <p className="font-evidence text-sm text-contra">{error}</p>;
