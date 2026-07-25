@@ -8,6 +8,7 @@ dependencies = [
     "uvicorn[standard]>=0.30",
     "pydantic>=2.8",
     "httpx>=0.27",
+    "calle-ai>=0.2.0",
 ]
 
 [dependency-groups]
