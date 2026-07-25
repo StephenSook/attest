@@ -114,6 +114,35 @@ export default function Landing() {
         },
       );
 
+      // Stat numbers roll up to their printed value as they scrub in. The
+      // printed JSX literal stays the source of truth (and stays test-pinned
+      // to metrics.json); this only animates toward it.
+      gsap.utils.toArray<HTMLElement>(".stat-n").forEach((el) => {
+        const final = el.textContent ?? "";
+        const match = /^([~+]?)(\d+(?:\.\d+)?)(.*)$/.exec(final);
+        if (!match) return;
+        const [, prefix, num, suffix] = match;
+        const value = parseFloat(num);
+        const decimals = num.includes(".") ? num.split(".")[1].length : 0;
+        const counter = { v: 0 };
+        gsap.to(counter, {
+          v: value,
+          ease: "none",
+          scrollTrigger: { trigger: el, start: "top 85%", end: "top 45%", scrub: true },
+          onUpdate: () => {
+            el.textContent = `${prefix}${counter.v.toFixed(decimals)}${suffix}`;
+          },
+        });
+      });
+
+      // Palette shift for the proof chapters.
+      ScrollTrigger.create({
+        trigger: ".ch-guarantee",
+        start: "top 70%",
+        end: "bottom top",
+        toggleClass: { targets: ".landing", className: "veil-deep" },
+      });
+
       // Chapter 5: the coverage line draws itself against the ideal.
       const path = document.querySelector<SVGPathElement>(".cov-line");
       if (path) {
