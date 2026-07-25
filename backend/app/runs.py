@@ -59,7 +59,20 @@ async def start_verification_run(
                 terminal_payload=json.dumps({"error": str(exc), "stage": "submit"}),
             )
             raise
-        db.set_calle_call_id(conn, run_id, str(created.get("id", "")))
+        calle_call_id = str(created.get("id") or "")
+        if not calle_call_id:
+            # Advancing to submitted with an empty id would create a zombie
+            # the poller retries forever. Fail loudly instead.
+            fsm.advance(
+                conn,
+                run_id,
+                "failed",
+                terminal_payload=json.dumps(
+                    {"error": "provider returned no call id", "stage": "submit_no_id"}
+                ),
+            )
+            raise RuntimeError("CALL-E returned no call id")
+        db.set_calle_call_id(conn, run_id, calle_call_id)
         fsm.advance(conn, run_id, "submitted")
         return run_id
     finally:
@@ -74,12 +87,18 @@ def apply_terminal_payload(database: Path, payload: dict[str, object]) -> bool:
     """
     status = str(payload.get("status", ""))
     if status not in fsm.TERMINAL_STATES:
+        if status not in {"queued", "dialing", "in_progress", "ringing"}:
+            # A terminal-but-unknown status would strand the run in submitted
+            # forever with no evidence. Be loud about vocabulary we have
+            # never seen.
+            logger.warning("unknown CALL-E status %r for call %s", status, payload.get("id"))
         return False
     calle_call_id = str(payload.get("id", ""))
     conn = db.connect(database)
     try:
         row = db.get_run_by_calle_call_id(conn, calle_call_id)
         if row is None:
+            logger.warning("terminal payload for unknown call id %s dropped", calle_call_id)
             return False
         return fsm.advance(
             conn,

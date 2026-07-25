@@ -63,6 +63,9 @@ async def main() -> None:
         call = await service.get_call(call_id)
         print(f"status: {call.get('status')}")
 
+    if call.get("status") not in TERMINAL:
+        sys.exit(f"timed out before terminal; last status {call.get('status')}")
+
     out_dir = Path("data/probe")
     out_dir.mkdir(parents=True, exist_ok=True)
     dest = out_dir / f"probe-{stamp}.json"

@@ -101,19 +101,33 @@ export default function RunDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [liveClaim, setLiveClaim] = useState<string | null>(null);
 
+  const [stale, setStale] = useState(false);
+
   useEffect(() => {
     if (!runId) return;
     let timer: number | undefined;
+    let everLoaded = false;
     const load = () => {
       fetchRun(runId)
         .then((data) => {
+          everLoaded = true;
+          setStale(false);
           setDetail(data);
           // Poll while the call is in flight, stop once terminal.
           if (data.state === "submitted" || data.state === "created") {
             timer = window.setTimeout(load, 5000);
           }
         })
-        .catch(() => setError("Could not load this run."));
+        .catch(() => {
+          // A transient poll failure must never replace a loaded view or
+          // stop the polling; only fail the page if nothing ever loaded.
+          if (everLoaded) {
+            setStale(true);
+            timer = window.setTimeout(load, 5000);
+          } else {
+            setError("Could not load this run.");
+          }
+        });
     };
     load();
     return () => window.clearTimeout(timer);
@@ -142,6 +156,7 @@ export default function RunDetailPage() {
           <p className="mt-1 font-evidence text-xs text-ink-faint">
             {detail.run_id} · {detail.state}
             {analysis?.replay && " · replay of a real recorded call"}
+            {stale && <span className="text-doubt"> · refresh failed, retrying</span>}
           </p>
           {detail.payload?.summary && (
             <p className="mt-3 max-w-xl text-ink-soft">{detail.payload.summary}</p>
@@ -154,6 +169,22 @@ export default function RunDetailPage() {
           />
         )}
       </div>
+
+      {detail.failure && (
+        <section
+          aria-label="Run failure"
+          className="mt-8 max-w-xl rounded-lg border border-contra/40 bg-contra-soft p-4"
+        >
+          <p className="font-evidence text-[11px] uppercase tracking-widest text-contra">
+            call failed at stage: {detail.failure.stage}
+          </p>
+          <p className="mt-1 font-evidence text-sm text-ink">{detail.failure.error}</p>
+          <p className="mt-2 text-sm text-ink-soft">
+            No claims or verdict are shown for a failed call. That is the
+            honest output.
+          </p>
+        </section>
+      )}
 
       {analysis && (
         <motion.section

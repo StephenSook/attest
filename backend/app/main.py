@@ -7,6 +7,7 @@ able to find the load-bearing CALL-E call within one minute of opening this repo
 import asyncio
 import hmac
 import json
+import logging
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -28,6 +29,16 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
     stop = asyncio.Event()
     poller = Poller(service, db.db_path())
     task = asyncio.create_task(poller.run_forever(stop))
+    task.add_done_callback(
+        lambda t: (
+            logging.getLogger(__name__).critical(
+                "poller task ended unexpectedly: %s",
+                t.exception() if not t.cancelled() else "cancelled",
+            )
+            if not stop.is_set()
+            else None
+        )
+    )
     application.state.calle_service = service
     try:
         yield
@@ -99,8 +110,15 @@ async def api_run_detail(run_id: str) -> dict[str, object]:
         "updated_at": row["updated_at"],
         "payload": analysis.redact_payload(payload) if payload else None,
     }
-    if payload and row["state"] in {"completed", "failed", "canceled"}:
+    if payload and row["state"] == "completed":
+        # Only completed calls get claims and a verdict; a failed run must
+        # never dress up as an analysis result.
         detail["analysis"] = analysis.analyze_run(row)
+    elif payload and row["state"] in {"failed", "canceled"}:
+        detail["failure"] = {
+            "error": payload.get("error", "unknown failure"),
+            "stage": payload.get("stage", "unknown"),
+        }
     return detail
 
 
