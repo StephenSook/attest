@@ -19,16 +19,23 @@ async def start_verification_run(
     *,
     task: str,
     phone: str,
+    record: dict[str, object] | None = None,
 ) -> str:
     """Create a run row, submit the call to CALL-E, record the outcome.
 
     The run_id doubles as the Idempotency-Key, so re-submitting the same run
-    can never create a second call.
+    can never create a second call. `record` carries the directory claims the
+    call verifies, stored server-side for reconciliation.
     """
     run_id = f"run_{uuid.uuid4().hex[:16]}"
     conn = db.connect(database)
     try:
-        db.create_run(conn, run_id=run_id, idempotency_key=run_id)
+        db.create_run(
+            conn,
+            run_id=run_id,
+            idempotency_key=run_id,
+            record_json=json.dumps(record) if record else None,
+        )
         try:
             created = await service.place_call(task=task, phone=phone, idempotency_key=run_id)
         except (CalleTimeoutError, CalleConnectionError) as exc:

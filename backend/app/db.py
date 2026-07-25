@@ -19,7 +19,8 @@ CREATE TABLE IF NOT EXISTS call_runs (
     state TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-    terminal_payload TEXT
+    terminal_payload TEXT,
+    record_json TEXT
 );
 
 CREATE TABLE IF NOT EXISTS call_events (
@@ -46,15 +47,37 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
     for pragma in _PRAGMAS:
         conn.execute(pragma)
     conn.executescript(_SCHEMA)
+    try:
+        conn.execute("ALTER TABLE call_runs ADD COLUMN record_json TEXT")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass  # column already exists (fresh schema or prior migration)
     return conn
 
 
-def create_run(conn: sqlite3.Connection, *, run_id: str, idempotency_key: str) -> None:
+def create_run(
+    conn: sqlite3.Connection,
+    *,
+    run_id: str,
+    idempotency_key: str,
+    record_json: str | None = None,
+) -> None:
     conn.execute(
-        "INSERT INTO call_runs (run_id, idempotency_key, state) VALUES (?, ?, 'created')",
-        (run_id, idempotency_key),
+        "INSERT INTO call_runs (run_id, idempotency_key, state, record_json) "
+        "VALUES (?, ?, 'created', ?)",
+        (run_id, idempotency_key, record_json),
     )
     conn.commit()
+
+
+def list_runs(conn: sqlite3.Connection, limit: int = 50) -> list[sqlite3.Row]:
+    return list(
+        conn.execute(
+            "SELECT run_id, state, created_at, updated_at, record_json "
+            "FROM call_runs ORDER BY created_at DESC LIMIT ?",
+            (limit,),
+        )
+    )
 
 
 def set_calle_call_id(conn: sqlite3.Connection, run_id: str, calle_call_id: str) -> None:
