@@ -2,9 +2,9 @@
 
 Every automated test runs against this server. No test ever dials a real number.
 
-The terminal payload in fixtures/terminal_result.json is a placeholder built
-from CALL-E's documented envelope. It gets replaced by a scrubbed real payload
-after the first real probe call (fixture-from-docs until then). It is test
+The terminal payload in fixtures/terminal_result.json is a SCRUBBED REAL
+payload captured from the 2026-07-25 probe call (phone and identifiers
+replaced with reserved fictional values, conversation verbatim). It is test
 infrastructure, never demo material.
 """
 
@@ -66,7 +66,8 @@ async def get_call(call_id: str) -> dict[str, Any]:
 
 @app.get("/v1/calls/{call_id}/events")
 async def get_call_events(call_id: str) -> dict[str, Any]:
+    # The real events-endpoint shape has not been probed yet; the terminal
+    # payload itself carries no events array. Empty list until probed.
     if call_id not in _calls:
         raise HTTPException(status_code=404, detail="call not found")
-    events: list[dict[str, Any]] = _calls[call_id].get("events", [])
-    return {"events": events}
+    return {"events": []}
