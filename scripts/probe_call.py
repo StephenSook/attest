@@ -7,9 +7,14 @@ the mock fixture.
 
 Usage:
     set -a && source .env && set +a
-    uv run python scripts/probe_call.py
+    uv run python scripts/probe_call.py [--webhook-url https://...]
+
+--webhook-url passes a terminal-result callback so webhook delivery can be
+retested without editing this script (delivery was observed NOT to fire on
+2026-07-25; see backend/app/calle/webhook.py).
 """
 
+import argparse
 import asyncio
 import json
 import os
@@ -38,6 +43,9 @@ TASK = (
 
 
 async def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--webhook-url", default=None, help="optional terminal-result callback")
+    args = parser.parse_args()
     phone = os.environ.get("ATTEST_PROBE_PHONE", "")
     api_key = os.environ.get("CALLE_API_KEY", "")
     if not phone or not api_key:
@@ -52,6 +60,7 @@ async def main() -> None:
         phone=phone,
         idempotency_key=f"attest-probe-{stamp}",
         metadata={"purpose": "probe", "budget_line": "probe"},
+        webhook_url=args.webhook_url,
     )
     call_id = str(created.get("id", ""))
     print(f"created: id={call_id} status={created.get('status')}")
