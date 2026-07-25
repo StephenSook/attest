@@ -1,0 +1,26 @@
+name: Keepalive
+
+# Keeps the free-tier backend warm through the judging window (Sep 30 to Oct 13).
+# Offset minute list on purpose: contended schedules (*/N, :00) get throttled by
+# GitHub's scheduler. Verify this monitor by the NEWEST RUN'S AGE, not green runs.
+# The cron line stays commented until the backend is deployed; enable it then.
+
+on:
+  workflow_dispatch:
+  # schedule:
+  #   - cron: "4,14,24,34,44,54 * * * *"
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping backend healthz
+        run: |
+          set -euo pipefail
+          if [ -z "${BACKEND_URL:-}" ]; then
+            echo "BACKEND_URL repository variable not set yet; nothing to ping."
+            exit 0
+          fi
+          curl --fail --silent --show-error --max-time 30 "${BACKEND_URL}/healthz"
+        env:
+          BACKEND_URL: ${{ vars.BACKEND_URL }}
