@@ -24,14 +24,29 @@ export default function PromptPage() {
           registration marks (A T S T) frame the viewport like a notarized page.
         </p>
         <p>
-          FILM. A fixed, full-viewport 8 second extreme-macro film: a cobalt ink
-          line drawn across handmade paper, the camera traveling the wet groove,
-          ending in a seal-like ink bloom. The film sits behind a paper-gradient
-          veil at 55 percent opacity and is scrubbed by scroll position: a
-          ScrollVideo component reads the real duration from loadedmetadata,
-          lerps a target progress in one requestAnimationFrame loop, and never
-          re-renders React per frame. Without the film, layered radial paper
-          gradients carry the page.
+          FILM. A single continuous 8 second extreme-macro journey generated
+          with Higgsfield Cinema Studio (pro mode, 16:9, linear speed, sound
+          off): the camera starts inside the woven brass grille of a telephone
+          handset, travels the copper wire as light, emerges onto cream
+          archival paper where a nib writes in deep blue ink, and ends as a
+          brass notary seal certifies the page. The raw 24fps take is
+          motion-interpolated to 60fps and re-encoded with a keyframe every 8
+          frames so scroll scrubbing seeks stay cheap on any machine.
+        </p>
+        <p>
+          SCRUB ENGINE. The film sits fixed behind a paper-gradient veil and is
+          scrubbed by scroll: ScrollVideo reads the real duration from
+          loadedmetadata and eases an internal playhead toward the scroll
+          target in one requestAnimationFrame loop with frame-rate-independent
+          damping. Decoder safety is the point: it never issues a seek while
+          one is in flight, retains only the newest target and drains it
+          through seeked (or requestVideoFrameCallback where available), skips
+          movements smaller than one output frame, stops seeking once settled,
+          and a watchdog releases a stuck decoder. Subtle desktop-only mouse
+          parallax; a buffered-progress hairline; layered paper gradients carry
+          the page if the film fails. A repository test parses the shipped
+          mp4's sync-sample table and fails if keyframes are sparser than one
+          per half second.
         </p>
         <p>
           NARRATIVE. Six chapters over roughly 550vh telling one verification
@@ -50,8 +65,9 @@ export default function PromptPage() {
           All timelines scoped in one gsap.context and reverted on unmount.
           ScrollTrigger scrubs, no time-based autoplay except the hero reveal.
           An AutoTour control (fixed, bottom right) drives a single linear GSAP
-          tween through Lenis over about 45 seconds; wheel, touch, pointer, and
-          paging keys pause it; Escape stops it without moving the reader;
+          tween through Lenis, 20 seconds at 1x with a 2x toggle, live percent
+          readout, and a restart control past 2 percent; wheel, touch, pointer,
+          and paging keys pause it; Escape stops it without moving the reader;
           route changes kill it; progress lives in a stroke-dashoffset ring;
           status is announced via aria-live. prefers-reduced-motion disables
           Lenis, the film scrub, and every scrub tween, leaving static,
