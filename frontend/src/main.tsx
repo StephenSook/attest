@@ -1,9 +1,11 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 import App from "./App";
+import Landing from "./experience/Landing";
 import "./index.css";
 import CalibrationPage from "./pages/CalibrationPage";
+import PromptPage from "./pages/PromptPage";
 import RunDetailPage from "./pages/RunDetailPage";
 import RunsPage from "./pages/RunsPage";
 
@@ -11,8 +13,9 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <BrowserRouter>
       <Routes>
+        <Route path="/" element={<Landing />} />
+        <Route path="/prompt" element={<PromptPage />} />
         <Route element={<App />}>
-          <Route path="/" element={<Navigate to="/runs" replace />} />
           <Route path="/runs" element={<RunsPage />} />
           <Route path="/runs/:runId" element={<RunDetailPage />} />
           <Route path="/calibration" element={<CalibrationPage />} />

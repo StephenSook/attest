@@ -1,0 +1,335 @@
+.landing {
+  position: relative;
+  overflow-x: clip;
+}
+
+/* ---- fixed film layer + paper fallback ---- */
+.landing-film {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(120% 90% at 20% 10%, #fffdf7 0%, transparent 60%),
+    radial-gradient(120% 120% at 85% 90%, #f0ede2 0%, transparent 55%),
+    var(--color-paper);
+}
+.landing-film video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.55;
+}
+.landing-film-veil {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklab, var(--color-paper) 55%, transparent),
+    color-mix(in oklab, var(--color-paper) 30%, transparent) 40%,
+    color-mix(in oklab, var(--color-paper) 75%, transparent)
+  );
+}
+
+/* ---- persistent notary frame ---- */
+.frame-marks {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+  font-family: var(--font-display);
+  font-size: 22px;
+  color: var(--color-ink-faint);
+}
+.frame-marks span {
+  position: fixed;
+}
+.frame-marks span:nth-child(1) { top: 14px; left: 18px; }
+.frame-marks span:nth-child(2) { top: 14px; right: 18px; }
+.frame-marks span:nth-child(3) { bottom: 12px; left: 18px; }
+.frame-marks span:nth-child(4) { bottom: 12px; right: 18px; }
+
+.landing-top {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 35;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 1rem 3.5rem;
+}
+.landing-nav {
+  display: flex;
+  gap: 1.25rem;
+  font-family: var(--font-evidence);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.landing-nav a {
+  color: var(--color-ink-soft);
+}
+.landing-nav a:hover,
+.landing-nav a:focus-visible {
+  color: var(--color-trust);
+}
+
+/* ---- chapters ---- */
+.chapter {
+  position: relative;
+  min-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 12vh clamp(1.5rem, 7vw, 7rem);
+  max-width: 68rem;
+  margin: 0 auto;
+}
+
+.kicker {
+  font-family: var(--font-evidence);
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-trust);
+  margin-bottom: 1.25rem;
+}
+
+.hero {
+  min-height: 100vh;
+}
+.hero-line {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(2.6rem, 7.2vw, 6rem);
+  line-height: 1.02;
+  letter-spacing: -0.015em;
+}
+.hero .char {
+  display: inline-block;
+  white-space: pre;
+}
+.scroll-cue {
+  margin-top: 3.5rem;
+  font-family: var(--font-evidence);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--color-ink-faint);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.cue-line {
+  width: 72px;
+  height: 1px;
+  background: var(--color-ink-faint);
+  display: inline-block;
+  animation: cue 2.2s ease-in-out infinite;
+  transform-origin: left center;
+}
+@keyframes cue {
+  0%, 100% { transform: scaleX(0.3); opacity: 0.5; }
+  50% { transform: scaleX(1); opacity: 1; }
+}
+
+.ch-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(2rem, 4.6vw, 3.6rem);
+  line-height: 1.08;
+  max-width: 20ch;
+}
+.ch-body {
+  margin-top: 1.25rem;
+  max-width: 46ch;
+  font-size: 1.05rem;
+  color: var(--color-ink-soft);
+}
+
+/* ---- stats ---- */
+.stat-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2.5rem;
+  margin-top: 3rem;
+}
+.stat-n {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(2.2rem, 4.4vw, 3.4rem);
+  color: var(--color-ink);
+}
+.stat-l {
+  display: block;
+  max-width: 18ch;
+  margin-top: 0.35rem;
+  font-family: var(--font-evidence);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--color-ink-soft);
+}
+
+/* ---- chapter 3: the call sheet ---- */
+.call-sheet {
+  margin-top: 3rem;
+  border-top: 1px solid var(--color-rule);
+  max-width: 44rem;
+}
+.call-line {
+  display: flex;
+  gap: 1.25rem;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid var(--color-rule);
+  align-items: baseline;
+}
+.call-at {
+  font-family: var(--font-evidence);
+  font-size: 11px;
+  color: var(--color-ink-faint);
+  width: 2.4rem;
+}
+.call-who {
+  font-family: var(--font-evidence);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  width: 3rem;
+}
+.call-bot .call-who { color: var(--color-ink-faint); }
+.call-user .call-who { color: var(--color-trust); }
+.call-text { font-size: 1.05rem; }
+.call-user .call-text {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 600;
+}
+
+.ev-holder {
+  position: relative;
+  display: inline-block;
+}
+.ev-mark {
+  position: absolute;
+  inset: -2px -4px;
+  background: var(--color-trust-soft);
+  border-bottom: 2px solid var(--color-trust);
+  border-radius: 3px;
+  z-index: -1;
+}
+
+/* ---- chapter 4: bits meter ---- */
+.bits-meter {
+  margin-top: 3rem;
+  max-width: 34rem;
+}
+.meter-rail {
+  height: 14px;
+  border-radius: 4px;
+  background: var(--color-paper-deep);
+  border: 1px solid var(--color-rule);
+  overflow: hidden;
+}
+.meter-fill {
+  height: 100%;
+  background: var(--color-trust);
+  border-radius: 3px;
+}
+.meter-caption {
+  margin-top: 0.75rem;
+  font-family: var(--font-evidence);
+  font-size: 12px;
+  color: var(--color-ink-soft);
+}
+
+/* ---- chapter 5: coverage chart ---- */
+.cov-wrap {
+  margin-top: 2.5rem;
+}
+.cov-chart {
+  width: min(100%, 34rem);
+  height: auto;
+  overflow: visible;
+}
+.cov-ideal {
+  stroke: var(--color-ink-faint);
+  stroke-dasharray: 5 5;
+  stroke-width: 1.2;
+}
+.cov-line {
+  stroke: var(--color-trust);
+  stroke-width: 2.5;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.cov-note {
+  font-family: var(--font-evidence);
+  font-size: 10px;
+  fill: var(--color-ink-faint);
+}
+
+/* ---- close ---- */
+.cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 2.5rem;
+}
+.cta-primary,
+.cta-secondary {
+  font-family: var(--font-evidence);
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.85rem 1.6rem;
+  border-radius: 8px;
+  transition: transform 160ms ease, background 160ms ease, color 160ms ease;
+}
+.cta-primary {
+  background: var(--color-ink);
+  color: var(--color-paper);
+}
+.cta-primary:hover,
+.cta-primary:focus-visible {
+  background: var(--color-trust);
+  transform: translateY(-2px);
+}
+.cta-secondary {
+  border: 1px solid var(--color-rule);
+  color: var(--color-ink);
+}
+.cta-secondary:hover,
+.cta-secondary:focus-visible {
+  border-color: var(--color-trust);
+  color: var(--color-trust);
+}
+.close-foot {
+  display: flex;
+  gap: 2rem;
+  margin-top: 4rem;
+  font-family: var(--font-evidence);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.close-foot a,
+.close-foot button {
+  color: var(--color-ink-faint);
+  cursor: pointer;
+}
+.close-foot a:hover,
+.close-foot button:hover,
+.close-foot a:focus-visible,
+.close-foot button:focus-visible {
+  color: var(--color-trust);
+}
+
+@media (max-width: 640px) {
+  .landing-top { padding: 0.85rem 1.25rem; }
+  .frame-marks { font-size: 16px; }
+  .chapter { min-height: 84vh; }
+  .call-line { flex-wrap: wrap; }
+}
