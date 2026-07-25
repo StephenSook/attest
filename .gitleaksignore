@@ -1,0 +1,4 @@
+# Hand-verified false positives only. Each fingerprint checked against its commit.
+# generic-api-key tripping on the test fixture constant idempotency_key="run_api";
+# a literal test string, no credential. Verified 2026-07-25.
+1179b79840451ae65f74fb12238e273c57b16ea7:tests/test_console_api.py:generic-api-key:31
