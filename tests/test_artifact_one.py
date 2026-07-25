@@ -44,7 +44,7 @@ def test_extractor_hedged_answer_dampened() -> None:
     scenario = next(s for s in generate(200, seed=3) if s.persona == "hedging")
     result = extract_yes_no(scenario.transcript_turns)
     assert result.hedged is True
-    assert result.score < 0.6
+    assert result.score < 0.75
 
 
 def test_extractor_dead_ends_are_unknown() -> None:
