@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+@theme {
+  --color-paper: #faf9f5;
+  --color-paper-deep: #f2f0e9;
+  --color-ink: #191712;
+  --color-ink-soft: #5c584d;
+  --color-ink-faint: #a09b8c;
+  --color-rule: #e4e1d6;
+  --color-trust: #2456d6;
+  --color-trust-soft: #e3eafc;
+  --color-doubt: #c25e00;
+  --color-doubt-soft: #fbeadb;
+  --color-contra: #a52020;
+  --color-contra-soft: #f8e4e4;
+
+  --font-display: "Fraunces", "Georgia", serif;
+  --font-body: "Source Sans 3", "Helvetica Neue", sans-serif;
+  --font-evidence: "IBM Plex Mono", "Menlo", monospace;
+}
+
+html {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+}
+
+/* Ruled-ledger surface: faint horizontal rules like an audit book. */
+.ledger {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 27px,
+    var(--color-rule) 27px,
+    var(--color-rule) 28px
+  );
+}
+
+/* The signature interaction: a supporting span marked like a citation. */
+.evidence-span {
+  background: var(--color-trust-soft);
+  border-bottom: 2px solid var(--color-trust);
+  padding: 0 0.15em;
+  border-radius: 2px;
+  transition: background 160ms ease;
+}
+.evidence-span[data-live="true"] {
+  background: color-mix(in oklab, var(--color-trust) 22%, white);
+}
+
+/* Verdict stamp: rotated, bordered, inked. */
+.stamp {
+  font-family: var(--font-evidence);
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  border: 2.5px solid currentColor;
+  border-radius: 6px;
+  padding: 0.3rem 0.9rem;
+  transform: rotate(-4deg);
+  display: inline-block;
+  mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='60'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.92 0'/></filter><rect width='120' height='60' filter='url(%23n)' fill='white'/></svg>");
+  mask-size: 120px 60px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
