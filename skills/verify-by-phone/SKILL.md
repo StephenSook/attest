@@ -51,6 +51,15 @@ These are load-bearing, not boilerplate:
 6. Reconcile against the stored record with `scripts/reconcile_record.py`: each agreeing field adds documented bits of evidence, each disagreeing field subtracts them, and the verdict is verified, contradicted, or unverifiable.
 7. Calibrate the abstention threshold with `scripts/calibrate.py` on labeled scenario data, so "confident" means something measurable: at the default level, the true answer falls inside the prediction set at least 90 percent of the time on held-out data, and the system abstains rather than answer when the set is not a single value.
 
+## Maintenance Note
+
+The scripts in this skill are self-contained copies of the reference
+implementation in the Attest backend (backend/app in the source repository).
+They are kept small on purpose so the skill installs with no dependencies on
+that repository. When the reference implementation changes behavior (cue
+lexicons, hedge dampening, reconciliation priors), sync the matching script
+here in the same change.
+
 ## Quick Start
 
 ```bash

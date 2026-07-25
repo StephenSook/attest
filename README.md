@@ -25,7 +25,7 @@ Every figure and number below comes from `uv run python -m eval`: fixed seed 202
 
 ![Match-weight waterfall](eval/results/match_weight_waterfall.png)
 
-Ablations (same folds): remove hedge detection and accuracy-when-answering drops to 89.1 percent; remove the dead-end guard and wrong-number calls start "answering"; remove conformal calibration and the coverage guarantee disappears entirely. The full table is in `eval/results/ablation.md`.
+Ablations (same folds): remove hedge detection and accuracy-when-answering drops to 89.1 percent; remove the dead-end guard and wrong-number chatter gets parsed as answers: accuracy when answering drops to 89.8 percent while abstention balloons to 54.3 percent; remove conformal calibration and the coverage guarantee disappears entirely. The full table is in `eval/results/ablation.md`.
 
 ## Where the load-bearing CALL-E call lives
 
@@ -42,7 +42,7 @@ docker compose up --build
 Or natively:
 
 ```bash
-uv sync && uv run pytest          # 87 tests, no network, no real calls ever
+uv sync && uv run pytest          # 94 tests, no network, no real calls ever
 uv run python -m eval             # regenerates every number and figure above
 uv run python scripts/seed_replay.py
 uv run uvicorn app.main:app       # backend on :8000

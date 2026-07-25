@@ -1,7 +1,10 @@
 """The verification result contract.
 
-This Pydantic model IS the source of truth: the strict JSON Schema sent to
-CALL-E as result_schema is generated from it, so the two can never drift.
+This Pydantic model IS the source of truth: the strict JSON Schema is
+generated from it, so the two can never drift. The live CALL-E API currently
+rejects result_schema on call creation (verified 2026-07-25), so the schema
+is not sent upstream today; it still governs our own post-call validation
+and is ready to send the day the platform accepts it.
 """
 
 from enum import StrEnum
