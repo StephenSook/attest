@@ -47,3 +47,43 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
         conn.execute(pragma)
     conn.executescript(_SCHEMA)
     return conn
+
+
+def create_run(conn: sqlite3.Connection, *, run_id: str, idempotency_key: str) -> None:
+    conn.execute(
+        "INSERT INTO call_runs (run_id, idempotency_key, state) VALUES (?, ?, 'created')",
+        (run_id, idempotency_key),
+    )
+    conn.commit()
+
+
+def set_calle_call_id(conn: sqlite3.Connection, run_id: str, calle_call_id: str) -> None:
+    conn.execute(
+        "UPDATE call_runs SET calle_call_id = ?, "
+        "updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE run_id = ?",
+        (calle_call_id, run_id),
+    )
+    conn.commit()
+
+
+def get_run(conn: sqlite3.Connection, run_id: str) -> sqlite3.Row | None:
+    row: sqlite3.Row | None = conn.execute(
+        "SELECT * FROM call_runs WHERE run_id = ?", (run_id,)
+    ).fetchone()
+    return row
+
+
+def get_run_by_calle_call_id(conn: sqlite3.Connection, calle_call_id: str) -> sqlite3.Row | None:
+    row: sqlite3.Row | None = conn.execute(
+        "SELECT * FROM call_runs WHERE calle_call_id = ?", (calle_call_id,)
+    ).fetchone()
+    return row
+
+
+def pollable_runs(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Non-terminal runs that CALL-E knows about. What the poller resumes from."""
+    return list(
+        conn.execute(
+            "SELECT * FROM call_runs WHERE state = 'submitted' AND calle_call_id IS NOT NULL"
+        )
+    )
