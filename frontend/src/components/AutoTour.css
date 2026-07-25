@@ -3,6 +3,43 @@
   right: 1.25rem;
   bottom: 1.25rem;
   z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.auto-tour-restart,
+.auto-tour-speed {
+  border: 1px solid var(--color-rule);
+  background: color-mix(in oklab, var(--color-paper) 88%, white);
+  border-radius: 999px;
+  padding: 0.45rem 0.7rem;
+  cursor: pointer;
+  font-family: var(--font-evidence);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+  transition: border-color 160ms ease, color 160ms ease;
+}
+
+.auto-tour-restart:hover,
+.auto-tour-speed:hover,
+.auto-tour-restart:focus-visible,
+.auto-tour-speed:focus-visible {
+  border-color: var(--color-trust);
+  color: var(--color-ink);
+  outline: none;
+}
+
+.auto-tour-restart:focus-visible,
+.auto-tour-speed:focus-visible {
+  box-shadow: 0 0 0 2px var(--color-trust);
+}
+
+.auto-tour-pct {
+  color: var(--color-ink-faint);
+  font-variant-numeric: tabular-nums;
 }
 
 .auto-tour-button {
