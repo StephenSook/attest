@@ -3,12 +3,12 @@ name: Keepalive
 # Keeps the free-tier backend warm through the judging window (Sep 30 to Oct 13).
 # Offset minute list on purpose: contended schedules (*/N, :00) get throttled by
 # GitHub's scheduler. Verify this monitor by the NEWEST RUN'S AGE, not green runs.
-# The cron line stays commented until the backend is deployed; enable it then.
+# Enabled 2026-07-25 against the live Render backend.
 
 on:
   workflow_dispatch:
-  # schedule:
-  #   - cron: "4,14,24,34,44,54 * * * *"
+  schedule:
+    - cron: "4,14,24,34,44,54 * * * *"
 
 jobs:
   ping:
