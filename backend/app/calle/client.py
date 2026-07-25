@@ -27,8 +27,15 @@ class CalleService:
     """One outbound verification call at a time. No batching, by design."""
 
     def __init__(self, *, api_key: str | None = None, base_url: str | None = None) -> None:
+        resolved_key = api_key if api_key is not None else os.environ.get("CALLE_API_KEY", "")
+        if not resolved_key:
+            # An empty key would produce the header "Bearer " with a trailing
+            # space, which h11 rejects as an illegal header value BEFORE any
+            # connection, surfacing as a confusing connection error. Use a
+            # legal placeholder instead; the live API still 401s it properly.
+            resolved_key = "unset-api-key"
         self._client = CalleClient(
-            api_key=api_key if api_key is not None else os.environ.get("CALLE_API_KEY", ""),
+            api_key=resolved_key,
             base_url=base_url if base_url is not None else _default_base_url(),
         )
 
