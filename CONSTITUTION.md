@@ -20,7 +20,12 @@ Definition of done, demo flow, and the budgets this project is governed by. When
 5. An abstention, with its coverage number, on a call where the answer was hedged.
 6. The reliability diagram and risk-coverage curve, regenerated live from the eval command.
 
-## Call budget (20 free calls until the +200 request lands)
+## Call budget
+
+Pricing intel (CALL-E Discord, PM statements, 2026-07-25): $0.05 per billable call, so the
+current $6.00 balance is roughly 120 calls. No-answer and failed routes are free; voicemail
+and low-confidence results charge the call fee only. The table below stays deliberately
+conservative; every real call still gets logged, and no automated test ever dials.
 
 | Purpose | Calls | Notes |
 | --- | --- | --- |
