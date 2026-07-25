@@ -1,22 +1,68 @@
 {
-  "id": "call_mock_placeholder",
+  "id": "call_mock_fixture_0001",
+  "object": "call_task",
   "status": "completed",
-  "structuredResult": {
-    "accepting_new_patients": "yes",
-    "phone_reached_office": true,
-    "notes": "Placeholder payload from the documented CALL-E envelope. Replaced by a scrubbed real terminal payload after the first probe call."
+  "task": "Consented systems test call. Ask whether the office is currently accepting new patients.",
+  "recipients": [
+    {
+      "id": "rcp_mock_fixture_0001",
+      "phones": ["+15550101234"],
+      "locale": null,
+      "region": null,
+      "status": "completed",
+      "structured_result": null,
+      "summary": "The call completed successfully. The respondent answered that they are currently accepting new patients.",
+      "attempts": [
+        {
+          "id": "att_mock_fixture_0001",
+          "phone": "+15550101234",
+          "status": "completed",
+          "started_at": "2026-07-25T19:50:38.317100Z",
+          "completed_at": "2026-07-25T19:51:33.151301Z",
+          "summary": "The call completed successfully. The respondent answered that they are currently accepting new patients.",
+          "transcript_turns": [
+            {"offset_seconds": 0, "speaker": "bot", "text": "Hi,"},
+            {"offset_seconds": 0, "speaker": "bot", "text": "this is an automated assistant calling on behalf of Stephen for a consented test of his verification system."},
+            {"offset_seconds": 6, "speaker": "bot", "text": "This call may be recorded."},
+            {"offset_seconds": 13, "speaker": "user", "text": "Hello?"},
+            {"offset_seconds": 14, "speaker": "bot", "text": "For the test,"},
+            {"offset_seconds": 15, "speaker": "bot", "text": "are you currently accepting new patients?"},
+            {"offset_seconds": 19, "speaker": "user", "text": "Yep."},
+            {"offset_seconds": 21, "speaker": "bot", "text": "Got it, thanks."},
+            {"offset_seconds": 27, "speaker": "bot", "text": "Can you still hear me?"},
+            {"offset_seconds": 30, "speaker": "user", "text": "Yep."},
+            {"offset_seconds": 32, "speaker": "bot", "text": "Thanks."},
+            {"offset_seconds": 38, "speaker": "bot", "text": "For the test,"},
+            {"offset_seconds": 39, "speaker": "bot", "text": "are you currently accepting new patients?"},
+            {"offset_seconds": 43, "speaker": "user", "text": "Yeah."},
+            {"offset_seconds": 44, "speaker": "bot", "text": "Got it."},
+            {"offset_seconds": 51, "speaker": "bot", "text": "Can you still hear me?"}
+          ],
+          "provider_call_id": "mock_provider_call_0001",
+          "failure_code": null,
+          "failure_message": null
+        }
+      ]
+    }
+  ],
+  "structured_result": null,
+  "summary": "The call completed successfully. The respondent answered that they are currently accepting new patients.",
+  "task_completed": true,
+  "completion_confidence": {
+    "score": 0.92,
+    "label": "high"
   },
-  "resultValidation": {
-    "valid": true,
-    "errors": []
+  "evidence": [
+    "A live person answered the call.",
+    "The required test disclosure and question were delivered.",
+    "The respondent answered affirmatively to the new-patient question."
+  ],
+  "metadata": {
+    "purpose": "probe",
+    "budget_line": "probe"
   },
-  "recordingUrl": "https://example.invalid/recordings/placeholder.mp3",
-  "transcriptUrl": "https://example.invalid/transcripts/placeholder.json",
-  "recipient": "+15550101234",
-  "events": [
-    {"seq": 1, "type": "call.queued", "at": "2026-07-24T00:00:00Z"},
-    {"seq": 2, "type": "call.dialing", "at": "2026-07-24T00:00:05Z"},
-    {"seq": 3, "type": "call.connected", "at": "2026-07-24T00:00:12Z"},
-    {"seq": 4, "type": "call.completed", "at": "2026-07-24T00:02:40Z"}
-  ]
+  "failure_code": null,
+  "failure_message": null,
+  "created_at": "2026-07-25T19:49:48.819797Z",
+  "completed_at": "2026-07-25T19:51:41.534966Z"
 }
