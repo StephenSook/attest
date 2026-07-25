@@ -29,7 +29,9 @@ As of late July 2026 the live API rejects both `result_schema` and `recipient_re
 
 ## Webhooks
 
-Terminal webhooks are signed with HMAC-SHA256 over `timestamp + "." + raw_body`, delivered in `CALL-E-Signature: v1=<hex>` with a `CALL-E-Timestamp` header. The SDK's verifier checks the signature but not timestamp freshness, so verifiers should enforce their own replay window over the exact raw bytes before parsing.
+The SDK ships a verifier for HMAC-SHA256 signatures over `timestamp + "." + raw_body` (`CALL-E-Signature: v1=<hex>` plus `CALL-E-Timestamp`), and its verifier checks the signature but not timestamp freshness, so integrators should enforce their own replay window over the exact raw bytes.
+
+Observed live, late July 2026: `webhook_url` on call creation is ACCEPTED silently but NO webhook was delivered for a completed call (verified with a public tunnel capturing all traffic; the call reached terminal, the tunnel stayed healthy, nothing arrived). Until delivery demonstrably works, treat polling `GET /v1/calls/{id}` as the authoritative terminal path and the webhook as a future optimization, and keep any webhook receiver fail-closed.
 
 ## Billing behaviors relevant to verification runs
 
