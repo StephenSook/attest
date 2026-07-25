@@ -10,6 +10,7 @@ score clears the abstention bar.
 import re
 from dataclasses import dataclass
 
+from app.hedge import MAX_DAMPEN
 from app.hedge import analyze as analyze_hedges
 from app.models import Answer
 
@@ -144,7 +145,10 @@ def extract_yes_no(
         )
     if yes_hits and no_hits:
         # Contradiction: trust the LAST clear statement, at low score.
-        final = max(yes_hits + no_hits, key=lambda hit: hit.turn)
+        # Tie-break by character offset so a same-turn contradiction
+        # ('Yes... actually no') trusts the LAST statement, not the list
+        # order of the candidates.
+        final = max(yes_hits + no_hits, key=lambda hit: (hit.turn, hit.char_start))
         answer = Answer.YES if final in yes_hits else Answer.NO
         return ExtractionResult(
             answer,
@@ -160,7 +164,7 @@ def extract_yes_no(
         hits = yes_hits or no_hits
         answer = Answer.YES if yes_hits else Answer.NO
         score = min(0.9 + 0.02 * (len(hits) - 1), 0.98)
-        score *= 1.0 - 0.55 * hedge_strength
+        score *= 1.0 - MAX_DAMPEN * hedge_strength
         first = hits[0]
         return ExtractionResult(
             answer,
