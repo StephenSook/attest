@@ -1,0 +1,22 @@
+{
+  "id": "call_mock_placeholder",
+  "status": "completed",
+  "structuredResult": {
+    "accepting_new_patients": "yes",
+    "phone_reached_office": true,
+    "notes": "Placeholder payload from the documented CALL-E envelope. Replaced by a scrubbed real terminal payload after the first probe call."
+  },
+  "resultValidation": {
+    "valid": true,
+    "errors": []
+  },
+  "recordingUrl": "https://example.invalid/recordings/placeholder.mp3",
+  "transcriptUrl": "https://example.invalid/transcripts/placeholder.json",
+  "recipient": "+15550101234",
+  "events": [
+    {"seq": 1, "type": "call.queued", "at": "2026-07-24T00:00:00Z"},
+    {"seq": 2, "type": "call.dialing", "at": "2026-07-24T00:00:05Z"},
+    {"seq": 3, "type": "call.connected", "at": "2026-07-24T00:00:12Z"},
+    {"seq": 4, "type": "call.completed", "at": "2026-07-24T00:02:40Z"}
+  ]
+}
