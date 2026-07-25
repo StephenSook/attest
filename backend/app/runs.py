@@ -13,6 +13,27 @@ from app.calle.client import CalleService
 logger = logging.getLogger(__name__)
 
 
+def build_task(org: str, claims: dict[str, str]) -> str:
+    """The disclosure-first call script. Server-owned: disclosure is not
+    something a client is allowed to omit."""
+    questions = ["whether the practice is currently accepting new patients"]
+    plan = claims.get("plan_name")
+    if plan:
+        questions.append(f"whether the practice currently accepts {plan}")
+    asks = "; and ".join(questions)
+    return (
+        f"You are placing a short verification call to {org} on behalf of a records "
+        "verification service. Open with: 'Hi, this is an automated assistant calling "
+        f"to verify directory information for {org}. This call may be recorded.' "
+        f"Then politely ask: {asks}. Record the answers exactly as given. If the person "
+        "hedges, capture their exact wording. If they decline to speak with an automated "
+        "caller, thank them and end the call immediately. If asked to hold, wait briefly, "
+        "then thank them and end the call rather than waiting indefinitely. Never guess: "
+        "anything not clearly stated must be recorded as unknown. Keep the call under two "
+        "minutes and always remain polite."
+    )
+
+
 async def start_verification_run(
     service: CalleService,
     database: Path,

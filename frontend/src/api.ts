@@ -110,7 +110,6 @@ export async function startRun(input: {
   judgeKey: string;
   org: string;
   phone: string;
-  task: string;
   claims: Record<string, string>;
 }): Promise<{ run_id: string }> {
   const response = await fetch(`${BASE}/internal/runs`, {
@@ -120,7 +119,6 @@ export async function startRun(input: {
       "X-Attest-Key": input.judgeKey,
     },
     body: JSON.stringify({
-      task: input.task,
       phone: input.phone,
       org: input.org,
       claims: input.claims,

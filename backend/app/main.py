@@ -116,8 +116,8 @@ async def api_run_detail(run_id: str) -> dict[str, object]:
         detail["analysis"] = analysis.analyze_run(row)
     elif payload and row["state"] in {"failed", "canceled"}:
         detail["failure"] = {
-            "error": payload.get("error", "unknown failure"),
-            "stage": payload.get("stage", "unknown"),
+            "error": str(payload.get("error", "unknown failure"))[:200],
+            "stage": str(payload.get("stage", "unknown"))[:60],
         }
     return detail
 
@@ -132,9 +132,8 @@ async def api_metrics() -> dict[str, object]:
 
 
 class StartRunRequest(BaseModel):
-    task: str = Field(min_length=1)
     phone: str = Field(pattern=r"^\+1\d{10}$")
-    org: str | None = None
+    org: str = Field(min_length=2, max_length=120)
     claims: dict[str, str] = Field(default_factory=dict)
 
 
@@ -166,8 +165,11 @@ async def start_run(
 ) -> dict[str, str]:
     _require_internal_key(x_attest_key)
     record: dict[str, object] = {"org": body.org, "claims": body.claims}
+    # The disclosure-first task is built server-side: no client can submit a
+    # call script with the disclosure removed.
+    task = runs.build_task(body.org, body.claims)
     async with _submission_lock:
         run_id = await runs.start_verification_run(
-            _get_service(), db.db_path(), task=body.task, phone=body.phone, record=record
+            _get_service(), db.db_path(), task=task, phone=body.phone, record=record
         )
     return {"run_id": run_id}
