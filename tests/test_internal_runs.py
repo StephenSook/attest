@@ -27,7 +27,7 @@ async def test_unconfigured_key_fails_closed_503(
     monkeypatch.delenv("ATTEST_JUDGE_KEY", raising=False)
     async with _client() as client:
         response = await client.post(
-            "/internal/runs", json={"task": "verify", "phone": "+15550101234"}
+            "/internal/runs", json={"org": "Test Practice", "phone": "+15550101234"}
         )
     assert response.status_code == 503
 
@@ -38,7 +38,7 @@ async def test_wrong_key_403(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     async with _client() as client:
         response = await client.post(
             "/internal/runs",
-            json={"task": "verify", "phone": "+15550101234"},
+            json={"org": "Test Practice", "phone": "+15550101234"},
             headers={"X-Attest-Key": "wrong-key"},
         )
     assert response.status_code == 403
@@ -58,7 +58,7 @@ async def test_correct_key_creates_submitted_run(
     async with _client() as client:
         response = await client.post(
             "/internal/runs",
-            json={"task": "verify listing", "phone": "+15550101234"},
+            json={"org": "Test Practice", "phone": "+15550101234"},
             headers={"X-Attest-Key": "right-key"},
         )
     assert response.status_code == 201
@@ -79,7 +79,7 @@ async def test_invalid_phone_shape_rejected(
     async with _client() as client:
         response = await client.post(
             "/internal/runs",
-            json={"task": "verify", "phone": "not-a-number"},
+            json={"org": "Test Practice", "phone": "not-a-number"},
             headers={"X-Attest-Key": "right-key"},
         )
     assert response.status_code == 422

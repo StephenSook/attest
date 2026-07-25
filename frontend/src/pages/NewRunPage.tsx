@@ -19,20 +19,10 @@ export default function NewRunPage() {
     setBusy(true);
     setError(null);
     try {
-      const task =
-        `You are placing a short verification call to ${org} on behalf of a records ` +
-        "verification service. Open with: 'Hi, this is an automated assistant calling " +
-        `to verify directory information for ${org}. This call may be recorded.' ` +
-        "Then politely ask whether the practice is currently accepting new patients. " +
-        "Record the answer exactly as given. If the person hedges, capture their exact " +
-        "wording. If they decline to speak with an automated caller, thank them and end " +
-        "the call immediately. Never guess: anything not clearly stated is unknown. " +
-        "Keep the call under two minutes.";
       const { run_id } = await startRun({
         judgeKey,
         org,
         phone,
-        task,
         claims: { accepting_new_patients: accepting },
       });
       navigate(`/runs/${run_id}`);
