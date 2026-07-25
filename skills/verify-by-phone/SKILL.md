@@ -92,7 +92,7 @@ All sample numbers in this skill are reserved fictional numbers. The dry run pat
   "answer": "yes",
   "trust_score": 0.9,
   "hedged": false,
-  "span": {"turn": 6, "text": "Yep.", "char_start": 0, "char_end": 4},
+  "span": {"turn": 6, "text": "Yep.", "char_start": 0, "char_end": 3},
   "abstain": false
 }
 ```
