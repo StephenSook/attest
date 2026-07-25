@@ -12,30 +12,30 @@
       0.8646174890590971,
       0.9318501440760628
     ],
-    "abstention_rate": 0.29000000000000004,
-    "accuracy_when_answering": 0.9624413145539906
+    "abstention_rate": 0.2666666666666667,
+    "accuracy_when_answering": 0.9454545454545454
   },
   "per_alpha": [
     {
       "alpha": 0.05,
       "target": 0.95,
-      "empirical_coverage": 0.9733333333333334,
-      "abstention_rate": 0.29000000000000004,
-      "accuracy_when_answering": 0.9624413145539906
+      "empirical_coverage": 0.9866666666666667,
+      "abstention_rate": 0.29333333333333333,
+      "accuracy_when_answering": 0.9811320754716981
     },
     {
       "alpha": 0.1,
       "target": 0.9,
       "empirical_coverage": 0.9033333333333333,
-      "abstention_rate": 0.29000000000000004,
-      "accuracy_when_answering": 0.9624413145539906
+      "abstention_rate": 0.2666666666666667,
+      "accuracy_when_answering": 0.9454545454545454
     },
     {
       "alpha": 0.15,
       "target": 0.85,
       "empirical_coverage": 0.8433333333333334,
-      "abstention_rate": 0.29000000000000004,
-      "accuracy_when_answering": 0.9624413145539906
+      "abstention_rate": 0.1166666666666667,
+      "accuracy_when_answering": 0.8905660377358491
     },
     {
       "alpha": 0.2,
@@ -59,5 +59,35 @@
       "accuracy_when_answering": 1.0
     }
   ],
+  "ablation": [
+    {
+      "config": "full",
+      "coverage": 0.9033333333333333,
+      "abstention_rate": 0.2666666666666667,
+      "accuracy_when_answering": 0.9454545454545454
+    },
+    {
+      "config": "no_hedge",
+      "coverage": 0.9033333333333333,
+      "abstention_rate": 0.1166666666666667,
+      "accuracy_when_answering": 0.8905660377358491
+    },
+    {
+      "config": "no_dead_end",
+      "coverage": 0.9533333333333334,
+      "abstention_rate": 0.5433333333333333,
+      "accuracy_when_answering": 0.8978102189781022
+    },
+    {
+      "config": "no_calibration",
+      "coverage": null,
+      "abstention_rate": 0.1166666666666667,
+      "accuracy_when_answering": 0.8905660377358491
+    }
+  ],
+  "reconciliation_example": {
+    "verdict": "verified",
+    "posterior_probability": 0.890625
+  },
   "provenance": "scripted seeded personas; disjoint folds; never presented as real calls"
 }
