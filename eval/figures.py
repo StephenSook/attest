@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
+from app.reconcile import Reconciliation
 from eval.conformal import ConformalReport, wilson_interval
 
 _SERIES = "#2563eb"
@@ -22,6 +23,8 @@ _REFERENCE = "#9ca3af"
 _INK = "#111827"
 _MUTED = "#6b7280"
 _GRID = "#e5e7eb"
+_AGREE = "#2563eb"
+_DISAGREE = "#d97706"
 
 
 def _style(ax: Axes) -> None:
@@ -115,4 +118,87 @@ def risk_coverage(
     fig.tight_layout(rect=(0, 0.04, 1, 1))
     fig.savefig(out_dir / "risk_coverage.png")
     fig.savefig(out_dir / "risk_coverage.svg")
+    plt.close(fig)
+
+
+def match_weight_waterfall(recon: Reconciliation, seed: int, out_dir: Path) -> None:
+    """The reconciliation arithmetic, drawn: prior, one bar per field of
+    evidence, posterior. Diverging hues: agreement adds blue bits of evidence,
+    disagreement subtracts orange ones. Unknowns contribute nothing and say so.
+    """
+    fig, ax = plt.subplots(figsize=(8.8, 4.6), dpi=160)
+
+    labels = ["prior\n(50/50 audit odds)"]
+    steps = [recon.prior_log_odds]
+    colors = [_REFERENCE]
+    for contribution in recon.contributions:
+        pretty = contribution.field.replace("_", " ")
+        if contribution.agreed is None:
+            labels.append(f"{pretty}\n(no evidence)")
+            steps.append(0.0)
+            colors.append(_GRID)
+        else:
+            word = "agrees" if contribution.agreed else "disagrees"
+            labels.append(f"{pretty}\n({word})")
+            steps.append(contribution.weight_bits)
+            colors.append(_AGREE if contribution.agreed else _DISAGREE)
+
+    cumulative = 0.0
+    for index, (step, color) in enumerate(zip(steps, colors, strict=True)):
+        ax.bar(index, step, bottom=cumulative, width=0.55, color=color, zorder=3)
+        cumulative += step
+        if index < len(steps) - 1:
+            ax.plot(
+                [index + 0.28, index + 0.72],
+                [cumulative, cumulative],
+                color=_MUTED,
+                linewidth=0.8,
+                zorder=2,
+            )
+        if abs(step) > 0.01:
+            ax.text(
+                index,
+                cumulative + (0.12 if step >= 0 else -0.22),
+                f"{step:+.2f}",
+                ha="center",
+                fontsize=8,
+                color=_INK,
+            )
+
+    final_index = len(steps)
+    ax.bar(final_index, cumulative, width=0.55, color=_INK, zorder=3)
+    ax.text(
+        final_index,
+        cumulative + 0.12,
+        f"{recon.posterior_probability:.0%} accurate\n{recon.verdict.upper()}",
+        ha="center",
+        fontsize=8,
+        color=_INK,
+    )
+    labels.append("posterior")
+
+    ax.axhline(0, color=_GRID, linewidth=0.8)
+    top = max(cumulative, max(steps, default=0.0)) + 1.1
+    bottom = min(0.0, cumulative) - 0.4
+    ax.set_ylim(bottom, top)
+    ax.set_xticks(range(len(labels)), labels, fontsize=7.5, color=_INK)
+    ax.set_ylabel("Match weight (bits of evidence)", color=_INK, fontsize=10)
+    ax.set_title(
+        "Why this listing was believed: the match-weight arithmetic",
+        color=_INK,
+        fontsize=11,
+        loc="left",
+    )
+    _style(ax)
+    fig.text(
+        0.01,
+        0.01,
+        f"Fellegi-Sunter reconciliation, fixed documented m/u priors. "
+        f"Harness scenario, seed={seed}.",
+        fontsize=7,
+        color=_MUTED,
+    )
+    fig.tight_layout(rect=(0, 0.05, 1, 1))
+    fig.savefig(out_dir / "match_weight_waterfall.png")
+    fig.savefig(out_dir / "match_weight_waterfall.svg")
     plt.close(fig)
