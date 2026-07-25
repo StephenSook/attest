@@ -3,17 +3,22 @@ import { useEffect, useRef, useState } from "react";
 import { getLenis } from "./SmoothScroll";
 import "./AutoTour.css";
 
-const TOUR_SECONDS = 45;
+const TOUR_SECONDS = 20; // full page at 1x; 2x halves it
 
 /* Minimal fixed tour control. A single linear GSAP tween drives scroll
    position through Lenis (or native scrollTo as the fallback). Progress is
-   normalized to document height. Any manual input pauses; Escape stops
-   without moving the reader's position; leaving the page kills the tween.
-   Status changes are announced through an aria-live region. */
+   normalized to document height and rendered through refs: no React
+   re-render per animation frame. Any manual input pauses; Escape stops
+   without moving the reader's position; leaving the page kills the tween. */
 export default function AutoTour() {
-  const [state, setState] = useState<"idle" | "touring" | "paused">("idle");
+  const [state, setState] = useState<"idle" | "touring" | "paused" | "done">("idle");
+  const [speed, setSpeed] = useState<1 | 2>(1);
   const tween = useRef<gsap.core.Tween | null>(null);
   const ringRef = useRef<SVGCircleElement | null>(null);
+  const pctRef = useRef<HTMLSpanElement | null>(null);
+  const restartRef = useRef<HTMLButtonElement | null>(null);
+  const speedRef = useRef<1 | 2>(1);
+  speedRef.current = speed;
 
   useEffect(() => {
     const pause = () => {
@@ -51,15 +56,29 @@ export default function AutoTour() {
     };
   }, []);
 
-  const start = () => {
-    if (state === "paused" && tween.current) {
-      tween.current.resume();
-      setState("touring");
-      return;
+  const paint = (y: number, max: number) => {
+    const p = max > 0 ? Math.min(y / max, 1) : 0;
+    if (ringRef.current) {
+      ringRef.current.style.strokeDashoffset = String(88 * (1 - p));
     }
+    if (pctRef.current) {
+      pctRef.current.textContent = `${Math.round(p * 100)}%`;
+    }
+    if (restartRef.current) {
+      restartRef.current.style.visibility = p > 0.02 ? "visible" : "hidden";
+    }
+  };
+
+  const begin = (fromTop: boolean) => {
     const max = document.documentElement.scrollHeight - window.innerHeight;
-    const proxy = { y: window.scrollY };
-    const remaining = Math.max(0, 1 - window.scrollY / max);
+    const startY = fromTop ? 0 : window.scrollY;
+    if (fromTop) {
+      const lenis = getLenis();
+      if (lenis) lenis.scrollTo(0, { immediate: true });
+      else window.scrollTo(0, 0);
+    }
+    const proxy = { y: startY };
+    const remaining = Math.max(0, 1 - startY / max);
     tween.current?.kill();
     tween.current = gsap.to(proxy, {
       y: max,
@@ -69,14 +88,11 @@ export default function AutoTour() {
         const lenis = getLenis();
         if (lenis) lenis.scrollTo(proxy.y, { immediate: true });
         else window.scrollTo(0, proxy.y);
-        if (ringRef.current) {
-          ringRef.current.style.strokeDashoffset = String(
-            88 * (1 - proxy.y / max),
-          );
-        }
+        paint(proxy.y, max);
       },
-      onComplete: () => setState("idle"),
+      onComplete: () => setState("done"),
     });
+    tween.current.timeScale(speedRef.current);
     setState("touring");
   };
 
@@ -84,13 +100,54 @@ export default function AutoTour() {
     if (state === "touring") {
       tween.current?.pause();
       setState("paused");
-    } else {
-      start();
+      return;
     }
+    if (state === "paused" && tween.current) {
+      tween.current.resume();
+      setState("touring");
+      return;
+    }
+    // idle starts from wherever the reader is; done replays from the top
+    begin(state === "done");
   };
+
+  const flipSpeed = () => {
+    const next = speed === 1 ? 2 : 1;
+    setSpeed(next);
+    tween.current?.timeScale(next);
+  };
+
+  const restart = () => begin(true);
+
+  const label =
+    state === "touring"
+      ? "pause"
+      : state === "paused"
+        ? "resume"
+        : state === "done"
+          ? "replay"
+          : "auto tour";
 
   return (
     <div className="auto-tour">
+      <button
+        ref={restartRef}
+        type="button"
+        onClick={restart}
+        className="auto-tour-restart"
+        style={{ visibility: "hidden" }}
+        aria-label="Restart the guided tour from the top"
+      >
+        restart
+      </button>
+      <button
+        type="button"
+        onClick={flipSpeed}
+        className="auto-tour-speed"
+        aria-label={`Tour speed ${speed}x, click to switch`}
+      >
+        {speed}x
+      </button>
       <button
         type="button"
         onClick={toggle}
@@ -118,7 +175,7 @@ export default function AutoTour() {
           )}
         </svg>
         <span className="auto-tour-label">
-          {state === "touring" ? "pause" : state === "paused" ? "resume" : "auto tour"}
+          {label} <span ref={pctRef} className="auto-tour-pct" />
         </span>
       </button>
       <p aria-live="polite" className="sr-only">
@@ -126,7 +183,9 @@ export default function AutoTour() {
           ? "Guided tour playing. Scroll or press Escape to take over."
           : state === "paused"
             ? "Guided tour paused."
-            : "Guided tour stopped."}
+            : state === "done"
+              ? "Guided tour finished."
+              : "Guided tour stopped."}
       </p>
     </div>
   );
