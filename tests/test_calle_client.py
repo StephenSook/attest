@@ -34,7 +34,7 @@ async def test_place_call_posts_task_schema_and_idempotency_key() -> None:
     assert request.headers["Authorization"] == "Bearer test-key-not-real"
     body: dict[str, Any] = json.loads(request.content)
     assert body["recipients"] == [{"phones": ["+15550101234"]}]
-    assert body["result_schema"]["additionalProperties"] is False
+    assert body["recipient_result_schema"]["additionalProperties"] is False
     service.close()
 
 
@@ -42,11 +42,12 @@ async def test_place_call_posts_task_schema_and_idempotency_key() -> None:
 async def test_get_call_and_list_events() -> None:
     respx.get(f"{BASE}/v1/calls/call_mock_1").mock(return_value=Response(200, json=FIXTURE))
     respx.get(f"{BASE}/v1/calls/call_mock_1/events").mock(
-        return_value=Response(200, json={"events": FIXTURE["events"]})
+        return_value=Response(200, json={"events": []})
     )
     service = _service()
     call = await service.get_call("call_mock_1")
     events = await service.list_events("call_mock_1")
-    assert call["resultValidation"]["valid"] is True
-    assert len(events["events"]) == 4
+    assert call["task_completed"] is True
+    assert call["completion_confidence"]["label"] == "high"
+    assert events["events"] == []
     service.close()

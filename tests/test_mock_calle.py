@@ -19,8 +19,10 @@ async def test_create_call_returns_terminal_record() -> None:
     body = response.json()
     assert body["status"] == "completed"
     assert body["id"].startswith("call_mock_")
-    assert "structuredResult" in body
-    assert body["resultValidation"]["valid"] is True
+    assert body["task_completed"] is True
+    turns = body["recipients"][0]["attempts"][0]["transcript_turns"]
+    assert turns[0]["speaker"] == "bot"
+    assert any(turn["speaker"] == "user" for turn in turns)
 
 
 async def test_idempotency_key_returns_same_call() -> None:
@@ -51,7 +53,7 @@ async def test_get_call_and_events_roundtrip() -> None:
     assert fetched.status_code == 200
     assert fetched.json()["id"] == call_id
     assert events.status_code == 200
-    assert len(events.json()["events"]) == 4
+    assert events.json()["events"] == []
 
 
 async def test_get_unknown_call_is_404() -> None:
