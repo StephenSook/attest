@@ -6,6 +6,7 @@ If the SDK ever lags the REST surface, this is the one file that changes.
 """
 
 import asyncio
+import functools
 import os
 from typing import Any
 
@@ -36,20 +37,27 @@ class CalleService:
         *,
         task: str,
         phone: str,
-        result_schema: JsonObject,
+        result_schema: JsonObject | None = None,
         idempotency_key: str,
         metadata: JsonObject | None = None,
         webhook_url: str | None = None,
     ) -> JsonObject:
-        return await asyncio.to_thread(
+        # Observed 2026-07-25 against api.heycall-e.com: the live API rejects
+        # BOTH result_schema and recipient_result_schema ("... is not supported")
+        # even though the SDK exposes them and the maintainers announced the
+        # latter. Schema is therefore optional here; extraction and span
+        # grounding are our own post-call layer and never depended on it.
+        create = functools.partial(
             self._client.calls.create,
             task=task,
             recipient={"phone": phone},
-            result_schema=result_schema,
             metadata=metadata,
             webhook_url=webhook_url,
             idempotency_key=idempotency_key,
         )
+        if result_schema is not None:
+            create = functools.partial(create, recipient_result_schema=result_schema)
+        return await asyncio.to_thread(create)
 
     async def get_call(self, call_id: str) -> JsonObject:
         return await asyncio.to_thread(self._client.calls.get, call_id)
