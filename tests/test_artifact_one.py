@@ -24,7 +24,6 @@ def test_personas_deterministic_for_seed() -> None:
     b = generate(50, seed=7)
     assert [s.transcript_turns for s in a] == [s.transcript_turns for s in b]
     assert [s.truth for s in a] == [s.truth for s in b]
-    assert generate(50, seed=8)[0].transcript_turns != a[0].transcript_turns or True
 
 
 def test_all_personas_appear() -> None:

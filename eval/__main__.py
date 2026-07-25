@@ -32,8 +32,10 @@ def main() -> None:
     scenarios = generate(n, seed=SEED)
     half = n // 2
     calibration, test = scenarios[:half], scenarios[half:]
-    if len(calibration) + len(test) != len(scenarios):
-        raise RuntimeError("fold split lost scenarios")
+    if len(calibration) + len(test) != len(scenarios) or (
+        {id(s) for s in calibration} & {id(s) for s in test}
+    ):
+        raise RuntimeError("folds overlap or lost scenarios")
 
     def scored(
         fold: list[Scenario],
@@ -55,6 +57,7 @@ def main() -> None:
         (extraction.score, extraction.answer.value == truth) for _, truth, extraction in test_scored
     ]
     curve = risk_coverage_curve(forced_points)
+    forced_error_rate = curve[-1][1] if curve else 0.0
     answered_fraction = 1 - headline.abstention_rate
     operating = min(curve, key=lambda point: abs(point[0] - answered_fraction))
 
@@ -95,6 +98,8 @@ def main() -> None:
             "coverage_wilson_95": [low, high],
             "abstention_rate": headline.abstention_rate,
             "accuracy_when_answering": headline.singleton_accuracy,
+            "forced_error_rate": forced_error_rate,
+            "qhat": headline.qhat,
         },
         "per_alpha": [
             {
