@@ -11,6 +11,45 @@ test("landing renders the hero and the tour control", async ({ page }) => {
   ).toBeVisible();
 });
 
+test("landing scrolls to the very end under a wheel stream", async ({ page }) => {
+  await page.goto("/");
+  await page.waitForTimeout(600);
+  const result = await page.evaluate(async () => {
+    const max = () =>
+      document.documentElement.scrollHeight - window.innerHeight;
+    const video = document.querySelector<HTMLVideoElement>(".landing-film video");
+    const startTime = video?.currentTime ?? 0;
+    const interval = setInterval(() => {
+      window.dispatchEvent(
+        new WheelEvent("wheel", { deltaY: 260, bubbles: true, cancelable: true }),
+      );
+    }, 25);
+    const t0 = performance.now();
+    let stalledMs = 0;
+    let lastY = -1;
+    while (performance.now() - t0 < 20_000) {
+      await new Promise((r) => setTimeout(r, 150));
+      const y = window.scrollY;
+      stalledMs = y === lastY ? stalledMs + 150 : 0;
+      lastY = y;
+      if (y >= max() - 4) break;
+      // A stall longer than 3s mid-page is exactly the shipped bug.
+      if (stalledMs > 3000) break;
+    }
+    clearInterval(interval);
+    return {
+      reachedEnd: window.scrollY >= max() - 4,
+      stalledMs,
+      filmAdvanced: video ? video.currentTime > startTime : null,
+      filmDuration: video?.duration ?? 0,
+    };
+  });
+  expect(result.reachedEnd, `stalled for ${result.stalledMs}ms before the end`).toBe(true);
+  if (result.filmDuration > 0) {
+    expect(result.filmAdvanced).toBe(true);
+  }
+});
+
 test("runs ledger lists the seeded replay, labeled as a replay", async ({ page }) => {
   await page.goto("/runs");
   const row = page.getByRole("link", { name: /Example Counseling Center/ });
