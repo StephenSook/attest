@@ -43,3 +43,4 @@ tmp/
 
 # pnpm store written by the compose web container into the mounted dir
 frontend/.pnpm-store/
+frontend/test-results/
