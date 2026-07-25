@@ -1,0 +1,36 @@
+# Zero-credential judge path: `docker compose up --build`
+# Console at http://localhost:5173, API at http://localhost:8000.
+# Mock mode: live dialing off; the seeded run is a scrubbed real recorded call.
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      ATTEST_USE_MOCK: "true"
+      ATTEST_MOCK_BASE_URL: "http://mock:8100"
+      ATTEST_DB_PATH: "/app/data/attest.db"
+      ATTEST_JUDGE_KEY: "demo-mode-key"
+    depends_on:
+      - mock
+
+  mock:
+    build: .
+    command: ["uv", "run", "uvicorn", "mock_calle.server:app", "--host", "0.0.0.0", "--port", "8100"]
+    ports:
+      - "8100:8100"
+
+  web:
+    image: node:22-slim
+    working_dir: /web
+    volumes:
+      - ./frontend:/web
+      - /web/node_modules
+    environment:
+      VITE_API_BASE: "http://localhost:8000"
+      CI: "true"
+    command: sh -c "corepack enable && pnpm install && pnpm dev --host 0.0.0.0"
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
