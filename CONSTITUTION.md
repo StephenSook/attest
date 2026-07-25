@@ -4,7 +4,7 @@ Definition of done, demo flow, and the budgets this project is governed by. When
 
 ## Definition of done, per component
 
-- **Integration:** a real call completes end to end and the structured result validates against the Pydantic model.
+- **Integration:** a real call completes end to end and the structured result validates against the Pydantic model. Validation is our own post-call layer: the live API rejects result_schema at call creation (verified 2026-07-25), so schema enforcement upstream is blocked on the platform, not on us.
 - **State machine:** killing the process mid-call and restarting resumes correctly from SQLite.
 - **Webhook:** signature verified over raw bytes, replayed delivery is a no-op, SSRF blocklist unit-tested against loopback, private, and metadata addresses.
 - **Artifacts:** each produces a figure a reviewer understands in under ten seconds, generated from held-out data.
