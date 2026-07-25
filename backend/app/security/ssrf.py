@@ -24,6 +24,13 @@ _METADATA_IPS = frozenset(
     }
 )
 
+# Special-use ranges where Python's is_global says True for a few members
+# (e.g. 192.0.0.9 and 192.0.0.10 in 192.0.0.0/24). Blocked wholesale.
+_SPECIAL_USE_NETWORKS = (
+    ipaddress.ip_network("192.0.0.0/24"),
+    ipaddress.ip_network("100.64.0.0/10"),
+)
+
 _ALLOWED_SCHEMES = frozenset({"http", "https"})
 
 
@@ -46,15 +53,18 @@ def resolve_and_validate(url: str) -> PinnedTarget:
     Raises SSRFError on any violation. Never logs the full URL: it may carry
     a token in its query string.
     """
-    parts = urlsplit(url)
-    if parts.scheme not in _ALLOWED_SCHEMES:
-        raise SSRFError(f"scheme {parts.scheme!r} is not allowed")
-    if parts.username is not None or parts.password is not None:
-        raise SSRFError("userinfo in URLs is not allowed")
-    host = parts.hostname
+    try:
+        parts = urlsplit(url)
+        if parts.scheme not in _ALLOWED_SCHEMES:
+            raise SSRFError(f"scheme {parts.scheme!r} is not allowed")
+        if parts.username is not None or parts.password is not None:
+            raise SSRFError("userinfo in URLs is not allowed")
+        host = parts.hostname
+        port = parts.port or (443 if parts.scheme == "https" else 80)
+    except ValueError as exc:  # malformed brackets, out-of-range ports
+        raise SSRFError("malformed URL") from exc
     if not host:
         raise SSRFError("URL has no host")
-    port = parts.port or (443 if parts.scheme == "https" else 80)
 
     try:
         literal = ipaddress.ip_address(host)
@@ -80,13 +90,17 @@ def resolve_and_validate(url: str) -> PinnedTarget:
 def _validate_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> None:
     if str(ip) in _METADATA_IPS:
         raise SSRFError("metadata address blocked")
+    checkable = ip.ipv4_mapped if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped else ip
+    for network in _SPECIAL_USE_NETWORKS:
+        if network.version == checkable.version and checkable in network:
+            raise SSRFError("special-use address blocked")
     if (
-        ip.is_loopback
-        or ip.is_private
-        or ip.is_link_local
-        or ip.is_multicast
-        or ip.is_reserved
-        or ip.is_unspecified
-        or not ip.is_global
+        checkable.is_loopback
+        or checkable.is_private
+        or checkable.is_link_local
+        or checkable.is_multicast
+        or checkable.is_reserved
+        or checkable.is_unspecified
+        or not checkable.is_global
     ):
         raise SSRFError("non-public address blocked")
