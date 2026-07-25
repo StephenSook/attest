@@ -11,6 +11,7 @@ before any JSON parsing.
 """
 
 import logging
+import math
 import os
 import time
 from collections.abc import Mapping
@@ -68,6 +69,8 @@ def verify_and_parse_webhook(
         sent_at = float(timestamp)
     except ValueError as exc:
         raise WebhookVerificationError("CALL-E-Timestamp is not a number.") from exc
+    if not math.isfinite(sent_at):
+        raise WebhookVerificationError("CALL-E-Timestamp is not finite.")
 
     current = time.time() if now is None else now
     if abs(current - sent_at) > TIMESTAMP_WINDOW_SECONDS:
@@ -77,6 +80,10 @@ def verify_and_parse_webhook(
         return _webhooks.unwrap(raw_body=raw_body, headers=headers, secret=secret)
     except CalleWebhookSignatureError as exc:
         raise WebhookVerificationError(str(exc)) from exc
+    except (ValueError, UnicodeDecodeError) as exc:
+        # Valid HMAC over bytes that are not UTF-8 JSON must still be a 400,
+        # not an unhandled 500.
+        raise WebhookVerificationError("Webhook body is not valid JSON.") from exc
 
 
 def _header(headers: Mapping[str, str], name: str) -> str | None:
