@@ -83,6 +83,7 @@ name = "attest"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "calle-ai" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "pydantic" },
@@ -100,6 +101,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "calle-ai", specifier = ">=0.2.0" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "pydantic", specifier = ">=2.8" },
@@ -113,6 +115,18 @@ dev = [
     { name = "pytest-asyncio", specifier = ">=0.24" },
     { name = "respx", specifier = ">=0.21" },
     { name = "ruff", specifier = ">=0.6" },
+]
+
+[[package]]
+name = "calle-ai"
+version = "0.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "httpx" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/18/5a/e6f2ca0b377c50c2b01b7b1805473045123c11f51108b5feabc44b1bb57c/calle_ai-0.2.0.tar.gz", hash = "sha256:4bd4260f6915f81de6504f6aa34048a5c9f645bf9b69744878d8cf90bcff7ca9", size = 76310, upload-time = "2026-06-11T07:39:23.865Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fa/8e/23ce0e54fc7d97915b792b6a34fc9835a90ca2a5416a8531417605a0025b/calle_ai-0.2.0-py3-none-any.whl", hash = "sha256:e67010516047156d2470817039441723a3d1df6f90947dddfcd34eab297c0436", size = 36546, upload-time = "2026-06-11T07:39:22.919Z" },
 ]
 
 [[package]]
