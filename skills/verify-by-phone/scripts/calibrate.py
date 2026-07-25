@@ -45,6 +45,8 @@ def main() -> None:
                 rows.append(json.loads(line))
     half = len(rows) // 2
     calibration, test = rows[:half], rows[half:]
+    if not calibration or not test:
+        raise SystemExit("ERROR: need at least two labeled rows to calibrate.")
 
     cal_scores = [
         1.0 - class_scores(row["answer"], row["trust_score"])[row["truth"]] for row in calibration

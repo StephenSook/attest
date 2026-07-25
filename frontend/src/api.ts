@@ -64,6 +64,7 @@ export type RunDetail = {
     claims: Claim[];
     reconciliation: Reconciliation;
   };
+  failure?: { error: string; stage: string };
 };
 
 export type Metrics = {
