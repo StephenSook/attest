@@ -27,6 +27,15 @@ class Poller:
         self._database = database
         self._interval = interval_seconds
         self._max_interval = max_interval_seconds
+        self._wake = asyncio.Event()
+
+    def wake(self) -> None:
+        """Request an immediate tick and reset backoff.
+
+        Called after a new submission: without this, a run created during an
+        idle stretch waits out the full grown backoff (up to 60s) before its
+        first poll."""
+        self._wake.set()
 
     async def tick(self) -> int:
         """Poll every submitted run once. Returns how many reached terminal."""
@@ -57,7 +66,18 @@ class Poller:
                 logger.exception("poller tick crashed; backing off")
                 advanced = 0
             delay = self._interval if advanced else min(delay * 2, self._max_interval)
-            try:
-                await asyncio.wait_for(stop.wait(), timeout=delay)
-            except TimeoutError:
-                continue
+            if self._wake.is_set():
+                self._wake.clear()
+                delay = self._interval
+            stop_task = asyncio.ensure_future(stop.wait())
+            wake_task = asyncio.ensure_future(self._wake.wait())
+            done, pending = await asyncio.wait(
+                {stop_task, wake_task},
+                timeout=delay,
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            for task in pending:
+                task.cancel()
+            if wake_task in done:
+                self._wake.clear()
+                delay = self._interval

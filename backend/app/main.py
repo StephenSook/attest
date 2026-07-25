@@ -40,6 +40,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         )
     )
     application.state.calle_service = service
+    application.state.poller = poller
     try:
         yield
     finally:
@@ -172,4 +173,8 @@ async def start_run(
         run_id = await runs.start_verification_run(
             _get_service(), db.db_path(), task=task, phone=body.phone, record=record
         )
+    # Fresh submissions poll immediately instead of waiting out idle backoff.
+    poller = getattr(app.state, "poller", None)
+    if poller is not None:
+        poller.wake()
     return {"run_id": run_id}
