@@ -67,7 +67,7 @@ CLAIM_PATTERNS = {
     # new-patients answer gets mis-attributed to the insurance question.
     "accepts_plan": r"\baccepts?\b|\btakes?\b.*\b(?:plan|insurance)\b|\bin[- ]network\b",
 }
-DAMPEN = 0.55
+DAMPEN = 0.55  # keep in sync with app.hedge.MAX_DAMPEN in the main repo
 ABSTAIN_BELOW = 0.65
 
 

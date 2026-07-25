@@ -29,7 +29,7 @@ _LEXICON: tuple[tuple[str, float], ...] = (
 )
 
 # How much a hedge of full strength dampens a trust score.
-_MAX_DAMPEN = 0.55
+MAX_DAMPEN = 0.55
 
 
 @dataclass(frozen=True)
@@ -50,8 +50,8 @@ class HedgeAnalysis:
         """Scale a trust score by the strongest hedge found."""
         if not self.hedged:
             return score
-        factor = 1.0 - _MAX_DAMPEN * self.strength
-        return score * max(factor, 1.0 - _MAX_DAMPEN)
+        factor = 1.0 - MAX_DAMPEN * self.strength
+        return score * max(factor, 1.0 - MAX_DAMPEN)
 
 
 def analyze(text: str) -> HedgeAnalysis:
