@@ -1,11 +1,16 @@
 """Run lifecycle: create a verification run and hand it to CALL-E."""
 
 import json
+import logging
 import uuid
 from pathlib import Path
 
+from calle.errors import CalleConnectionError, CalleTimeoutError
+
 from app import db, fsm
 from app.calle.client import CalleService
+
+logger = logging.getLogger(__name__)
 
 
 async def start_verification_run(
@@ -26,6 +31,19 @@ async def start_verification_run(
         db.create_run(conn, run_id=run_id, idempotency_key=run_id)
         try:
             created = await service.place_call(task=task, phone=phone, idempotency_key=run_id)
+        except (CalleTimeoutError, CalleConnectionError) as exc:
+            # Ambiguous: CALL-E may have ACCEPTED the call even though our
+            # request died, so a real phone may still ring. The run_id is the
+            # Idempotency-Key, so a future resubmission with this run_id can
+            # never double-dial. Recorded distinctly for reconciliation.
+            logger.warning("ambiguous submit for %s: possible orphaned call", run_id)
+            fsm.advance(
+                conn,
+                run_id,
+                "failed",
+                terminal_payload=json.dumps({"error": str(exc), "stage": "submit_ambiguous"}),
+            )
+            raise
         except Exception as exc:
             fsm.advance(
                 conn,

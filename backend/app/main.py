@@ -30,8 +30,12 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         yield
     finally:
         stop.set()
-        await task
-        service.close()
+        try:
+            await asyncio.wait_for(task, timeout=10.0)
+        except TimeoutError:
+            task.cancel()
+        finally:
+            service.close()
 
 
 app = FastAPI(title="Attest", version="0.1.0", lifespan=lifespan)
@@ -65,13 +69,18 @@ def _get_service() -> CalleService:
     return service
 
 
+# One verification call at a time is a product invariant, not a hope.
+_submission_lock = asyncio.Lock()
+
+
 @app.post("/internal/runs", status_code=201)
 async def start_run(
     body: StartRunRequest,
     x_attest_key: str | None = Header(default=None, alias="X-Attest-Key"),
 ) -> dict[str, str]:
     _require_internal_key(x_attest_key)
-    run_id = await runs.start_verification_run(
-        _get_service(), db.db_path(), task=body.task, phone=body.phone
-    )
+    async with _submission_lock:
+        run_id = await runs.start_verification_run(
+            _get_service(), db.db_path(), task=body.task, phone=body.phone
+        )
     return {"run_id": run_id}
