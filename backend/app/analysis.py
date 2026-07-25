@@ -7,12 +7,15 @@ Phone numbers are redacted before anything leaves the server.
 
 import copy
 import json
+import os
 import sqlite3
+from pathlib import Path
 from typing import Any
 
 from app.extract import extract_yes_no
 from app.models import Answer
 from app.reconcile import reconcile
+from eval.conformal import prediction_set
 
 CLAIM_QUESTIONS = {
     "accepting_new_patients": r"accepting new patients",
@@ -50,24 +53,48 @@ def transcript_turns(payload: dict[str, Any]) -> list[dict[str, Any]]:
     return []
 
 
+def _calibrated_qhat() -> float | None:
+    """The conformal threshold from the committed eval run, if present."""
+    metrics_path = Path(os.environ.get("ATTEST_METRICS_PATH", "eval/results/metrics.json"))
+    try:
+        headline = json.loads(metrics_path.read_text())["headline"]
+        return float(headline["qhat"])
+    except (OSError, KeyError, ValueError):
+        return None
+
+
 def analyze_run(row: sqlite3.Row) -> dict[str, Any]:
-    """Extraction + reconciliation for one terminal run, server-authoritative."""
+    """Extraction + reconciliation for one terminal run, server-authoritative.
+
+    Abstention is the calibrated conformal decision: answer only when the
+    prediction set at the committed qhat is a single value. Without a
+    committed eval run the response says so instead of pretending.
+    """
     payload = json.loads(str(row["terminal_payload"])) if row["terminal_payload"] else {}
     record: dict[str, Any] = json.loads(str(row["record_json"])) if row["record_json"] else {}
     turns = transcript_turns(payload)
 
+    qhat = _calibrated_qhat()
     claims: list[dict[str, Any]] = []
     call_answers: dict[str, Answer] = {}
     for claim, pattern in CLAIM_QUESTIONS.items():
         extraction = extract_yes_no(turns, question_pattern=pattern)
-        call_answers[claim] = extraction.answer
+        if qhat is not None:
+            pset = prediction_set(extraction.class_scores(), qhat)
+            abstain = len(pset) != 1 or extraction.answer is Answer.UNKNOWN
+        else:
+            abstain = extraction.answer is Answer.UNKNOWN
+        effective = Answer.UNKNOWN if abstain else extraction.answer
+        call_answers[claim] = effective
         claims.append(
             {
                 "claim": claim,
-                "answer": extraction.answer.value,
+                "answer": effective.value,
+                "stated_answer": extraction.answer.value,
                 "trust_score": round(extraction.score, 3),
                 "hedged": extraction.hedged,
-                "abstain": extraction.answer is Answer.UNKNOWN,
+                "calibrated": qhat is not None,
+                "abstain": abstain,
                 "span": (
                     {
                         "turn": extraction.span_turn,
@@ -105,6 +132,9 @@ def analyze_run(row: sqlite3.Row) -> dict[str, Any]:
                     "weight_bits": round(c.weight_bits, 4),
                 }
                 for c in recon.contributions
+                # A row where neither side knows anything is not evidence
+                # of anything; keep the waterfall to informative fields.
+                if c.call_answer != "unknown" or c.directory_claim != "unknown"
             ],
         },
     }
