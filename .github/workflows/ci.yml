@@ -54,3 +54,40 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Typecheck and build
         run: pnpm build
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start the compose stack
+        run: docker compose up -d --build api mock
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Install and build frontend
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+      - name: Start web dev server
+        working-directory: frontend
+        run: nohup pnpm dev --host 0.0.0.0 > /tmp/web.log 2>&1 &
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - name: Wait for services
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 60); do
+            curl -sf localhost:8000/healthz > /dev/null && curl -sf localhost:5173 > /dev/null && exit 0
+            sleep 2
+          done
+          echo "services never came up" >&2
+          docker compose logs api | tail -20 >&2
+          exit 1
+      - name: Run e2e suite
+        working-directory: frontend
+        run: npx playwright test
