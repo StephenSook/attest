@@ -18,6 +18,13 @@ Last audited: 2026-07-25.
 | The conformal core is implemented directly, finite-sample corrected | `eval/conformal.py` (`conformal_quantile`) |
 | Do NOT claim: MAPIE, Splink, shadcn/ui | struck 2026-07-25; never imported anywhere (`grep -ri mapie\|splink` returns nothing in code) |
 
+## Problem statistics (sourced; quote only these)
+
+- A CMS review of Medicare Advantage online provider directories found inaccuracies in 45 to 52 percent of listings across three audit rounds (CMS Online Provider Directory Review Industry Report, final round 2018: 48.74 percent of locations had at least one inaccuracy).
+- A 2023 secret-shopper study of Medicaid managed-care mental-health directories ("ghost networks", Senate Finance Committee majority staff report, May 2023) reached a bookable appointment in 18 percent of attempted calls.
+- Zhu, Zhang, and Polsky (Health Affairs Scholar, 2024) re-called physician listings and found 44.8 percent of entries still contained at least one error, and only 11.6 percent of listings were accurate on all audited dimensions.
+- Framing rule: these are directory-accuracy statistics, not claims about any specific insurer or practice. Cite the study, never a named organization.
+
 ## Evaluation numbers (canonical: `eval/results/metrics.json`, seed 20260725)
 
 | Number | Value |
@@ -50,7 +57,7 @@ Regeneration: `uv run python -m eval` reproduces every number and figure above o
 
 ## Engineering facts
 
-- 88 backend tests; strict mypy; ruff lint + format in CI; gitleaks over full history in CI; 13 merged PRs as of this audit (re-count with `gh pr list --state merged` before quoting).
+- 94 backend tests; strict mypy; ruff lint + format in CI; gitleaks over full history in CI; 15 merged PRs as of this audit (re-count with `gh pr list --state merged` before quoting).
 - The upstream skill `skills/verify-by-phone` passes `validate_repository.py` from CALLE-AI/awesome-phone-call-agents staged against a clean clone (verified 2026-07-25). Upstream PR not yet opened.
 - Second-model adversarial review found 7 verified issues in the loop/security wave (all fixed and regression-pinned); the harness twice caught confident-wrong extraction ("there's NO doctor's office here" parsing as a no; a plan claim stealing an unrelated span).
 
