@@ -1,0 +1,63 @@
+{
+  "seed": 20260725,
+  "n_total": 600,
+  "n_calibration": 300,
+  "n_test": 300,
+  "personas": "cooperative, hedging, contradictory, evasive, wrong_number, refuses",
+  "headline": {
+    "alpha": 0.1,
+    "target_coverage": 0.9,
+    "empirical_coverage": 0.9033333333333333,
+    "coverage_wilson_95": [
+      0.8646174890590971,
+      0.9318501440760628
+    ],
+    "abstention_rate": 0.29000000000000004,
+    "accuracy_when_answering": 0.9624413145539906
+  },
+  "per_alpha": [
+    {
+      "alpha": 0.05,
+      "target": 0.95,
+      "empirical_coverage": 0.9733333333333334,
+      "abstention_rate": 0.29000000000000004,
+      "accuracy_when_answering": 0.9624413145539906
+    },
+    {
+      "alpha": 0.1,
+      "target": 0.9,
+      "empirical_coverage": 0.9033333333333333,
+      "abstention_rate": 0.29000000000000004,
+      "accuracy_when_answering": 0.9624413145539906
+    },
+    {
+      "alpha": 0.15,
+      "target": 0.85,
+      "empirical_coverage": 0.8433333333333334,
+      "abstention_rate": 0.29000000000000004,
+      "accuracy_when_answering": 0.9624413145539906
+    },
+    {
+      "alpha": 0.2,
+      "target": 0.8,
+      "empirical_coverage": 0.7866666666666666,
+      "abstention_rate": 0.1166666666666667,
+      "accuracy_when_answering": 0.8905660377358491
+    },
+    {
+      "alpha": 0.25,
+      "target": 0.75,
+      "empirical_coverage": 0.7866666666666666,
+      "abstention_rate": 0.1166666666666667,
+      "accuracy_when_answering": 0.8905660377358491
+    },
+    {
+      "alpha": 0.3,
+      "target": 0.7,
+      "empirical_coverage": 0.6833333333333333,
+      "abstention_rate": 0.31666666666666665,
+      "accuracy_when_answering": 1.0
+    }
+  ],
+  "provenance": "scripted seeded personas; disjoint folds; never presented as real calls"
+}
