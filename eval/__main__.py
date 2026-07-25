@@ -11,8 +11,11 @@ import os
 from pathlib import Path
 
 from app.extract import ExtractionResult, extract_yes_no
+from app.models import Answer
+from app.reconcile import reconcile
+from eval.ablation import as_markdown, run_ablations
 from eval.conformal import evaluate_alpha, risk_coverage_curve, wilson_interval
-from eval.figures import reliability_diagram, risk_coverage
+from eval.figures import match_weight_waterfall, reliability_diagram, risk_coverage
 from eval.personas import Scenario, generate
 
 SEED = 20260725
@@ -57,6 +60,25 @@ def main() -> None:
     reliability_diagram(reports, SEED, len(calibration), out_dir)
     risk_coverage(curve, operating, SEED, len(calibration), len(test), out_dir)
 
+    ablation_rows = run_ablations(calibration, test, alpha=HEADLINE_ALPHA)
+    (out_dir / "ablation.md").write_text(as_markdown(ablation_rows) + "\n")
+
+    example = next(s for s in test if s.persona == "cooperative" and s.truth == "yes")
+    example_extraction = extract_yes_no(example.transcript_turns)
+    recon = reconcile(
+        call_answers={
+            "office_name_confirmed": Answer.YES,
+            "accepting_new_patients": example_extraction.answer,
+            "accepts_plan": Answer.UNKNOWN,
+        },
+        directory_claims={
+            "office_name_confirmed": Answer.YES,
+            "accepting_new_patients": Answer.YES,
+            "accepts_plan": Answer.YES,
+        },
+    )
+    match_weight_waterfall(recon, SEED, out_dir)
+
     covered = round(headline.coverage * headline.n_test)
     low, high = wilson_interval(covered, headline.n_test)
     metrics = {
@@ -83,6 +105,19 @@ def main() -> None:
             }
             for report in reports
         ],
+        "ablation": [
+            {
+                "config": row.config,
+                "coverage": row.coverage,
+                "abstention_rate": row.abstention_rate,
+                "accuracy_when_answering": row.accuracy_when_answering,
+            }
+            for row in ablation_rows
+        ],
+        "reconciliation_example": {
+            "verdict": recon.verdict,
+            "posterior_probability": recon.posterior_probability,
+        },
         "provenance": "scripted seeded personas; disjoint folds; never presented as real calls",
     }
     (out_dir / "metrics.json").write_text(json.dumps(metrics, indent=2))
@@ -97,6 +132,8 @@ def main() -> None:
         f"abstention rate {headline.abstention_rate:.1%}, "
         f"accuracy when answering {headline.singleton_accuracy:.1%}"
     )
+    print(as_markdown(ablation_rows))
+    print(f"reconciliation example: {recon.verdict} at {recon.posterior_probability:.0%}")
     print(f"figures + metrics written to {out_dir}/")
 
 
