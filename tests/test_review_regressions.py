@@ -84,15 +84,16 @@ def test_served_abstention_is_the_conformal_gate(tmp_path, monkeypatch) -> None:
     """Convention review 4: the served abstain decision applies the committed
     qhat, and the payload says whether calibration was in effect."""
     import sqlite3
+    from typing import Any, cast
 
     from app import analysis
 
-    def fake_row(payload: dict) -> sqlite3.Row:
+    def fake_row(payload: dict[str, Any]) -> sqlite3.Row:
         conn = sqlite3.connect(":memory:")
         conn.row_factory = sqlite3.Row
         conn.execute("CREATE TABLE r (terminal_payload TEXT, record_json TEXT)")
         conn.execute("INSERT INTO r VALUES (?, ?)", (json.dumps(payload), None))
-        return conn.execute("SELECT * FROM r").fetchone()
+        return cast(sqlite3.Row, conn.execute("SELECT * FROM r").fetchone())
 
     payload = {
         "recipients": [
