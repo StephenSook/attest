@@ -48,10 +48,13 @@ class PinnedTarget:
 
 
 def resolve_and_validate(url: str) -> PinnedTarget:
-    """Validate a URL and resolve its host to a pinned, publicly routable IP.
+    """Validate a URL and resolve its host to a publicly routable IP.
 
-    Raises SSRFError on any violation. Never logs the full URL: it may carry
-    a token in its query string.
+    This function validates and resolves; it does not itself pin the socket.
+    The caller must connect to the returned PinnedTarget.ip (not re-resolve
+    the hostname) and must re-run this check on every redirect hop, or DNS
+    rebinding defeats the whole exercise. Raises SSRFError on any violation.
+    Never logs the full URL: it may carry a token in its query string.
     """
     try:
         parts = urlsplit(url)
