@@ -34,7 +34,14 @@ export default function CalibrationPage() {
   useEffect(() => {
     fetchMetrics()
       .then(setMetrics)
-      .catch(() => setError("Metrics not available yet."));
+      .catch((err) => {
+        const message = err instanceof Error ? err.message : "";
+        setError(
+          message.includes("404")
+            ? "Metrics have not been generated on this deployment."
+            : `Could not load metrics: ${message || "network failure"}.`,
+        );
+      });
   }, []);
 
   if (error) return <p className="font-evidence text-sm text-ink-soft">{error}</p>;

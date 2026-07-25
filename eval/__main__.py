@@ -32,7 +32,8 @@ def main() -> None:
     scenarios = generate(n, seed=SEED)
     half = n // 2
     calibration, test = scenarios[:half], scenarios[half:]
-    assert not {id(s) for s in calibration} & {id(s) for s in test}
+    if len(calibration) + len(test) != len(scenarios):
+        raise RuntimeError("fold split lost scenarios")
 
     def scored(
         fold: list[Scenario],

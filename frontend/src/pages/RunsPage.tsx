@@ -16,9 +16,29 @@ export default function RunsPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchRuns()
-      .then((data) => setRuns(data.runs))
-      .catch(() => setError("The backend is waking up. Give it a moment and reload."));
+    let timer: number | undefined;
+    let attempts = 0;
+    const load = () => {
+      fetchRuns()
+        .then((data) => {
+          setError(null);
+          setRuns(data.runs);
+        })
+        .catch((err) => {
+          attempts += 1;
+          const httpError = err instanceof Error && /responded \d+/.test(err.message);
+          if (httpError) {
+            setError(`The API ${err instanceof Error ? err.message.split(" ").slice(-2).join(" ") : "failed"}. This is not a cold start.`);
+          } else if (attempts < 6) {
+            setError("The backend is waking up. Retrying...");
+            timer = window.setTimeout(load, 5000);
+          } else {
+            setError("Could not reach the backend after several tries.");
+          }
+        });
+    };
+    load();
+    return () => window.clearTimeout(timer);
   }, []);
 
   if (error) {

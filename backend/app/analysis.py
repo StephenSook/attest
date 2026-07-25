@@ -34,6 +34,10 @@ def redact_payload(payload: dict[str, Any]) -> dict[str, Any]:
         for attempt in recipient.get("attempts", []):
             if attempt.get("phone"):
                 attempt["phone"] = _mask(str(attempt["phone"]))
+    # The mock create path stores the original request, which carries the raw
+    # dialed number under request.recipient; strip the whole echo rather than
+    # chase its shape.
+    redacted.pop("request", None)
     return redacted
 
 

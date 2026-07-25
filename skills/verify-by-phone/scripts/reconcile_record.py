@@ -13,6 +13,7 @@ import json
 import math
 import subprocess
 import sys
+from pathlib import Path
 
 # (m, u) = P(agree | record accurate), P(agree | record inaccurate). Fixed,
 # documented, conservative. See references/verification-protocol.md.
@@ -35,14 +36,16 @@ def main() -> None:
     extractor = subprocess.run(
         [
             sys.executable,
-            __file__.replace("reconcile_record", "extract_answer"),
+            str(Path(__file__).with_name("extract_answer.py")),
             "--payload",
             args.payload,
         ],
         capture_output=True,
         text=True,
-        check=True,
+        check=False,
     )
+    if extractor.returncode != 0:
+        raise SystemExit(f"extract_answer failed: {extractor.stderr.strip()}")
     answers = {}
     for line in extractor.stdout.strip().splitlines():
         item = json.loads(line)

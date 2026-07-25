@@ -48,7 +48,8 @@ async def calle_webhook(request: Request, background: BackgroundTasks) -> dict[s
     raw = await request.body()
     try:
         payload = verify_and_parse_webhook(raw_body=raw, headers=request.headers, secret=secret)
-    except WebhookVerificationError:
+    except WebhookVerificationError as exc:
+        logger.warning("webhook rejected: %s", exc)
         raise HTTPException(status_code=400, detail="invalid webhook") from None
     background.add_task(runs.apply_terminal_payload, app_db.db_path(), payload)
     return {"received": True}

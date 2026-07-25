@@ -50,8 +50,9 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
     try:
         conn.execute("ALTER TABLE call_runs ADD COLUMN record_json TEXT")
         conn.commit()
-    except sqlite3.OperationalError:
-        pass  # column already exists (fresh schema or prior migration)
+    except sqlite3.OperationalError as exc:
+        if "duplicate column" not in str(exc):
+            raise  # locked db, disk error: anything but the expected no-op
     return conn
 
 
@@ -104,9 +105,15 @@ def get_run_by_calle_call_id(conn: sqlite3.Connection, calle_call_id: str) -> sq
 
 
 def pollable_runs(conn: sqlite3.Connection) -> list[sqlite3.Row]:
-    """Non-terminal runs that CALL-E knows about. What the poller resumes from."""
+    """Non-terminal runs that CALL-E knows about. What the poller resumes from.
+
+    Includes created-state runs that already hold a call id: a crash between
+    submit and the submitted transition must not orphan a run whose phone
+    actually rang.
+    """
     return list(
         conn.execute(
-            "SELECT * FROM call_runs WHERE state = 'submitted' AND calle_call_id IS NOT NULL"
+            "SELECT * FROM call_runs WHERE state IN ('submitted', 'created') "
+            "AND calle_call_id IS NOT NULL AND calle_call_id != ''"
         )
     )
