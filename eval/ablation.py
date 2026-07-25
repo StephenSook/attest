@@ -11,10 +11,9 @@ import dataclasses
 from dataclasses import dataclass
 
 from app.extract import ExtractionResult, extract_yes_no
+from app.hedge import MAX_DAMPEN
 from eval.conformal import evaluate_alpha
 from eval.personas import Scenario
-
-_HEDGE_MAX_DAMPEN = 0.55
 
 
 @dataclass(frozen=True)
@@ -28,7 +27,7 @@ class AblationRow:
 def _undampened(extraction: ExtractionResult) -> ExtractionResult:
     if not extraction.hedged:
         return extraction
-    factor = 1.0 - _HEDGE_MAX_DAMPEN * extraction.hedge_strength
+    factor = 1.0 - MAX_DAMPEN * extraction.hedge_strength
     return dataclasses.replace(extraction, score=min(extraction.score / factor, 0.98))
 
 
