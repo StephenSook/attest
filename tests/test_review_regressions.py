@@ -61,3 +61,74 @@ def test_no_bare_replace_path_derivation_in_skill_scripts() -> None:
     text = (ROOT / "skills" / "verify-by-phone" / "scripts" / "reconcile_record.py").read_text()
     assert "__file__.replace" not in text
     assert re.search(r"with_name\(", text)
+
+
+def test_same_turn_contradiction_trusts_the_later_statement() -> None:
+    """Convention review CRITICAL 3: 'yes, actually no' inside one turn must
+    resolve to the later polarity, not whichever list max() saw first."""
+    from app.extract import extract_yes_no
+    from app.models import Answer
+
+    turns: list[dict[str, object]] = [
+        {"speaker": "bot", "text": "Are you accepting new patients?"},
+        {"speaker": "user", "text": "Yes, well, hold on, actually no, we are not taking anyone."},
+    ]
+    result = extract_yes_no(turns)
+    assert result.answer is Answer.NO
+    # And the mirror image resolves to yes.
+    turns[1] = {"speaker": "user", "text": "No, wait, actually yes, we are accepting new patients."}
+    assert extract_yes_no(turns).answer is Answer.YES
+
+
+def test_served_abstention_is_the_conformal_gate(tmp_path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """Convention review 4: the served abstain decision applies the committed
+    qhat, and the payload says whether calibration was in effect."""
+    import sqlite3
+
+    from app import analysis
+
+    def fake_row(payload: dict) -> sqlite3.Row:
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        conn.execute("CREATE TABLE r (terminal_payload TEXT, record_json TEXT)")
+        conn.execute("INSERT INTO r VALUES (?, ?)", (json.dumps(payload), None))
+        return conn.execute("SELECT * FROM r").fetchone()
+
+    payload = {
+        "recipients": [
+            {
+                "attempts": [
+                    {
+                        "transcript_turns": [
+                            {"speaker": "bot", "text": "Are you accepting new patients?"},
+                            {"speaker": "user", "text": "Yes, we are accepting new patients."},
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+
+    # A qhat of 0.99 admits every class into the prediction set: forced abstain.
+    strict = tmp_path / "strict.json"
+    strict.write_text(json.dumps({"headline": {"qhat": 0.99}}))
+    monkeypatch.setenv("ATTEST_METRICS_PATH", str(strict))
+    claim = analysis.analyze_run(fake_row(payload))["claims"][0]
+    assert claim["calibrated"] is True
+    assert claim["abstain"] is True
+    assert claim["answer"] == "unknown"
+    assert claim["stated_answer"] == "yes"
+
+    # The committed qhat admits only the confident class: the answer is served.
+    committed = tmp_path / "committed.json"
+    committed.write_text(json.dumps({"headline": {"qhat": 0.75}}))
+    monkeypatch.setenv("ATTEST_METRICS_PATH", str(committed))
+    claim = analysis.analyze_run(fake_row(payload))["claims"][0]
+    assert claim["calibrated"] is True
+    assert claim["abstain"] is False
+    assert claim["answer"] == "yes"
+
+    # No metrics file: the response is honest that no calibration applied.
+    monkeypatch.setenv("ATTEST_METRICS_PATH", str(tmp_path / "missing.json"))
+    claim = analysis.analyze_run(fake_row(payload))["claims"][0]
+    assert claim["calibrated"] is False
