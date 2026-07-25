@@ -22,9 +22,7 @@ FIXTURE = json.loads(
 @respx.mock
 async def test_empty_env_key_still_speaks_http(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("CALLE_API_KEY", raising=False)
-    route = respx.post("https://calle.test/v1/calls").mock(
-        return_value=Response(201, json=FIXTURE)
-    )
+    route = respx.post("https://calle.test/v1/calls").mock(return_value=Response(201, json=FIXTURE))
     service = CalleService(base_url="https://calle.test")
     result = await service.place_call(
         task="verify", phone="+15550101234", idempotency_key="empty-key-test"
