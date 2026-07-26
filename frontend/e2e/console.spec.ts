@@ -112,6 +112,31 @@ test("builder-line replay serves real audio with honest provenance", async ({ pa
   await expect(page.getByText(/accepting new patients/).first()).toBeVisible();
 });
 
+test("attestation certificate renders signed and verifiable fields", async ({ page }) => {
+  await page.goto("/runs/run_replay_builder_0001/certificate");
+  await expect(page.getByText(/certificate of verification/i)).toBeVisible();
+  await expect(page.getByText(/payload sha256 [0-9a-f]{16}/)).toBeVisible();
+  await expect(page.getByText(/signature HMAC-SHA256|unsigned:/)).toBeVisible();
+  await expect(page.getByRole("button", { name: /download json/i })).toBeVisible();
+  await expect(page.getByText(/supporting span/).first()).toBeVisible();
+});
+
+test("risk-coverage explorer snaps to measured targets only", async ({ page }) => {
+  const metrics = await (await fetch(`${API}/api/metrics`)).json();
+  await page.goto("/calibration");
+  const slider = page.getByLabel(/target coverage selector/i);
+  await expect(slider).toBeVisible();
+  // Move to the strictest evaluated target (index 0 = smallest alpha).
+  await slider.fill("0");
+  const strictest = metrics.per_alpha[0];
+  await expect(
+    page.getByText(`${Math.round(strictest.target * 100)}%`).first(),
+  ).toBeVisible();
+  await expect(
+    page.getByText(`${(strictest.abstention_rate * 100).toFixed(1)}%`).first(),
+  ).toBeVisible();
+});
+
 test("calibration page serves live metrics, never hardcoded", async ({ page }) => {
   const metrics = await (await fetch(`${API}/api/metrics`)).json();
   const coverage = (metrics.headline.empirical_coverage * 100).toFixed(1);
