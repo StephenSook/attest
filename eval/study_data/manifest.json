@@ -1,0 +1,297 @@
+{
+  "seed": 20260726,
+  "n": 36,
+  "hedge_wrong_rate": 0.35,
+  "final_statement_truth_rate": 0.7,
+  "provenance": "real phone channel, builder-answered scripted ground truth (consented builder line; never calls to real practices)",
+  "calls": [
+    {
+      "n": 1,
+      "persona": "cooperative",
+      "truth": "no",
+      "line": "Nope, there's a waitlist.",
+      "status": "pending",
+      "calle_call_id": null
+    },
+    {
+      "n": 2,
+      "persona": "cooperative",
+      "truth": "yes",
+      "line": "Yeah, absolutely.",
+      "status": "pending",
+      "calle_call_id": null
+    },
+    {
+      "n": 3,
+      "persona": "refuses",
+      "truth": "unknown",
+      "line": "I'm not comfortable with this, please take us off your list.",
+      "status": "pending",
+      "calle_call_id": null
+    },
+    {
+      "n": 4,
+      "persona": "cooperative",
+      "truth": "yes",
+      "line": "Yes, definitely taking new patients.",
+      "status": "pending",
+      "calle_call_id": null
+    },
+    {
+      "n": 5,
+      "persona": "hedging",
+      "truth": "yes",
+      "line": "I think we stopped, no.",
+      "status": "pending",
+      "calle_call_id": null
+    },
+    {
+      "n": 6,
+      "persona": "cooperative",
+      "truth": "yes",
+      "line": "Yep.",
+      "status": "pending",
+      "calle_call_id": null
+    },
+    {
+      "n": 7,
+      "persona": "wrong_number",
+      "truth": "unknown",
+      "line": "I think you have the wrong number, this is a residence.",
+      "status": "pending",
+      "calle_call_id": null
+    },
+    {
+      "n": 8,
+      "persona": "refuses",
+      "truth": "unknown",
+      "line": "I'm not comfortable answering questions from a robot, sorry.",
+      "status": "pending",
+      "calle_call_id": null
+    },
+    {
+      "n": 9,
+      "persona": "cooperative",
+      "truth": "yes",
+      "line": "Yep.",
+      "status": "pending",
+      "calle_call_id": null
+    },
+    {
+      "n": 10,
+      "persona": "hedging",
+      "truth": "yes",
+      "line": "I believe we are, yes.",
+      "status": "pending",
+      "calle_call_id": null
+    },
+    {
+      "n": 11,
+      "persona": "hedging",
+      "truth": "no",
+      "line": "I think we stopped, no.",
+      "status": "pending",
+      "calle_call_id": null
+    },
+    {
+      "n": 12,
+      "persona": "cooperative",
+      "truth": "no",
+      "line": "Unfortunately no, we're full.",
+      "status": "pending",
+      "calle_call_id": null
+    },
+    {
+      "n": 13,
+      "persona": "cooperative",
+      "truth": "yes",
+      "line": "Yes, definitely taking new patients.",
+      "status": "pending",
+      "calle_call_id": null
+    },
+    {
+      "n": 14,
+      "persona": "cooperative",
+      "truth": "yes",
+      "line": "Yep.",
+      "status": "pending",
+      "calle_call_id": null
+    },
+    {
+      "n": 15,
+      "persona": "hedging",
+      "truth": "no",
+      "line": "Probably not, honestly.",
+      "status": "pending",
+      "calle_call_id": null
+    },
+    {
+      "n": 16,
+      "persona": "hedging",
+      "truth": "no",
+      "line": "I believe we're full, no.",
+      "status": "pending",
+      "calle_call_id": null
+    },
+    {
+      "n": 17,
+      "persona": "hedging",
+      "truth": "no",
+      "line": "Pretty sure, yes.",
+      "status": "pending",
+      "calle_call_id": null
+    },
+    {
+      "n": 18,
+      "persona": "hedging",
+      "truth": "yes",
+      "line": "Probably not, honestly.",
+      "status": "pending",
+      "calle_call_id": null
+    },
+    {
+      "n": 19,
+      "persona": "hedging",
+      "truth": "yes",
+      "line": "Probably not, honestly.",
+      "status": "pending",
+      "calle_call_id": null
+    },
+    {
+      "n": 20,
+      "persona": "cooperative",
+      "truth": "no",
+      "line": "No, we're not taking new patients right now.",
+      "status": "pending",
+      "calle_call_id": null
+    },
+    {
+      "n": 21,
+      "persona": "contradictory",
+      "truth": "yes",
+      "line": "No, I don't think so. ... Actually yes, we do have openings, yes.",
+      "status": "pending",
+      "calle_call_id": null
+    },
+    {
+      "n": 22,
+      "persona": "cooperative",
+      "truth": "yes",
+      "line": "Yeah, absolutely.",
+      "status": "pending",
+      "calle_call_id": null
+    },
+    {
+      "n": 23,
+      "persona": "hedging",
+      "truth": "yes",
+      "line": "Pretty sure, yes.",
+      "status": "pending",
+      "calle_call_id": null
+    },
+    {
+      "n": 24,
+      "persona": "refuses",
+      "truth": "unknown",
+      "line": "I'm not comfortable answering questions from a robot, sorry.",
+      "status": "pending",
+      "calle_call_id": null
+    },
+    {
+      "n": 25,
+      "persona": "cooperative",
+      "truth": "no",
+      "line": "Unfortunately no, we're full.",
+      "status": "pending",
+      "calle_call_id": null
+    },
+    {
+      "n": 26,
+      "persona": "cooperative",
+      "truth": "yes",
+      "line": "Yes, definitely taking new patients.",
+      "status": "pending",
+      "calle_call_id": null
+    },
+    {
+      "n": 27,
+      "persona": "hedging",
+      "truth": "yes",
+      "line": "I believe we are, yes.",
+      "status": "pending",
+      "calle_call_id": null
+    },
+    {
+      "n": 28,
+      "persona": "evasive",
+      "truth": "unknown",
+      "line": "I don't know, the person who handles that is out today.",
+      "status": "pending",
+      "calle_call_id": null
+    },
+    {
+      "n": 29,
+      "persona": "evasive",
+      "truth": "unknown",
+      "line": "I really can't answer that, you'd need to speak to billing.",
+      "status": "pending",
+      "calle_call_id": null
+    },
+    {
+      "n": 30,
+      "persona": "cooperative",
+      "truth": "yes",
+      "line": "Yeah, absolutely.",
+      "status": "pending",
+      "calle_call_id": null
+    },
+    {
+      "n": 31,
+      "persona": "cooperative",
+      "truth": "no",
+      "line": "Nope, there's a waitlist.",
+      "status": "pending",
+      "calle_call_id": null
+    },
+    {
+      "n": 32,
+      "persona": "cooperative",
+      "truth": "no",
+      "line": "No, we're not taking new patients right now.",
+      "status": "pending",
+      "calle_call_id": null
+    },
+    {
+      "n": 33,
+      "persona": "cooperative",
+      "truth": "yes",
+      "line": "Yes, definitely taking new patients.",
+      "status": "pending",
+      "calle_call_id": null
+    },
+    {
+      "n": 34,
+      "persona": "hedging",
+      "truth": "no",
+      "line": "I believe we're full, no.",
+      "status": "pending",
+      "calle_call_id": null
+    },
+    {
+      "n": 35,
+      "persona": "cooperative",
+      "truth": "yes",
+      "line": "Yes, definitely taking new patients.",
+      "status": "pending",
+      "calle_call_id": null
+    },
+    {
+      "n": 36,
+      "persona": "cooperative",
+      "truth": "yes",
+      "line": "Yes, we are.",
+      "status": "pending",
+      "calle_call_id": null
+    }
+  ]
+}
