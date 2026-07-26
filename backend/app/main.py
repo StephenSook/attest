@@ -15,6 +15,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from app import analysis, db, runs
@@ -94,6 +95,40 @@ async def api_runs() -> dict[str, list[dict[str, object]]]:
     return {"runs": out}
 
 
+_AUDIO_TYPES = {".m4a": "audio/mp4", ".mp3": "audio/mpeg", ".wav": "audio/wav"}
+
+
+def _audio_file(run_id: str) -> Path | None:
+    """The locally stored audio for a run, if any.
+
+    The CALL-E API exposes no recording URL (verified 2026-07-26), so any
+    audio here was captured on our own end of a consented call and dropped
+    into ATTEST_AUDIO_DIR by an operator. Local files only: this never
+    fetches anything remote.
+    """
+    audio_dir = Path(os.environ.get("ATTEST_AUDIO_DIR", "data/audio"))
+    for suffix in _AUDIO_TYPES:
+        candidate = audio_dir / f"{run_id}{suffix}"
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+@app.get("/api/runs/{run_id}/audio")
+async def api_run_audio(run_id: str) -> FileResponse:
+    conn = db.connect(db.db_path())
+    try:
+        row = db.get_run(conn, run_id)
+    finally:
+        conn.close()
+    if row is None:
+        raise HTTPException(status_code=404, detail="run not found")
+    audio = _audio_file(run_id)
+    if audio is None:
+        raise HTTPException(status_code=404, detail="no audio for this run")
+    return FileResponse(audio, media_type=_AUDIO_TYPES[audio.suffix])
+
+
 @app.get("/api/runs/{run_id}")
 async def api_run_detail(run_id: str) -> dict[str, object]:
     conn = db.connect(db.db_path())
@@ -104,13 +139,17 @@ async def api_run_detail(run_id: str) -> dict[str, object]:
     if row is None:
         raise HTTPException(status_code=404, detail="run not found")
     payload = json.loads(str(row["terminal_payload"])) if row["terminal_payload"] else None
+    record = json.loads(str(row["record_json"])) if row["record_json"] else {}
     detail: dict[str, object] = {
         "run_id": row["run_id"],
         "state": row["state"],
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
         "payload": analysis.redact_payload(payload) if payload else None,
+        "has_audio": _audio_file(run_id) is not None,
     }
+    if record.get("audio_note"):
+        detail["audio_note"] = str(record["audio_note"])[:160]
     if payload and row["state"] == "completed":
         # Only completed calls get claims and a verdict; a failed run must
         # never dress up as an analysis result.
