@@ -1,0 +1,99 @@
+{
+  "id": "call_replay_builder_0001",
+  "object": "call_task",
+  "status": "completed",
+  "task": "You are placing a consented systems test call on behalf of Stephen, a software developer testing his own phone verification integration. The person answering IS Stephen and has consented to this exact call. Open with: 'Hi, this is an automated assistant calling on behalf of Stephen for a consented test of his verification system. This call may be recorded.' Then ask one question: 'For the test, are you currently accepting new patients?' Record whatever they answer faithfully. If they ask to end the call, thank them and hang up immediately. Never guess: anything not stated gets recorded as unknown. Keep the whole call under two minutes.",
+  "recipients": [
+    {
+      "id": "rcp_6600efda90e5ae44",
+      "phones": [
+        "+15550101234"
+      ],
+      "locale": null,
+      "region": null,
+      "status": "completed",
+      "structured_result": null,
+      "summary": "Call completed successfully. Stephen answered that they are currently accepting new patients.",
+      "attempts": [
+        {
+          "id": "att_e5c24a068c081125",
+          "phone": "+15550101234",
+          "status": "completed",
+          "started_at": "2026-07-26T01:04:59.999170Z",
+          "completed_at": "2026-07-26T01:05:28.387089Z",
+          "summary": "Call completed successfully. Stephen answered that they are currently accepting new patients.",
+          "transcript_turns": [
+            {
+              "offset_seconds": 0,
+              "speaker": "bot",
+              "text": "Hi,"
+            },
+            {
+              "offset_seconds": 0,
+              "speaker": "bot",
+              "text": "this is an automated assistant calling on behalf of Stephen for a consented test of his verification system."
+            },
+            {
+              "offset_seconds": 6,
+              "speaker": "bot",
+              "text": "This call may be recorded."
+            },
+            {
+              "offset_seconds": 12,
+              "speaker": "bot",
+              "text": "For the test,"
+            },
+            {
+              "offset_seconds": 13,
+              "speaker": "user",
+              "text": "1 of them. Okay. Yes. We're at"
+            },
+            {
+              "offset_seconds": 14,
+              "speaker": "bot",
+              "text": "For the test,"
+            },
+            {
+              "offset_seconds": 15,
+              "speaker": "bot",
+              "text": "are you currently accepting new patients?"
+            },
+            {
+              "offset_seconds": 22,
+              "speaker": "user",
+              "text": "Yes. We're we're accepting new patients."
+            },
+            {
+              "offset_seconds": 23,
+              "speaker": "bot",
+              "text": "Thanks, I\u2019ve got it."
+            }
+          ],
+          "provider_call_id": "replay_builder_provider_0001",
+          "failure_code": null,
+          "failure_message": null
+        }
+      ]
+    }
+  ],
+  "structured_result": null,
+  "summary": "Call completed successfully. Stephen answered that they are currently accepting new patients.",
+  "task_completed": true,
+  "completion_confidence": {
+    "score": 0.95,
+    "label": "high"
+  },
+  "evidence": [
+    "The call connected and a live speaker responded.",
+    "The bot asked the planned test question about accepting new patients.",
+    "The recorded answer was yes: they are accepting new patients."
+  ],
+  "metadata": {
+    "purpose": "probe",
+    "budget_line": "probe"
+  },
+  "failure_code": null,
+  "failure_message": null,
+  "created_at": "2026-07-26T01:04:02.066336Z",
+  "completed_at": "2026-07-26T01:05:42.031299Z"
+}
