@@ -1,13 +1,15 @@
 import { motion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
+  audioUrlOf,
   fetchRun,
   transcriptOf,
   type Claim,
   type RunDetail,
   type TranscriptTurn,
 } from "../api";
+import RunAudio, { type RunAudioHandle } from "../components/RunAudio";
 import VerdictStamp from "../components/VerdictStamp";
 import Waterfall from "../components/Waterfall";
 
@@ -16,11 +18,15 @@ function TurnLine({
   index,
   claims,
   liveClaim,
+  active,
+  onSeek,
 }: {
   turn: TranscriptTurn;
   index: number;
   claims: Claim[];
   liveClaim: string | null;
+  active: boolean;
+  onSeek: ((seconds: number) => void) | null;
 }) {
   const marking = claims.find((c) => c.span?.turn === index);
   const isBot = turn.speaker === "bot";
@@ -42,7 +48,11 @@ function TurnLine({
     );
   }
   return (
-    <li className="flex gap-4 border-b border-rule py-[6px] leading-[22px]">
+    <li
+      className={`flex gap-4 border-b border-rule py-[6px] leading-[22px] transition-colors ${active ? "bg-trust-soft/50" : ""} ${onSeek ? "cursor-pointer hover:bg-white/50" : ""}`}
+      onClick={onSeek ? () => onSeek(turn.offset_seconds) : undefined}
+      title={onSeek ? "click to hear this turn" : undefined}
+    >
       <span className="w-10 shrink-0 text-right font-evidence text-[11px] text-ink-faint">
         {String(Math.floor(turn.offset_seconds / 60)).padStart(1, "0")}:
         {String(turn.offset_seconds % 60).padStart(2, "0")}
@@ -100,8 +110,21 @@ export default function RunDetailPage() {
   const [detail, setDetail] = useState<RunDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [liveClaim, setLiveClaim] = useState<string | null>(null);
+  const [activeTurn, setActiveTurn] = useState<number | null>(null);
+  const audioRef = useRef<RunAudioHandle | null>(null);
+  const turnsRef = useRef<TranscriptTurn[]>([]);
 
   const [stale, setStale] = useState(false);
+
+  const onAudioTime = useCallback((seconds: number) => {
+    const turns = turnsRef.current;
+    let index: number | null = null;
+    for (let i = 0; i < turns.length; i++) {
+      if (turns[i].offset_seconds <= seconds) index = i;
+      else break;
+    }
+    setActiveTurn((previous) => (previous === index ? previous : index));
+  }, []);
 
   useEffect(() => {
     if (!runId) return;
@@ -138,7 +161,11 @@ export default function RunDetailPage() {
     return <p className="font-evidence text-sm text-ink-faint">Opening the record...</p>;
 
   const turns = transcriptOf(detail);
+  turnsRef.current = turns;
   const analysis = detail.analysis;
+  const seek = detail.has_audio
+    ? (seconds: number) => audioRef.current?.seekTo(seconds)
+    : null;
 
   return (
     <article>
@@ -207,6 +234,14 @@ export default function RunDetailPage() {
         <p className="font-evidence text-[11px] text-ink-faint">
           hover a claim card to light its supporting span
         </p>
+        {detail.has_audio && detail.run_id && (
+          <RunAudio
+            ref={audioRef}
+            src={audioUrlOf(detail.run_id)}
+            note={detail.audio_note}
+            onTime={onAudioTime}
+          />
+        )}
         <ul className="mt-3">
           {turns.map((turn, index) => (
             <TurnLine
@@ -215,6 +250,8 @@ export default function RunDetailPage() {
               index={index}
               claims={analysis?.claims ?? []}
               liveClaim={liveClaim}
+              active={activeTurn === index}
+              onSeek={seek}
             />
           ))}
         </ul>
