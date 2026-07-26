@@ -54,6 +54,33 @@ test("landing scrolls to the very end under a wheel stream", async ({ page }) =>
   }
 });
 
+test("mobile viewport: full traversal, no horizontal overflow, 720p film", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await page.waitForTimeout(600);
+  const result = await page.evaluate(async () => {
+    const video = document.querySelector<HTMLVideoElement>(".landing-film video");
+    const max = () => document.documentElement.scrollHeight - window.innerHeight;
+    let overflow = document.documentElement.scrollWidth > window.innerWidth + 1;
+    const t0 = performance.now();
+    while (window.scrollY < max() - 4 && performance.now() - t0 < 15_000) {
+      window.scrollBy(0, 260);
+      await new Promise((r) => setTimeout(r, 40));
+      overflow ||= document.documentElement.scrollWidth > window.innerWidth + 1;
+    }
+    return {
+      reachedEnd: window.scrollY >= max() - 4,
+      overflow,
+      src: video?.currentSrc ?? "",
+      poster: video?.poster ?? "",
+    };
+  });
+  expect(result.reachedEnd).toBe(true);
+  expect(result.overflow, "horizontal overflow on mobile").toBe(false);
+  expect(result.src).toContain("hero-720.mp4");
+  expect(result.poster).toContain("hero-poster.jpg");
+});
+
 test("runs ledger lists the seeded replay, labeled as a replay", async ({ page }) => {
   await page.goto("/runs");
   const row = page.getByRole("link", { name: /Example Counseling Center/ });
