@@ -12,8 +12,13 @@ export type RunAudioHandle = {
    can light the active turn. */
 const RunAudio = forwardRef<
   RunAudioHandle,
-  { src: string; note?: string; onTime: (seconds: number) => void }
->(function RunAudio({ src, note, onTime }, ref) {
+  {
+    src: string;
+    note?: string;
+    onTime: (seconds: number) => void;
+    onFailed?: () => void;
+  }
+>(function RunAudio({ src, note, onTime, onFailed }, ref) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const surferRef = useRef<WaveSurfer | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -38,7 +43,11 @@ const RunAudio = forwardRef<
     surfer.on("play", () => setPlaying(true));
     surfer.on("pause", () => setPlaying(false));
     surfer.on("finish", () => setPlaying(false));
-    surfer.on("error", () => setFailed(true));
+    surfer.on("error", (err) => {
+      console.warn("run audio failed to load; degrading to transcript-only", err);
+      setFailed(true);
+      onFailed?.();
+    });
     return () => {
       surferRef.current = null;
       surfer.destroy();
@@ -53,7 +62,11 @@ const RunAudio = forwardRef<
       const surfer = surferRef.current;
       if (!surfer) return;
       surfer.setTime(seconds);
-      if (!surfer.isPlaying()) void surfer.play();
+      if (!surfer.isPlaying()) {
+        surfer.play().catch((err: unknown) => {
+          console.warn("audio playback was refused", err);
+        });
+      }
     },
   }));
 
@@ -64,7 +77,11 @@ const RunAudio = forwardRef<
       <div className="flex items-center gap-4">
         <button
           type="button"
-          onClick={() => void surferRef.current?.playPause()}
+          onClick={() => {
+            surferRef.current?.playPause().catch((err: unknown) => {
+              console.warn("audio playback was refused", err);
+            });
+          }}
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-rule bg-paper text-ink transition-colors hover:border-trust hover:text-trust focus-visible:outline-2 focus-visible:outline-trust"
           aria-label={playing ? "Pause the call audio" : "Play the call audio"}
         >
