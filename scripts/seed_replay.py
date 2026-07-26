@@ -7,12 +7,29 @@ see: a replay of a real recorded run, labeled as such, never a live dial.
 """
 
 import json
+import math
+import os
+import wave
 from pathlib import Path
 
 from app import db, fsm
 
 FIXTURE = Path(__file__).parent.parent / "mock_calle" / "fixtures" / "terminal_result.json"
 RUN_ID = "run_replay_probe_0001"
+
+
+def _write_tone(dest: Path, seconds: float = 24.0, rate: int = 8000) -> None:
+    """A quiet 440Hz sine long enough to cover the replay transcript."""
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(dest), "w") as out:
+        out.setnchannels(1)
+        out.setsampwidth(2)
+        out.setframerate(rate)
+        frames = bytearray()
+        for i in range(int(seconds * rate)):
+            sample = int(6000 * math.sin(2 * math.pi * 440 * i / rate))
+            frames += sample.to_bytes(2, "little", signed=True)
+        out.writeframes(bytes(frames))
 
 
 def main() -> None:
@@ -27,6 +44,12 @@ def main() -> None:
             "replay": True,
             "claims": {"accepting_new_patients": "yes", "accepts_plan": "yes"},
         }
+        if os.environ.get("ATTEST_SEED_TEST_TONE") == "1":
+            # CI harness only, never a deployed judge path: a synthetic tone
+            # exists so e2e can exercise the waveform without pretending any
+            # real call audio exists. The provenance note is displayed as-is.
+            record["audio_note"] = "synthetic alignment tone, CI harness only"
+            _write_tone(Path(os.environ.get("ATTEST_AUDIO_DIR", "data/audio")) / f"{RUN_ID}.wav")
         db.create_run(
             conn,
             run_id=RUN_ID,

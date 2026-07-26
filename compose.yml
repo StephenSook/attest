@@ -11,6 +11,11 @@ services:
       ATTEST_MOCK_BASE_URL: "http://mock:8100"
       ATTEST_DB_PATH: "/app/data/attest.db"
       ATTEST_JUDGE_KEY: "demo-mode-key"
+      ATTEST_AUDIO_DIR: "/app/data/audio"
+      # Off by default: the judge path never fabricates call audio. CI's e2e
+      # job sets 1 so the waveform gets exercised with an honestly labeled
+      # synthetic alignment tone.
+      ATTEST_SEED_TEST_TONE: "${ATTEST_SEED_TEST_TONE:-0}"
     depends_on:
       - mock
 

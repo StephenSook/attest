@@ -69,6 +69,26 @@ test("run detail shows the verdict stamp and the supporting span", async ({ page
   await expect(page.getByText(/no supporting span/)).toBeVisible();
 });
 
+test("audio evidence: waveform when audio exists, honest absence otherwise", async ({ page }) => {
+  // The CALL-E API exposes no recording URL, so run audio only exists when
+  // captured on our own end. CI seeds a labeled synthetic tone
+  // (ATTEST_SEED_TEST_TONE=1); the default judge compose stays audio-free.
+  const probe = await fetch(`${API}/api/runs/run_replay_probe_0001/audio`);
+  await page.goto("/runs/run_replay_probe_0001");
+  await expect(page.getByText(/record-accurate posterior/)).toBeVisible();
+  if (probe.status === 200) {
+    const player = page.getByTestId("run-audio");
+    await expect(player).toBeVisible();
+    await expect(player).toContainText(/synthetic alignment tone|receiving end/);
+    // Clicking a transcript turn seeks the player and starts playback; the
+    // control's accessible label flips to pause once playing.
+    await page.locator(".evidence-span").click();
+    await expect(page.getByLabel("Pause the call audio")).toBeVisible({ timeout: 10_000 });
+  } else {
+    await expect(page.getByTestId("run-audio")).toHaveCount(0);
+  }
+});
+
 test("calibration page serves live metrics, never hardcoded", async ({ page }) => {
   const metrics = await (await fetch(`${API}/api/metrics`)).json();
   const coverage = (metrics.headline.empirical_coverage * 100).toFixed(1);
