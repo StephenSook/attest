@@ -109,8 +109,15 @@ def _audio_file(run_id: str) -> Path | None:
     audio_dir = Path(os.environ.get("ATTEST_AUDIO_DIR", "data/audio"))
     for suffix in _AUDIO_TYPES:
         candidate = audio_dir / f"{run_id}{suffix}"
-        if candidate.is_file():
-            return candidate
+        try:
+            if candidate.is_file():
+                return candidate
+        except OSError:
+            # An unreadable audio dir must not masquerade as honest absence.
+            logging.getLogger(__name__).warning(
+                "audio dir stat failed for %s; check ATTEST_AUDIO_DIR permissions", run_id
+            )
+            return None
     return None
 
 
