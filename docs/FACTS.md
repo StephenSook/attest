@@ -55,6 +55,12 @@ Regeneration: `uv run python -m eval` reproduces every number and figure above o
 - Zero-credential judge path: `docker compose up --build` (api + mock + console; live dialing off).
 - Live-call gate: `POST /internal/runs` requires the `X-Attest-Key` header; 403 on mismatch, 503 when unconfigured. Public API redacts every phone number (test-enforced).
 
+## Landing film provenance (audited 2026-07-25)
+
+- Hero film: Higgsfield Cinema Studio v2 (pro mode, 16:9, linear speedramp, sound off), prompt: single continuous extreme-macro journey from a telephone handset grille along copper wire to a nib writing in blue ink, ending on a brass notary seal. 12 credits.
+- Post: ffmpeg minterpolate (mci) 24 to 60fps, h264 crf 22, keyframe every 8 frames, audio stripped. Measured shipped file: 7.97s, 1920x1080, 478 frames, 61 keyframes, 8.7MB, zero audio streams.
+- Scrub safety is test-enforced: tests/test_film_asset.py parses the mp4 sync-sample table and fails if keyframes are sparser than one per half second; e2e drives a wheel stream to document end.
+
 ## Engineering facts
 
 - 94 backend tests; strict mypy; ruff lint + format in CI; gitleaks over full history in CI; 15 merged PRs as of this audit (re-count with `gh pr list --state merged` before quoting).
