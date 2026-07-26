@@ -55,6 +55,12 @@ Regeneration: `uv run python -m eval` reproduces every number and figure above o
 - Zero-credential judge path: `docker compose up --build` (api + mock + console; live dialing off).
 - Live-call gate: `POST /internal/runs` requires the `X-Attest-Key` header; 403 on mismatch, 503 when unconfigured. Public API redacts every phone number (test-enforced).
 
+## Audio evidence facts (audited 2026-07-26)
+
+- The live CALL-E API exposes NO recording URL: verified field-by-field on the real terminal payload and by grepping the entire installed SDK (zero audio surface). Logged as feedback to the platform.
+- Run audio therefore only exists when captured on our own end of a consented call and placed in ATTEST_AUDIO_DIR. The console's waveform player renders only when audio exists, always with a provenance label, and clicking an evidence span seeks playback to that turn.
+- CI exercises the player with a synthetic alignment tone labeled "synthetic alignment tone, CI harness only" (ATTEST_SEED_TEST_TONE=1, set nowhere in production). The deployed replay shows no audio until a real builder-line take is recorded.
+
 ## Landing film provenance (audited 2026-07-25)
 
 - Hero film: Higgsfield Cinema Studio v2 (pro mode, 16:9, linear speedramp, sound off), prompt: single continuous extreme-macro journey from a telephone handset grille along copper wire to a nib writing in blue ink, ending on a brass notary seal. 12 credits.
