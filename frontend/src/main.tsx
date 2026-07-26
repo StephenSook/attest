@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import App from "./App";
 import Landing from "./experience/Landing";
+import CertificatePage from "./pages/CertificatePage";
 import NewRunPage from "./pages/NewRunPage";
 import "./index.css";
 import CalibrationPage from "./pages/CalibrationPage";
@@ -20,6 +21,7 @@ createRoot(document.getElementById("root")!).render(
           <Route path="/runs" element={<RunsPage />} />
           <Route path="/runs/new" element={<NewRunPage />} />
           <Route path="/runs/:runId" element={<RunDetailPage />} />
+          <Route path="/runs/:runId/certificate" element={<CertificatePage />} />
           <Route path="/calibration" element={<CalibrationPage />} />
         </Route>
       </Routes>

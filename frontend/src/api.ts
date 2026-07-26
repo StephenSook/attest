@@ -69,6 +69,27 @@ export type RunDetail = {
   audio_note?: string;
 };
 
+export type Attestation = {
+  schema: string;
+  run_id: string;
+  created_at: string;
+  completed_at: string;
+  org: string | null;
+  replay: boolean;
+  claims: Claim[];
+  reconciliation: Reconciliation;
+  calibration: {
+    available: boolean;
+    qhat?: number;
+    target_coverage?: number;
+    empirical_coverage?: number;
+    provenance?: string;
+  };
+  terminal_payload_sha256: string;
+  policy: string;
+  signature: { alg: string | null; signed: boolean; value: string | null; covers?: string };
+};
+
 export type Metrics = {
   seed: number;
   n_calibration: number;
@@ -94,6 +115,22 @@ export type Metrics = {
     abstention_rate: number;
     accuracy_when_answering: number;
   }[];
+  mondrian?: {
+    alpha: number;
+    overall_coverage: number;
+    per_class: {
+      label: string;
+      n: number;
+      marginal_coverage: number;
+      mondrian_coverage: number;
+    }[];
+  };
+  calibration_sensitivity?: {
+    n_cal: number;
+    qhat: number;
+    coverage: number;
+    abstention_rate: number;
+  }[];
 };
 
 async function get<T>(path: string): Promise<T> {
@@ -108,6 +145,8 @@ export const fetchRuns = () => get<{ runs: RunSummary[] }>("/api/runs");
 export const fetchRun = (runId: string) => get<RunDetail>(`/api/runs/${runId}`);
 export const audioUrlOf = (runId: string) => `${BASE}/api/runs/${runId}/audio`;
 export const fetchMetrics = () => get<Metrics>("/api/metrics");
+export const fetchAttestation = (runId: string) =>
+  get<Attestation>(`/api/runs/${runId}/attestation`);
 
 export async function startRun(input: {
   judgeKey: string;

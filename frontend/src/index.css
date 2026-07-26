@@ -70,3 +70,16 @@ html {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Certificate printing: only the document itself reaches paper. */
+@media print {
+  header,
+  footer,
+  nav,
+  .cert-actions {
+    display: none !important;
+  }
+  body {
+    background: white;
+  }
+}
