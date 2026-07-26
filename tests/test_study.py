@@ -75,3 +75,63 @@ def test_analyze_applies_harness_qhat_with_served_gate(tmp_path: Path) -> None:
         if not row["abstain"]:
             assert row["set_size"] == 1
             assert row["answer"] in {"yes", "no"}
+
+
+def test_deviation_protocol_exclusions_and_delivered_labels(tmp_path: Path) -> None:
+    """An excluded call never enters the analysis; a relabeled call is
+    scored against its DELIVERED truth, not the pre-registered one."""
+    scenarios = personas.generate(3, seed=7)
+    manifest = {
+        "seed": 7,
+        "n": 3,
+        "provenance": PROVENANCE,
+        "deviation_protocol": "test protocol",
+        "calls": [
+            {
+                "n": 1,
+                "persona": scenarios[0].persona,
+                "truth": scenarios[0].truth,
+                "line": "x",
+                "status": "done",
+                "calle_call_id": "c1",
+            },
+            {
+                "n": 2,
+                "persona": "hedging",
+                "truth": "yes",
+                "line": "x",
+                "status": "done",
+                "calle_call_id": "c2",
+                "included": False,
+            },
+            {
+                "n": 3,
+                "persona": scenarios[2].persona,
+                "truth": "no",
+                "line": "x",
+                "status": "done",
+                "calle_call_id": "c3",
+                "persona_delivered": scenarios[2].persona,
+                "truth_delivered": scenarios[2].truth,
+                "included": True,
+            },
+        ],
+    }
+    calls_dir = tmp_path / "calls"
+    calls_dir.mkdir()
+    for i, s in enumerate(scenarios):
+        payload = {
+            "id": f"c{i + 1}",
+            "status": "completed",
+            "recipients": [{"attempts": [{"transcript_turns": s.transcript_turns}]}],
+        }
+        (calls_dir / f"call_{i + 1:02d}.json").write_text(json.dumps(payload))
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest))
+
+    report = analyze(manifest_path=manifest_path, calls_dir=calls_dir)
+    assert report["n_collected"] == 2
+    assert report["n_excluded_by_protocol"] == 1
+    assert report["deviation_protocol"] == "test protocol"
+    row3 = next(r for r in report["rows"] if r["n"] == 3)
+    assert row3["truth"] == scenarios[2].truth

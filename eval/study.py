@@ -118,10 +118,19 @@ def analyze(
     qhat = float(json.loads(metrics_path.read_text())["headline"]["qhat"])
 
     rows: list[dict[str, Any]] = []
+    excluded = 0
     for call in manifest["calls"]:
         payload_path = calls_dir / f"call_{call['n']:02d}.json"
         if not payload_path.is_file():
             continue
+        # Protocol deviations: a call relabeled by the documented deviation
+        # protocol uses its DELIVERED truth and persona; a call excluded
+        # there (ambiguous ground truth) never enters the analysis.
+        if call.get("included") is False:
+            excluded += 1
+            continue
+        truth = call.get("truth_delivered") or call["truth"]
+        persona = call.get("persona_delivered") or call["persona"]
         payload = json.loads(payload_path.read_text())
         turns = _transcript_turns(payload)
         extraction = extract_yes_no(turns)
@@ -131,11 +140,11 @@ def analyze(
         rows.append(
             {
                 "n": call["n"],
-                "persona": call["persona"],
-                "truth": call["truth"],
+                "persona": persona,
+                "truth": truth,
                 "answer": extraction.answer.value,
                 "abstain": abstain,
-                "covered": call["truth"] in pset,
+                "covered": truth in pset,
                 "set_size": len(pset),
             }
         )
@@ -158,6 +167,8 @@ def analyze(
         "provenance": PROVENANCE,
         "seed": manifest["seed"],
         "n_collected": n,
+        "n_excluded_by_protocol": excluded,
+        "deviation_protocol": manifest.get("deviation_protocol"),
         "n_manifest": manifest["n"],
         "qhat_source": "harness-calibrated (metrics.json); never fit on this data",
         "qhat": qhat,
