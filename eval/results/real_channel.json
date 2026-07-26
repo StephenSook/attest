@@ -1,0 +1,48 @@
+{
+  "provenance": "real phone channel, builder-answered scripted ground truth (consented builder line; never calls to real practices)",
+  "seed": 7,
+  "n_collected": 2,
+  "n_excluded_by_protocol": 1,
+  "deviation_protocol": "test protocol",
+  "n_manifest": 3,
+  "qhat_source": "harness-calibrated (metrics.json); never fit on this data",
+  "qhat": 0.75,
+  "empirical_coverage": 1.0,
+  "coverage_wilson_95": [
+    0.34237195288961925,
+    1.0
+  ],
+  "abstention_rate": 0.0,
+  "accuracy_when_answering": 1.0,
+  "answering_wilson_95": [
+    0.34237195288961925,
+    1.0
+  ],
+  "per_persona": {
+    "cooperative": {
+      "n": 2,
+      "covered": 2,
+      "abstained": 0
+    }
+  },
+  "rows": [
+    {
+      "n": 1,
+      "persona": "cooperative",
+      "truth": "yes",
+      "answer": "yes",
+      "abstain": false,
+      "covered": true,
+      "set_size": 1
+    },
+    {
+      "n": 3,
+      "persona": "cooperative",
+      "truth": "yes",
+      "answer": "yes",
+      "abstain": false,
+      "covered": true,
+      "set_size": 1
+    }
+  ]
+}

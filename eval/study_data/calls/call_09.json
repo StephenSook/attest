@@ -1,0 +1,100 @@
+{
+  "id": "call_EsHBR6rOzPx8dwDBgK1nfA",
+  "object": "call_task",
+  "status": "completed",
+  "task": "You are placing a short verification call to Attest builder test line on behalf of a records verification service. Open with: 'Hi, this is an automated assistant calling to verify directory information for Attest builder test line. This call may be recorded.' Then politely ask: whether the practice is currently accepting new patients. Record the answers exactly as given. If the person hedges, capture their exact wording. If they decline to speak with an automated caller, thank them and end the call immediately. If asked to hold, wait briefly, then thank them and end the call rather than waiting indefinitely. Never guess: anything not clearly stated must be recorded as unknown. Keep the call under two minutes and always remain polite.",
+  "recipients": [
+    {
+      "id": "rcp_59de188700d10bed",
+      "phones": [
+        "+15550101234"
+      ],
+      "locale": null,
+      "region": null,
+      "status": "completed",
+      "structured_result": null,
+      "summary": "The verification call completed successfully. The practice\u2019s answer about accepting new patients was: \u201cI believe we are. Yeah.\u201d",
+      "attempts": [
+        {
+          "id": "att_65518e7c9b0a07ff",
+          "phone": "+15550101234",
+          "status": "completed",
+          "started_at": "2026-07-26T02:00:37.419282Z",
+          "completed_at": "2026-07-26T02:01:21.461821Z",
+          "summary": "The verification call completed successfully. The practice\u2019s answer about accepting new patients was: \u201cI believe we are. Yeah.\u201d",
+          "transcript_turns": [
+            {
+              "offset_seconds": 0,
+              "speaker": "bot",
+              "text": "Hi,"
+            },
+            {
+              "offset_seconds": 0,
+              "speaker": "bot",
+              "text": "this is an automated assistant calling to verify directory information for Attest builder test line."
+            },
+            {
+              "offset_seconds": 5,
+              "speaker": "bot",
+              "text": "This call may be recorded."
+            },
+            {
+              "offset_seconds": 12,
+              "speaker": "bot",
+              "text": "Is the practice currently accepting new patients?"
+            },
+            {
+              "offset_seconds": 18,
+              "speaker": "user",
+              "text": "I believe we are. Yeah."
+            },
+            {
+              "offset_seconds": 20,
+              "speaker": "bot",
+              "text": "Got it, thank you."
+            },
+            {
+              "offset_seconds": 27,
+              "speaker": "bot",
+              "text": "No rush."
+            },
+            {
+              "offset_seconds": 33,
+              "speaker": "bot",
+              "text": "Take your time."
+            },
+            {
+              "offset_seconds": 41,
+              "speaker": "bot",
+              "text": "Thank you, bye."
+            }
+          ],
+          "provider_call_id": "fd3a00fb4c194876b0dadda3d5014138",
+          "failure_code": null,
+          "failure_message": null
+        }
+      ]
+    }
+  ],
+  "structured_result": null,
+  "summary": "The verification call completed successfully. The practice\u2019s answer about accepting new patients was: \u201cI believe we are. Yeah.\u201d",
+  "task_completed": true,
+  "completion_confidence": {
+    "score": 0.92,
+    "label": "high"
+  },
+  "evidence": [
+    "A live person answered the verification question.",
+    "They indicated the practice is currently accepting new patients, with hedging language.",
+    "The call ended politely after the answer was recorded."
+  ],
+  "metadata": {
+    "n": 9,
+    "purpose": "real-channel-study",
+    "budget_line": "real-call validation"
+  },
+  "failure_code": null,
+  "failure_message": null,
+  "created_at": "2026-07-26T01:59:40.708771Z",
+  "completed_at": "2026-07-26T02:01:33.567603Z"
+}

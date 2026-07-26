@@ -1,0 +1,95 @@
+{
+  "id": "call_Dvd_QCEP3VJXLttLzLJEoQ",
+  "object": "call_task",
+  "status": "completed",
+  "task": "You are placing a short verification call to Attest builder test line on behalf of a records verification service. Open with: 'Hi, this is an automated assistant calling to verify directory information for Attest builder test line. This call may be recorded.' Then politely ask: whether the practice is currently accepting new patients. Record the answers exactly as given. If the person hedges, capture their exact wording. If they decline to speak with an automated caller, thank them and end the call immediately. If asked to hold, wait briefly, then thank them and end the call rather than waiting indefinitely. Never guess: anything not clearly stated must be recorded as unknown. Keep the call under two minutes and always remain polite.",
+  "recipients": [
+    {
+      "id": "rcp_30411dbd3a472d0b",
+      "phones": [
+        "+15550101234"
+      ],
+      "locale": null,
+      "region": null,
+      "status": "completed",
+      "structured_result": null,
+      "summary": "The call completed. The line answered the directory-verification question, indicating the practice is not accepting new patients, with some uncertainty in the wording.",
+      "attempts": [
+        {
+          "id": "att_d55c4b66b4901343",
+          "phone": "+15550101234",
+          "status": "completed",
+          "started_at": "2026-07-26T02:02:45.348919Z",
+          "completed_at": "2026-07-26T02:03:12.712109Z",
+          "summary": "The call completed. The line answered the directory-verification question, indicating the practice is not accepting new patients, with some uncertainty in the wording.",
+          "transcript_turns": [
+            {
+              "offset_seconds": 0,
+              "speaker": "bot",
+              "text": "Hi,"
+            },
+            {
+              "offset_seconds": 0,
+              "speaker": "bot",
+              "text": "this is an automated assistant calling to verify directory information for Attest builder test line."
+            },
+            {
+              "offset_seconds": 5,
+              "speaker": "bot",
+              "text": "This call may be recorded."
+            },
+            {
+              "offset_seconds": 12,
+              "speaker": "bot",
+              "text": "I'm calling for a records verification service to verify directory information;"
+            },
+            {
+              "offset_seconds": 16,
+              "speaker": "bot",
+              "text": "is the practice currently accepting new patients?"
+            },
+            {
+              "offset_seconds": 23,
+              "speaker": "user",
+              "text": "I think we stopped. No."
+            },
+            {
+              "offset_seconds": 24,
+              "speaker": "bot",
+              "text": "Okay, thank you."
+            },
+            {
+              "offset_seconds": 24,
+              "speaker": "bot",
+              "text": "Goodbye."
+            }
+          ],
+          "provider_call_id": "bbf713a2c4a9433f9090d249768ed741",
+          "failure_code": null,
+          "failure_message": null
+        }
+      ]
+    }
+  ],
+  "structured_result": null,
+  "summary": "The call completed. The line answered the directory-verification question, indicating the practice is not accepting new patients, with some uncertainty in the wording.",
+  "task_completed": true,
+  "completion_confidence": {
+    "score": 0.88,
+    "label": "high"
+  },
+  "evidence": [
+    "A live respondent answered the new-patient availability question.",
+    "The answer was negative, though phrased with some uncertainty.",
+    "The bot thanked the respondent and ended the call politely."
+  ],
+  "metadata": {
+    "n": 10,
+    "purpose": "real-channel-study",
+    "budget_line": "real-call validation"
+  },
+  "failure_code": null,
+  "failure_message": null,
+  "created_at": "2026-07-26T02:01:50.541530Z",
+  "completed_at": "2026-07-26T02:03:26.694940Z"
+}
