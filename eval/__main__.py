@@ -14,8 +14,19 @@ from app.extract import ExtractionResult, extract_yes_no
 from app.models import Answer
 from app.reconcile import reconcile
 from eval.ablation import as_markdown, run_ablations
-from eval.conformal import evaluate_alpha, risk_coverage_curve, wilson_interval
-from eval.figures import match_weight_waterfall, reliability_diagram, risk_coverage
+from eval.conformal import (
+    calibration_sensitivity,
+    evaluate_alpha,
+    evaluate_mondrian,
+    risk_coverage_curve,
+    wilson_interval,
+)
+from eval.figures import (
+    calibration_sensitivity_figure,
+    match_weight_waterfall,
+    reliability_diagram,
+    risk_coverage,
+)
 from eval.personas import Scenario, generate
 
 SEED = 20260725
@@ -66,6 +77,12 @@ def main() -> None:
 
     ablation_rows = run_ablations(calibration, test, alpha=HEADLINE_ALPHA)
     (out_dir / "ablation.md").write_text(as_markdown(ablation_rows) + "\n")
+
+    mondrian_thresholds, per_class, mondrian_overall = evaluate_mondrian(
+        cal_pairs, test_pairs, HEADLINE_ALPHA
+    )
+    sensitivity_rows = calibration_sensitivity(cal_pairs, test_pairs, HEADLINE_ALPHA, seed=SEED)
+    calibration_sensitivity_figure(sensitivity_rows, HEADLINE_ALPHA, SEED, len(test_pairs), out_dir)
 
     example = next(s for s in test if s.persona == "cooperative" and s.truth == "yes")
     example_extraction = extract_yes_no(example.transcript_turns)
@@ -120,6 +137,21 @@ def main() -> None:
             }
             for row in ablation_rows
         ],
+        "mondrian": {
+            "alpha": HEADLINE_ALPHA,
+            "qhats": mondrian_thresholds,
+            "overall_coverage": mondrian_overall,
+            "per_class": [
+                {
+                    "label": row.label,
+                    "n": row.n,
+                    "marginal_coverage": row.marginal_coverage,
+                    "mondrian_coverage": row.mondrian_coverage,
+                }
+                for row in per_class
+            ],
+        },
+        "calibration_sensitivity": sensitivity_rows,
         "reconciliation_example": {
             "verdict": recon.verdict,
             "posterior_probability": recon.posterior_probability,
@@ -139,6 +171,16 @@ def main() -> None:
         f"accuracy when answering {headline.singleton_accuracy:.1%}"
     )
     print(as_markdown(ablation_rows))
+    print("per-class coverage (marginal / mondrian):")
+    for row in per_class:
+        print(
+            f"  {row.label:>8} n={row.n:>3}: "
+            f"{row.marginal_coverage:.1%} / {row.mondrian_coverage:.1%}"
+        )
+    print(
+        "calibration sensitivity (n_cal -> coverage): "
+        + ", ".join(f"{r['n_cal']:.0f}->{r['coverage']:.1%}" for r in sensitivity_rows)
+    )
     print(f"reconciliation example: {recon.verdict} at {recon.posterior_probability:.0%}")
     print(f"figures + metrics written to {out_dir}/")
 
