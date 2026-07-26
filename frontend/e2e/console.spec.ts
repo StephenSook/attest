@@ -99,6 +99,19 @@ test("audio evidence: waveform when audio exists, honest absence otherwise", asy
   }
 });
 
+test("builder-line replay serves real audio with honest provenance", async ({ page }) => {
+  // This replay's audio was captured on the receiving end of a consented
+  // builder-line call and ships with the repo, so it must exist in EVERY
+  // environment: CI, judge compose, and the deployed site.
+  const probe = await fetch(`${API}/api/runs/run_replay_builder_0001/audio`);
+  expect(probe.status, "builder replay audio must always be served").toBe(200);
+  await page.goto("/runs/run_replay_builder_0001");
+  const player = page.getByTestId("run-audio");
+  await expect(player).toBeVisible();
+  await expect(player).toContainText(/receiving end of this consented call, builder line/);
+  await expect(page.getByText(/accepting new patients/).first()).toBeVisible();
+});
+
 test("calibration page serves live metrics, never hardcoded", async ({ page }) => {
   const metrics = await (await fetch(`${API}/api/metrics`)).json();
   const coverage = (metrics.headline.empirical_coverage * 100).toFixed(1);
