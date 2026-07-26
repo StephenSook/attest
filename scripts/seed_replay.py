@@ -9,6 +9,7 @@ see: a replay of a real recorded run, labeled as such, never a live dial.
 import json
 import math
 import os
+import sqlite3
 import wave
 from pathlib import Path
 
@@ -32,11 +33,30 @@ def _write_tone(dest: Path, seconds: float = 24.0, rate: int = 8000) -> None:
         out.writeframes(bytes(frames))
 
 
+def _ensure_tone(conn: "sqlite3.Connection") -> None:
+    tone = Path(os.environ.get("ATTEST_AUDIO_DIR", "data/audio")) / f"{RUN_ID}.wav"
+    if not tone.is_file():
+        _write_tone(tone)
+    row = conn.execute("SELECT record_json FROM call_runs WHERE run_id = ?", (RUN_ID,)).fetchone()
+    record = json.loads(row[0]) if row and row[0] else {}
+    if record.get("audio_note") != "synthetic alignment tone, CI harness only":
+        record["audio_note"] = "synthetic alignment tone, CI harness only"
+        conn.execute(
+            "UPDATE call_runs SET record_json = ? WHERE run_id = ?",
+            (json.dumps(record), RUN_ID),
+        )
+        conn.commit()
+
+
 def main() -> None:
     payload = json.loads(FIXTURE.read_text())
     conn = db.connect(db.db_path())
     try:
         if db.get_run(conn, RUN_ID) is not None:
+            if os.environ.get("ATTEST_SEED_TEST_TONE") == "1":
+                # A reused container keeps its DB; the tone and its honest
+                # note must still exist or CI exercises nothing.
+                _ensure_tone(conn)
             print(f"{RUN_ID} already seeded; nothing to do")
             return
         record = {
