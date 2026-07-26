@@ -59,7 +59,8 @@ Regeneration: `uv run python -m eval` reproduces every number and figure above o
 
 - The live CALL-E API exposes NO recording URL: verified field-by-field on the real terminal payload and by grepping the entire installed SDK (zero audio surface). Logged as feedback to the platform.
 - Run audio therefore only exists when captured on our own end of a consented call and placed in ATTEST_AUDIO_DIR. The console's waveform player renders only when audio exists, always with a provenance label, and clicking an evidence span seeks playback to that turn.
-- CI exercises the player with a synthetic alignment tone labeled "synthetic alignment tone, CI harness only" (ATTEST_SEED_TEST_TONE=1, set nowhere in production). The deployed replay shows no audio until a real builder-line take is recorded.
+- CI exercises the player with a synthetic alignment tone labeled "synthetic alignment tone, CI harness only" (ATTEST_SEED_TEST_TONE=1, set nowhere in production).
+- Real audio shipped 2026-07-26: a consented builder-line call recorded on the receiving end by the builder, trimmed and loudness-normalized (25.6s, -17 LUFS integrated, mono AAC), scrubbed payload seeded as run_replay_builder_0001 with the label "audio captured on the receiving end of this consented call, builder line". Its verdict is honestly unverifiable at posterior 0.72: one agreeing field is +1.36 bits from an even prior, below the 0.85 verified bar. The extraction span is "Yes. We're we're accepting new patients." with real crosstalk earlier in the call.
 
 ## Landing film provenance (audited 2026-07-25)
 
