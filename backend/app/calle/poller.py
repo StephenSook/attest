@@ -78,6 +78,8 @@ class Poller:
             )
             for task in pending:
                 task.cancel()
+            if pending:
+                await asyncio.gather(*pending, return_exceptions=True)
             if wake_task in done:
                 self._wake.clear()
                 delay = self._interval
