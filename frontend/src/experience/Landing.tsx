@@ -54,10 +54,13 @@ export default function Landing() {
           delay: 0.2,
         },
       );
+      // Anchored to the hero itself so progress is exactly zero at the top
+      // of the page on every viewport; a chapter-relative trigger left the
+      // hero pre-faded on short screens (caught by Lighthouse contrast).
       gsap.to(".hero-inner", {
         opacity: 0,
         y: -60,
-        scrollTrigger: { trigger: ".ch-problem", start: "top 90%", end: "top 35%", scrub: true },
+        scrollTrigger: { trigger: ".hero", start: "top top", end: "bottom 40%", scrub: true },
       });
 
       // Generic chapter rise-ins.
