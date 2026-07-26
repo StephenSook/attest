@@ -86,8 +86,10 @@ async def main() -> None:
                 print(f"call {n}: already collected; skipping")
                 continue
             print(
-                f"\ncall {n} of {manifest['n']}: READ SHEET LINE {n} "
-                f"[{call_row['persona']}] then answer the phone."
+                f"\ncall {n} of {manifest['n']} [{call_row['persona']}]\n"
+                f'  SAY: "{call_row["line"]}"\n'
+                f"  (go by THIS line, not the paper sheet)",
+                flush=True,
             )
             payload = await _one_call(service, phone, n, int(manifest["seed"]))
             scrubbed = _scrub(payload, phone)
