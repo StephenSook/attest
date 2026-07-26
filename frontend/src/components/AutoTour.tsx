@@ -153,7 +153,7 @@ export default function AutoTour() {
         type="button"
         onClick={toggle}
         className="auto-tour-button"
-        aria-label={state === "touring" ? "Pause the guided tour" : "Play the guided tour"}
+        aria-label={`${label} guided tour`}
       >
         <svg viewBox="0 0 32 32" width="32" height="32" aria-hidden="true">
           <circle cx="16" cy="16" r="14" className="auto-tour-track" />
