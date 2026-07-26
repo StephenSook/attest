@@ -9,8 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Backend healthz
-        run: curl -sf --max-time 30 --retry 3 --retry-delay 20 https://attest-api-o5gm.onrender.com/healthz
+        run: curl -sfL --max-redirs 3 --max-time 30 --retry 3 --retry-delay 20 https://attest-api-o5gm.onrender.com/healthz
       - name: Frontend landing
-        run: curl -sf --max-time 30 --retry 3 --retry-delay 20 -o /dev/null https://attest-web-phi.vercel.app/
+        run: curl -sfL --max-redirs 3 --max-time 30 --retry 3 --retry-delay 20 -o /dev/null https://attest-web-phi.vercel.app/
       - name: Replay run served
-        run: curl -sf --max-time 30 https://attest-api-o5gm.onrender.com/api/runs/run_replay_probe_0001 -o /dev/null
+        run: curl -sfL --max-redirs 3 --max-time 30 https://attest-api-o5gm.onrender.com/api/runs/run_replay_probe_0001 -o /dev/null
