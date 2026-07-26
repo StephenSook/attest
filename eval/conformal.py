@@ -74,6 +74,92 @@ def evaluate_alpha(
     )
 
 
+def mondrian_qhats(
+    cal_scores: list[tuple[dict[str, float], str]], alpha: float
+) -> dict[str, float]:
+    """Class-conditional (Mondrian) thresholds: one finite-sample-corrected
+    quantile PER TRUE CLASS, so the guarantee holds within each class rather
+    than only on average. Marginal coverage can hide a class that is always
+    missed; this cannot."""
+    qhats: dict[str, float] = {}
+    for label in CLASSES:
+        scores = [nonconformity(s, truth) for s, truth in cal_scores if truth == label]
+        qhats[label] = conformal_quantile(scores, alpha) if scores else float("inf")
+    return qhats
+
+
+def mondrian_prediction_set(class_scores: dict[str, float], qhats: dict[str, float]) -> set[str]:
+    return {label for label in CLASSES if 1.0 - class_scores[label] <= qhats[label]}
+
+
+@dataclass(frozen=True)
+class PerClassCoverage:
+    label: str
+    n: int
+    marginal_coverage: float
+    mondrian_coverage: float
+
+
+def evaluate_mondrian(
+    cal_scores: list[tuple[dict[str, float], str]],
+    test_scores: list[tuple[dict[str, float], str]],
+    alpha: float,
+) -> tuple[dict[str, float], list[PerClassCoverage], float]:
+    """Per-class coverage under the marginal gate and the Mondrian gate,
+    plus overall Mondrian coverage, all on the held-out fold."""
+    marginal_qhat = conformal_quantile([nonconformity(s, truth) for s, truth in cal_scores], alpha)
+    qhats = mondrian_qhats(cal_scores, alpha)
+    per_class: list[PerClassCoverage] = []
+    overall_covered = 0
+    for label in CLASSES:
+        subset = [(s, truth) for s, truth in test_scores if truth == label]
+        if not subset:
+            continue
+        marg = sum(1 for s, truth in subset if truth in prediction_set(s, marginal_qhat))
+        mond = sum(1 for s, truth in subset if truth in mondrian_prediction_set(s, qhats))
+        per_class.append(
+            PerClassCoverage(
+                label=label,
+                n=len(subset),
+                marginal_coverage=marg / len(subset),
+                mondrian_coverage=mond / len(subset),
+            )
+        )
+        overall_covered += mond
+    return qhats, per_class, overall_covered / len(test_scores)
+
+
+def calibration_sensitivity(
+    cal_scores: list[tuple[dict[str, float], str]],
+    test_scores: list[tuple[dict[str, float], str]],
+    alpha: float,
+    sizes: tuple[int, ...] = (50, 100, 150, 200, 250, 300),
+    seed: int = 0,
+) -> list[dict[str, float]]:
+    """Coverage on the FULL held-out fold as the calibration fold shrinks:
+    how much calibration data the guarantee actually needs."""
+    import random
+
+    rng = random.Random(seed)
+    rows: list[dict[str, float]] = []
+    for size in sizes:
+        if size > len(cal_scores):
+            continue
+        subsample = rng.sample(cal_scores, size)
+        qhat = conformal_quantile([nonconformity(s, t) for s, t in subsample], alpha)
+        covered = sum(1 for s, truth in test_scores if truth in prediction_set(s, qhat))
+        abstained = sum(1 for s, _ in test_scores if len(prediction_set(s, qhat)) != 1)
+        rows.append(
+            {
+                "n_cal": size,
+                "qhat": qhat,
+                "coverage": covered / len(test_scores),
+                "abstention_rate": abstained / len(test_scores),
+            }
+        )
+    return rows
+
+
 def wilson_interval(successes: int, n: int, z: float = 1.96) -> tuple[float, float]:
     """95 percent Wilson score interval for a binomial proportion."""
     if n == 0:

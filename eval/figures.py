@@ -202,3 +202,36 @@ def match_weight_waterfall(recon: Reconciliation, seed: int, out_dir: Path) -> N
     fig.savefig(out_dir / "match_weight_waterfall.png")
     fig.savefig(out_dir / "match_weight_waterfall.svg")
     plt.close(fig)
+
+
+def calibration_sensitivity_figure(
+    rows: list[dict[str, float]], alpha: float, seed: int, n_test: int, out_dir: Path
+) -> None:
+    fig, ax = plt.subplots(figsize=(6.4, 4.2), dpi=160)
+    sizes = [row["n_cal"] for row in rows]
+    coverages = [row["coverage"] for row in rows]
+    lows, highs = [], []
+    for row in rows:
+        low, high = wilson_interval(round(row["coverage"] * n_test), n_test)
+        lows.append(low)
+        highs.append(high)
+    target = 1 - alpha
+    ax.axhline(target, linestyle="--", linewidth=1.2, color=_REFERENCE)
+    ax.text(sizes[-1], target + 0.004, f"target {target:.0%}", fontsize=8, color=_MUTED, ha="right")
+    ax.fill_between(sizes, lows, highs, color=_SERIES, alpha=0.15, linewidth=0)
+    ax.plot(sizes, coverages, linewidth=2, color=_SERIES, marker="o", markersize=5)
+    ax.set_xlabel("Calibration fold size", color=_INK, fontsize=10)
+    ax.set_ylabel("Coverage on the full held-out fold", color=_INK, fontsize=10)
+    ax.set_title(
+        "How much calibration data the guarantee needs",
+        color=_INK,
+        fontsize=11,
+        loc="left",
+    )
+    ax.set_ylim(min(lows) - 0.02, 1.005)
+    _style(ax)
+    _provenance(fig, seed, int(sizes[-1]), n_test)
+    fig.tight_layout(rect=(0, 0.04, 1, 1))
+    fig.savefig(out_dir / "calibration_sensitivity.png")
+    fig.savefig(out_dir / "calibration_sensitivity.svg")
+    plt.close(fig)
