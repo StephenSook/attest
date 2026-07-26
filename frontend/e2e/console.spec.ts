@@ -74,12 +74,22 @@ test("audio evidence: waveform when audio exists, honest absence otherwise", asy
   // captured on our own end. CI seeds a labeled synthetic tone
   // (ATTEST_SEED_TEST_TONE=1); the default judge compose stays audio-free.
   const probe = await fetch(`${API}/api/runs/run_replay_probe_0001/audio`);
+  // In CI the tone is seeded, so a non-200 here is a broken audio path, not
+  // honest absence; never let the spec neutralize itself.
+  if (process.env.E2E_EXPECT_AUDIO === "1") {
+    expect(probe.status, "CI seeds a tone; audio must be served").toBe(200);
+  }
   await page.goto("/runs/run_replay_probe_0001");
   await expect(page.getByText(/record-accurate posterior/)).toBeVisible();
   if (probe.status === 200) {
     const player = page.getByTestId("run-audio");
     await expect(player).toBeVisible();
-    await expect(player).toContainText(/synthetic alignment tone|receiving end/);
+    // The CI tone must never wear the real-call provenance label.
+    await expect(player).toContainText(
+      process.env.E2E_EXPECT_AUDIO === "1"
+        ? /synthetic alignment tone, CI harness only/
+        : /synthetic alignment tone|receiving end/,
+    );
     // Clicking a transcript turn seeks the player and starts playback; the
     // control's accessible label flips to pause once playing.
     await page.locator(".evidence-span").click();
