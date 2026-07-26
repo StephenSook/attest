@@ -164,7 +164,7 @@ export default function Landing() {
   return (
     <SmoothScroll>
       <div ref={root} className="landing">
-        <ScrollVideo src="/hero.mp4" />
+        <ScrollVideo src="/hero.mp4" srcMobile="/hero-720.mp4" poster="/hero-poster.jpg" />
 
         {/* Notary registration marks framing the viewport. */}
         <div className="frame-marks" aria-hidden="true">
