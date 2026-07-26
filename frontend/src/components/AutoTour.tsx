@@ -71,6 +71,7 @@ export default function AutoTour() {
 
   const begin = (fromTop: boolean) => {
     const max = document.documentElement.scrollHeight - window.innerHeight;
+    if (max <= 0) return; // nothing to tour on a viewport-height document
     const startY = fromTop ? 0 : window.scrollY;
     if (fromTop) {
       const lenis = getLenis();
