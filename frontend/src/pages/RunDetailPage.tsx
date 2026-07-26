@@ -192,10 +192,20 @@ export default function RunDetailPage() {
           )}
         </div>
         {analysis && (
-          <VerdictStamp
-            verdict={analysis.reconciliation.verdict}
-            probability={analysis.reconciliation.posterior_probability}
-          />
+          <div className="flex flex-col items-end gap-2">
+            <VerdictStamp
+              verdict={analysis.reconciliation.verdict}
+              probability={analysis.reconciliation.posterior_probability}
+            />
+            {detail.state === "completed" && (
+              <Link
+                to={`/runs/${detail.run_id}/certificate`}
+                className="font-evidence text-[11px] uppercase tracking-widest text-trust hover:text-ink"
+              >
+                view attestation certificate
+              </Link>
+            )}
+          </div>
         )}
       </div>
 
