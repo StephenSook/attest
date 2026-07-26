@@ -28,7 +28,19 @@ const SETTLE_EPSILON = 0.004; // seconds: playhead considered settled
 const SEEK_WATCHDOG_MS = 600; // release a decoder that never reports seeked
 const END_HOLD = 0.05; // seconds held back so the final frame stays clean
 
-export default function ScrollVideo({ src }: { src: string }) {
+export default function ScrollVideo({
+  src,
+  srcMobile,
+  poster,
+}: {
+  src: string;
+  srcMobile?: string;
+  poster?: string;
+}) {
+  // Chosen once at mount: phones get the 720p rendition (about a third of
+  // the bytes); the poster paints instantly while the film buffers.
+  const chosenSrc =
+    srcMobile && window.matchMedia("(max-width: 768px)").matches ? srcMobile : src;
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const frameRef = useRef<HTMLDivElement | null>(null);
   const bufferRef = useRef<HTMLDivElement | null>(null);
@@ -54,6 +66,10 @@ export default function ScrollVideo({ src }: { src: string }) {
 
     const onMeta = () => {
       duration = video.duration;
+      // After a load() upgrade the element reset to zero; force the loop to
+      // re-issue the current playhead position.
+      lastSought = -1;
+      seeking = false;
     };
     const onScroll = () => {
       const max = document.documentElement.scrollHeight - window.innerHeight;
@@ -124,6 +140,19 @@ export default function ScrollVideo({ src }: { src: string }) {
 
     video.addEventListener("loadedmetadata", onMeta);
     if (video.readyState >= 1) onMeta();
+    // The tag ships preload=metadata so first paint is the poster. The full
+    // film buffers at the first scroll intent, or shortly after settle,
+    // whichever comes first.
+    let upgraded = false;
+    const upgradeNow = () => {
+      if (upgraded || failed) return;
+      upgraded = true;
+      video.preload = "auto";
+      video.load();
+    };
+    const upgradeTimer = window.setTimeout(upgradeNow, 1200);
+    window.addEventListener("wheel", upgradeNow, { passive: true, once: true });
+    window.addEventListener("touchstart", upgradeNow, { passive: true, once: true });
     video.addEventListener("seeked", seekSettled);
     video.addEventListener("error", onError);
     video.addEventListener("progress", onProgress);
@@ -151,6 +180,9 @@ export default function ScrollVideo({ src }: { src: string }) {
       video.removeEventListener("canplay", onCanPlay);
       window.removeEventListener("scroll", onScroll);
       if (fine) window.removeEventListener("pointermove", onPointer);
+      window.clearTimeout(upgradeTimer);
+      window.removeEventListener("wheel", upgradeNow);
+      window.removeEventListener("touchstart", upgradeNow);
       cancelAnimationFrame(rafId);
     };
   }, []);
@@ -160,10 +192,11 @@ export default function ScrollVideo({ src }: { src: string }) {
       <div ref={frameRef} className="landing-film-frame">
         <video
           ref={videoRef}
-          src={src}
+          src={chosenSrc}
+          poster={poster}
           muted
           playsInline
-          preload="auto"
+          preload="metadata"
           disablePictureInPicture
           tabIndex={-1}
         />
