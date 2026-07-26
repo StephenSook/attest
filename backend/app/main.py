@@ -5,6 +5,7 @@ able to find the load-bearing CALL-E call within one minute of opening this repo
 """
 
 import asyncio
+import hashlib
 import hmac
 import json
 import logging
@@ -167,6 +168,74 @@ async def api_run_detail(run_id: str) -> dict[str, object]:
             "stage": str(payload.get("stage", "unknown"))[:60],
         }
     return detail
+
+
+@app.get("/api/runs/{run_id}/attestation")
+async def api_run_attestation(run_id: str) -> dict[str, object]:
+    """A portable, verifiable record of one completed verification.
+
+    Deterministic for a given run (timestamps come from the run row, never
+    from the clock), so the signature is stable. The HMAC covers the
+    canonical JSON of the document without its signature field; anyone
+    holding the signing key can recompute and verify. Without a configured
+    key the document still ships, honestly marked unsigned.
+    """
+    conn = db.connect(db.db_path())
+    try:
+        row = db.get_run(conn, run_id)
+    finally:
+        conn.close()
+    if row is None:
+        raise HTTPException(status_code=404, detail="run not found")
+    if row["state"] != "completed":
+        raise HTTPException(status_code=409, detail="attestation exists only for completed runs")
+
+    analysis_doc = analysis.analyze_run(row)
+    payload_sha = hashlib.sha256(str(row["terminal_payload"]).encode()).hexdigest()
+
+    calibration: dict[str, object] = {"available": False}
+    metrics_path = Path(os.environ.get("ATTEST_METRICS_PATH", "eval/results/metrics.json"))
+    if metrics_path.exists():
+        head = json.loads(metrics_path.read_text())["headline"]
+        calibration = {
+            "available": True,
+            "qhat": head["qhat"],
+            "target_coverage": head["target_coverage"],
+            "empirical_coverage": head["empirical_coverage"],
+            "provenance": "guarantee computed on scripted seeded personas, held-out fold",
+        }
+
+    doc: dict[str, object] = {
+        "schema": "attest/attestation/v1",
+        "run_id": str(row["run_id"]),
+        "created_at": str(row["created_at"]),
+        "completed_at": str(row["updated_at"]),
+        "org": analysis_doc.get("org"),
+        "replay": analysis_doc.get("replay", False),
+        "claims": analysis_doc.get("claims"),
+        "reconciliation": analysis_doc.get("reconciliation"),
+        "calibration": calibration,
+        "terminal_payload_sha256": payload_sha,
+        "policy": (
+            "every answer cites a verbatim transcript span; abstention is the "
+            "calibrated conformal decision; nothing here was hand-edited"
+        ),
+    }
+    canonical = json.dumps(doc, sort_keys=True, separators=(",", ":"))
+    signing_key = os.environ.get("ATTEST_SIGNING_KEY", "")
+    if signing_key:
+        doc["signature"] = {
+            "alg": "HMAC-SHA256",
+            "signed": True,
+            "value": hmac.new(signing_key.encode(), canonical.encode(), "sha256").hexdigest(),
+            "covers": (
+                "canonical JSON (sorted keys, compact separators) "
+                "of this document without the signature field"
+            ),
+        }
+    else:
+        doc["signature"] = {"alg": None, "signed": False, "value": None}
+    return doc
 
 
 @app.get("/api/metrics")
