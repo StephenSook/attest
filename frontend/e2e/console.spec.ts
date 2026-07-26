@@ -45,6 +45,10 @@ test("landing scrolls to the very end under a wheel stream", async ({ page }) =>
     };
   });
   expect(result.reachedEnd, `stalled for ${result.stalledMs}ms before the end`).toBe(true);
+  // Playwright's bundled Chromium ships without proprietary codecs, so the
+  // film may not decode in CI (duration 0). Traversal is the load-bearing
+  // assertion here; the committed asset itself is enforced by
+  // tests/test_film_asset.py. When the film does decode, it must advance.
   if (result.filmDuration > 0) {
     expect(result.filmAdvanced).toBe(true);
   }

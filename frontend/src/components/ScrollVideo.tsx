@@ -47,6 +47,7 @@ export default function ScrollVideo({ src }: { src: string }) {
     let lastSought = -1;
     let seeking = false;
     let seekIssuedAt = 0;
+    let seekBlockedUntil = 0; // cooldown after a watchdog release
     let prevNow = performance.now();
     let rafId = 0;
     let failed = false;
@@ -80,12 +81,18 @@ export default function ScrollVideo({ src }: { src: string }) {
       seeking = true;
       seekIssuedAt = performance.now();
       lastSought = time;
-      // Prefer frame presentation as the settle signal where supported: the
-      // seeked event can fire before the frame is actually displayed.
-      if ("requestVideoFrameCallback" in video) {
-        video.requestVideoFrameCallback(seekSettled);
-      }
       video.currentTime = time;
+      // Prefer frame presentation as the settle signal where supported: the
+      // seeked event can fire before the frame is actually displayed. Only a
+      // frame near the sought time counts; a stale queued frame re-arms.
+      if ("requestVideoFrameCallback" in video) {
+        const confirm = (_: number, meta: VideoFrameCallbackMetadata) => {
+          if (!seeking) return;
+          if (Math.abs(meta.mediaTime - lastSought) < 0.08) seekSettled();
+          else video.requestVideoFrameCallback(confirm);
+        };
+        video.requestVideoFrameCallback(confirm);
+      }
     };
 
     const loop = (now: number) => {
@@ -99,8 +106,18 @@ export default function ScrollVideo({ src }: { src: string }) {
       playhead += (targetTime - playhead) * (1 - Math.exp(-DAMPING_PER_SECOND * dt));
       if (Math.abs(targetTime - playhead) < SETTLE_EPSILON) playhead = targetTime;
 
-      if (seeking && now - seekIssuedAt > SEEK_WATCHDOG_MS) seeking = false;
-      if (!seeking && Math.abs(playhead - lastSought) >= MIN_SEEK_DELTA) {
+      if (seeking && now - seekIssuedAt > SEEK_WATCHDOG_MS) {
+        // The decoder is genuinely slow (or an event was lost). Release it,
+        // but rate-limit further seeks so a slow decoder gets breathing room
+        // instead of a reopened seek storm.
+        seeking = false;
+        seekBlockedUntil = now + SEEK_WATCHDOG_MS;
+      }
+      if (
+        !seeking &&
+        now >= seekBlockedUntil &&
+        Math.abs(playhead - lastSought) >= MIN_SEEK_DELTA
+      ) {
         issueSeek(playhead);
       }
     };
