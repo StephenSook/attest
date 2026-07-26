@@ -65,6 +65,8 @@ export type RunDetail = {
     reconciliation: Reconciliation;
   };
   failure?: { error: string; stage: string };
+  has_audio?: boolean;
+  audio_note?: string;
 };
 
 export type Metrics = {
@@ -104,6 +106,7 @@ async function get<T>(path: string): Promise<T> {
 
 export const fetchRuns = () => get<{ runs: RunSummary[] }>("/api/runs");
 export const fetchRun = (runId: string) => get<RunDetail>(`/api/runs/${runId}`);
+export const audioUrlOf = (runId: string) => `${BASE}/api/runs/${runId}/audio`;
 export const fetchMetrics = () => get<Metrics>("/api/metrics");
 
 export async function startRun(input: {
