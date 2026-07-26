@@ -10,96 +10,144 @@
       "persona": "cooperative",
       "truth": "no",
       "line": "Nope, there's a waitlist.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call_vtiHKyy3DRj7m161K_UOxg",
+      "enacted_row": 1,
+      "persona_delivered": "cooperative",
+      "truth_delivered": "no",
+      "included": true
     },
     {
       "n": 2,
       "persona": "cooperative",
       "truth": "yes",
       "line": "Yeah, absolutely.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call_pkAucEee3SuNkEfB_Cf4Uw",
+      "enacted_row": 2,
+      "persona_delivered": "cooperative",
+      "truth_delivered": "yes",
+      "included": true
     },
     {
       "n": 3,
       "persona": "refuses",
       "truth": "unknown",
       "line": "I'm not comfortable with this, please take us off your list.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call_ZzaoTfYtp_6VAfPag62INA",
+      "enacted_row": 3,
+      "persona_delivered": "refuses",
+      "truth_delivered": "unknown",
+      "included": true
     },
     {
       "n": 4,
       "persona": "cooperative",
       "truth": "yes",
       "line": "Yes, definitely taking new patients.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call_m87J3gz8t8ZC0tjKWEZ6vw",
+      "enacted_row": 4,
+      "persona_delivered": "cooperative",
+      "truth_delivered": "yes",
+      "included": true
     },
     {
       "n": 5,
       "persona": "hedging",
       "truth": "yes",
       "line": "I think we stopped, no.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call_vbMh-6yh5AsckLSuqRuDww",
+      "enacted_row": null,
+      "persona_delivered": "hedging",
+      "truth_delivered": null,
+      "included": false
     },
     {
       "n": 6,
       "persona": "cooperative",
       "truth": "yes",
       "line": "Yep.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call_7ufHZ6nho2yQKcyZfzrFIw",
+      "enacted_row": 7,
+      "persona_delivered": "wrong_number",
+      "truth_delivered": "unknown",
+      "included": true
     },
     {
       "n": 7,
       "persona": "wrong_number",
       "truth": "unknown",
       "line": "I think you have the wrong number, this is a residence.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call_BKGe-YwO_716PnlySzlFFg",
+      "enacted_row": 8,
+      "persona_delivered": "refuses",
+      "truth_delivered": "unknown",
+      "included": true
     },
     {
       "n": 8,
       "persona": "refuses",
       "truth": "unknown",
       "line": "I'm not comfortable answering questions from a robot, sorry.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call_iWpTVW0yEncSdFIrwZ_Wxg",
+      "enacted_row": null,
+      "persona_delivered": "cooperative",
+      "truth_delivered": "yes",
+      "included": true
     },
     {
       "n": 9,
       "persona": "cooperative",
       "truth": "yes",
       "line": "Yep.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call_EsHBR6rOzPx8dwDBgK1nfA",
+      "enacted_row": 10,
+      "persona_delivered": "hedging",
+      "truth_delivered": "yes",
+      "included": true
     },
     {
       "n": 10,
       "persona": "hedging",
       "truth": "yes",
       "line": "I believe we are, yes.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call_Dvd_QCEP3VJXLttLzLJEoQ",
+      "enacted_row": null,
+      "persona_delivered": "hedging",
+      "truth_delivered": null,
+      "included": false
     },
     {
       "n": 11,
       "persona": "hedging",
       "truth": "no",
       "line": "I think we stopped, no.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call_XscqfgDcbCovXzWLO3BDOw",
+      "enacted_row": 12,
+      "persona_delivered": "cooperative",
+      "truth_delivered": "no",
+      "included": true
     },
     {
       "n": 12,
       "persona": "cooperative",
       "truth": "no",
       "line": "Unfortunately no, we're full.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call_rrn-bbjiE3LoAzi5Zvyi-Q",
+      "enacted_row": 10,
+      "persona_delivered": "hedging",
+      "truth_delivered": "yes",
+      "included": true
     },
     {
       "n": 13,
@@ -293,5 +341,6 @@
       "status": "pending",
       "calle_call_id": null
     }
-  ]
+  ],
+  "deviation_protocol": "Session 1 (calls 1-12, 2026-07-26): the respondent drifted one sheet line ahead from call 6 onward. Written BEFORE analysis: each call is attributed to the manifest row whose scripted line matches the delivered line, with the attribution universe limited to the session slice (rows 1-12). Calls whose delivered line matches multiple rows with DIFFERING truths are excluded. Original pre-registered fields are preserved unchanged; delivered fields are additive. Dialer fixed after session 1 to print the full line before each call."
 }
