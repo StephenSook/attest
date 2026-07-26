@@ -95,3 +95,5 @@ jobs:
       - name: Run e2e suite
         working-directory: frontend
         run: npx playwright test
+        env:
+          E2E_EXPECT_AUDIO: '1'
