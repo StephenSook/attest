@@ -3,6 +3,7 @@ import {
   CartesianGrid,
   Line,
   LineChart,
+  ReferenceDot,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -30,6 +31,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 export default function CalibrationPage() {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [alphaIndex, setAlphaIndex] = useState<number | null>(null);
 
   useEffect(() => {
     fetchMetrics()
@@ -53,6 +55,9 @@ export default function CalibrationPage() {
     target: row.target,
     empirical: row.empirical_coverage,
   }));
+  const headlineIndex = metrics.per_alpha.findIndex((row) => row.alpha === head.alpha);
+  const selected =
+    metrics.per_alpha[alphaIndex ?? (headlineIndex >= 0 ? headlineIndex : 0)];
 
   return (
     <section aria-labelledby="calibration-heading">
@@ -80,6 +85,42 @@ export default function CalibrationPage() {
       </div>
 
       <div className="mt-10 rounded-lg border border-rule bg-white/60 p-5">
+        <h2 className="font-display text-lg font-semibold">
+          Choose your own guarantee
+        </h2>
+        <p className="mt-1 max-w-2xl font-evidence text-xs text-ink-soft">
+          Drag the target. Every displayed value is a measured point from the
+          held-out fold; the slider snaps to evaluated targets and never
+          interpolates.
+        </p>
+        <input
+          type="range"
+          min={0}
+          max={metrics.per_alpha.length - 1}
+          step={1}
+          value={alphaIndex ?? headlineIndex}
+          onChange={(event) => setAlphaIndex(Number(event.target.value))}
+          className="explorer-slider mt-4 w-full"
+          aria-label="Target coverage selector, snaps to evaluated targets"
+        />
+        <div className="mt-4 grid gap-4 sm:grid-cols-4">
+          <Stat label="target coverage" value={`${Math.round(selected.target * 100)}%`} />
+          <Stat
+            label="measured coverage"
+            value={`${(selected.empirical_coverage * 100).toFixed(1)}%`}
+          />
+          <Stat
+            label="abstention"
+            value={`${(selected.abstention_rate * 100).toFixed(1)}%`}
+          />
+          <Stat
+            label="accuracy when answering"
+            value={`${(selected.accuracy_when_answering * 100).toFixed(1)}%`}
+          />
+        </div>
+      </div>
+
+      <div className="mt-8 rounded-lg border border-rule bg-white/60 p-5">
         <h2 className="font-display text-lg font-semibold">
           Empirical coverage tracks the target
         </h2>
@@ -121,10 +162,61 @@ export default function CalibrationPage() {
                 dot={{ r: 4, fill: TRUST }}
                 isAnimationActive={false}
               />
+              <ReferenceDot
+                x={selected.target}
+                y={selected.empirical_coverage}
+                r={8}
+                fill="none"
+                stroke={INK}
+                strokeWidth={2}
+              />
             </LineChart>
           </ResponsiveContainer>
         </div>
       </div>
+
+      {metrics.mondrian && (
+        <div className="mt-8 rounded-lg border border-rule bg-white/60 p-5">
+          <h2 className="font-display text-lg font-semibold">
+            The average was hiding a class
+          </h2>
+          <p className="mt-1 max-w-2xl font-evidence text-xs text-ink-soft">
+            Marginal coverage looked healthy while under-covering one answer
+            class. Class-conditional (Mondrian) thresholds fix what the
+            average concealed.
+          </p>
+          <table className="mt-3 w-full text-sm">
+            <thead>
+              <tr className="border-b border-rule text-left font-evidence text-[11px] uppercase tracking-widest text-ink-faint">
+                <th className="py-2 font-medium">true answer</th>
+                <th className="py-2 font-medium">n</th>
+                <th className="py-2 font-medium">marginal coverage</th>
+                <th className="py-2 font-medium">class-conditional</th>
+              </tr>
+            </thead>
+            <tbody className="font-evidence text-xs" style={{ color: INK }}>
+              {metrics.mondrian.per_class.map((row) => (
+                <tr key={row.label} className="border-b border-rule">
+                  <td className="py-2">{row.label}</td>
+                  <td className="py-2">{row.n}</td>
+                  <td
+                    className="py-2"
+                    style={{
+                      color:
+                        row.marginal_coverage < 1 - metrics.mondrian!.alpha
+                          ? "#c25e00"
+                          : INK,
+                    }}
+                  >
+                    {(row.marginal_coverage * 100).toFixed(1)}%
+                  </td>
+                  <td className="py-2">{(row.mondrian_coverage * 100).toFixed(1)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <div className="mt-8 rounded-lg border border-rule bg-white/60 p-5">
         <h2 className="font-display text-lg font-semibold">
