@@ -13,7 +13,10 @@ import struct
 from collections.abc import Iterator
 from pathlib import Path
 
-FILM = Path(__file__).parent.parent / "frontend" / "public" / "hero.mp4"
+import pytest
+
+PUBLIC = Path(__file__).parent.parent / "frontend" / "public"
+FILMS = [PUBLIC / "hero.mp4", PUBLIC / "hero-720.mp4"]
 
 # One keyframe at least every half second of film keeps worst-case seek
 # decode short enough that scrubbing can never starve the main thread.
@@ -62,8 +65,9 @@ def _video_stbl(data: bytes) -> tuple[int, int] | None:
     return None
 
 
-def test_hero_film_keyframe_density() -> None:
-    data = FILM.read_bytes()
+@pytest.mark.parametrize("film", FILMS, ids=lambda p: p.name)
+def test_hero_film_keyframe_density(film: Path) -> None:
+    data = film.read_bytes()
 
     # Duration from mvhd (version 0 or 1).
     mvhd_s, _ = next(iter(_find(data, [b"moov", b"mvhd"])))
@@ -76,14 +80,14 @@ def test_hero_film_keyframe_density() -> None:
     assert 4 <= seconds <= 30, f"unexpected film duration {seconds:.1f}s"
 
     stbl = _video_stbl(data)
-    assert stbl is not None, "no video track found in hero.mp4"
+    assert stbl is not None, f"no video track found in {film.name}"
 
     stss = next(iter(_find(data, [b"stss"], *stbl)), None)
     if stss is None:
         return  # no sync table = every sample is a keyframe: ideal for scrubbing
     keyframes = struct.unpack(">I", data[stss[0] + 4 : stss[0] + 8])[0]
     assert keyframes >= seconds / MAX_SECONDS_PER_KEYFRAME, (
-        f"hero.mp4 has {keyframes} keyframes over {seconds:.1f}s; scrubbing needs "
+        f"{film.name} has {keyframes} keyframes over {seconds:.1f}s; scrubbing needs "
         f"one at least every {MAX_SECONDS_PER_KEYFRAME}s or seeks freeze scroll. "
         "Re-encode with ffmpeg -g <fps/2> -bf 0."
     )
