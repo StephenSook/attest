@@ -111,6 +111,7 @@ export default function RunDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [liveClaim, setLiveClaim] = useState<string | null>(null);
   const [activeTurn, setActiveTurn] = useState<number | null>(null);
+  const [audioFailed, setAudioFailed] = useState(false);
   const audioRef = useRef<RunAudioHandle | null>(null);
   const turnsRef = useRef<TranscriptTurn[]>([]);
 
@@ -163,9 +164,10 @@ export default function RunDetailPage() {
   const turns = transcriptOf(detail);
   turnsRef.current = turns;
   const analysis = detail.analysis;
-  const seek = detail.has_audio
-    ? (seconds: number) => audioRef.current?.seekTo(seconds)
-    : null;
+  const seek =
+    detail.has_audio && !audioFailed
+      ? (seconds: number) => audioRef.current?.seekTo(seconds)
+      : null;
 
   return (
     <article>
@@ -240,6 +242,7 @@ export default function RunDetailPage() {
             src={audioUrlOf(detail.run_id)}
             note={detail.audio_note}
             onTime={onAudioTime}
+            onFailed={() => setAudioFailed(true)}
           />
         )}
         <ul className="mt-3">
