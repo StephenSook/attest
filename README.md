@@ -25,7 +25,7 @@ Every figure and number below comes from `uv run python -m eval`: fixed seed 202
 
 ![Match-weight waterfall](eval/results/match_weight_waterfall.png)
 
-Ablations (same folds): remove hedge detection and accuracy-when-answering drops to 89.1 percent; remove the dead-end guard and wrong-number chatter gets parsed as answers: accuracy when answering drops to 89.8 percent while abstention balloons to 54.3 percent; remove conformal calibration and the coverage guarantee disappears entirely. The full table is in `eval/results/ablation.md`.
+Class-conditional check: the marginal average hid an under-covered class ("no" at 83.2 percent against the 90 percent target); Mondrian per-class thresholds close most of that gap (88.5 percent) and the finding ships in the metrics rather than being averaged away. Coverage holds from calibration folds as small as 50. Ablations (same folds): remove hedge detection and accuracy-when-answering drops to 89.1 percent; remove the dead-end guard and wrong-number chatter gets parsed as answers: accuracy when answering drops to 89.8 percent while abstention balloons to 54.3 percent; remove conformal calibration and the coverage guarantee disappears entirely. The full table is in `eval/results/ablation.md`.
 
 ## Where the load-bearing CALL-E call lives
 
