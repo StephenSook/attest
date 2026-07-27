@@ -56,9 +56,16 @@ These are load-bearing, not boilerplate:
 The scripts in this skill are self-contained copies of the reference
 implementation in the Attest backend (backend/app in the source repository).
 They are kept small on purpose so the skill installs with no dependencies on
-that repository. When the reference implementation changes behavior (cue
-lexicons, hedge dampening, reconciliation priors), sync the matching script
-here in the same change.
+that repository.
+
+That copy is enforced, not promised. `tests/test_skill_parity.py` in the source
+repository runs this skill's extractor and the backend's over the same
+transcripts and fails if they disagree on the answer, on the character offsets
+of the cited span, or on the cue lexicons themselves. An earlier version of this
+note asked a human to re-sync by hand, and the copy drifted anyway: the backend
+learned to trust the last cue in a turn and to read "no problem" as agreement
+while this script still trusted the first, so a plain "No, we are not" abstained
+here and answered there.
 
 ## Quick Start
 
