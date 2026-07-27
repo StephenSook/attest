@@ -1,0 +1,36 @@
+name: Bug report
+description: Something does not work as documented.
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: "Security issues do not go here. Use SECURITY.md and report privately."
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Include the run id if a verification run is involved.
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where
+      options:
+        - Web console
+        - Landing page
+        - Attest Pocket (iOS)
+        - Attest Pocket (Android)
+        - Backend API
+        - The verify-by-phone skill
+        - Evaluation harness
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Confirmation
+      options:
+        - label: I searched existing issues.
+          required: true
