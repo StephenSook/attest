@@ -45,7 +45,8 @@ Regeneration: `uv run python -m eval` reproduces every number and figure above o
 
 - 36 pre-registered scripted calls placed to the consented builder line across three sessions (2026-07-26 to 27); the respondent answered from ground-truth script sheets. 8 calls excluded by the documented deviation protocol (sheet-drift attribution ambiguity on hedged lines), leaving n=28.
 - At the HARNESS-calibrated threshold (qhat 0.75, never fit on this data): empirical coverage 100.0% (28 of 28; 95 percent Wilson lower bound 34.2%), abstention 0.0%, accuracy when answering 100.0%.
-- Reading: the guarantee transferred from the seeded text harness to the real telephone channel with zero coverage misses and zero wrong answers; channel noise became honest abstention (42.9 percent vs 26.7 on the harness), which is the designed failure mode.
+- Reading, stated precisely: on the 28 attributable calls, coverage was 28 of 28 and every answered call was correct; channel noise became honest abstention (42.9 percent vs 26.7 on the harness), the designed failure mode. This is a transfer test of extraction plus calibration across the real channel (does the system faithfully report or abstain on what was actually said), not a claim about underlying directory facts.
+- Selection-bias floor: the 8 excluded calls are non-random (ambiguous hedged deliveries). Counting every excluded call as a coverage miss gives a worst-case floor of 77.8 percent; 6 of the 8 abstained, and counting the 2 that answered as errors gives a worst-case accuracy-when-answering of 88.9 percent. Both bounds ship in the report.
 - Provenance on every surface: real phone channel, builder-answered scripted ground truth, consented builder line, never presented as calls to real practices. Reproduce: uv run python -m eval.study analyze on the committed scrubbed payloads.
 
 ## Class-conditional (Mondrian) findings (audited 2026-07-26)
