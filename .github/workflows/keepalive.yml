@@ -21,6 +21,12 @@ jobs:
             echo "BACKEND_URL repository variable not set yet; nothing to ping."
             exit 0
           fi
-          curl --fail --silent --show-error --max-time 30 "${BACKEND_URL}/healthz"
+          # Cold starts are this workflow's whole reason to exist: when a
+          # throttled schedule gap lets the free tier spin down, the first
+          # request can take 30 to 60 seconds. Retry with patience instead
+          # of emailing a failure for successfully waking the service.
+          curl --fail --silent --show-error --max-time 75 \
+            --retry 4 --retry-delay 20 --retry-all-errors \
+            "${BACKEND_URL}/healthz"
         env:
           BACKEND_URL: ${{ vars.BACKEND_URL }}
