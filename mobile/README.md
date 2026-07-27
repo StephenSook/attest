@@ -14,7 +14,15 @@ baked into the app; every number is served.
 ```bash
 npm install
 npx expo start --ios      # or --android
+
+npx tsc --noEmit                                     # typecheck the app
+node --experimental-strip-types --test "src/**/*.test.ts"   # unit tests
 ```
+
+Tests run on Node's built-in runner with no test framework installed. They are
+excluded from `tsc` because satisfying their `node:` imports would mean pulling
+`@types/node` into a React Native app, where it shadows the platform's own
+globals.
 
 The API base URL comes from `expo.extra.apiBase` in `app.json` and defaults
 to the deployed backend, so the app works on a fresh clone with no setup.
