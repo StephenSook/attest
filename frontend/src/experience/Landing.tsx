@@ -289,11 +289,11 @@ export default function Landing() {
                 <span className="stat-l">empirical coverage at a 90% target</span>
               </div>
               <div className="stat">
-                <span className="stat-n">26.7%</span>
+                <span className="stat-n">57.7%</span>
                 <span className="stat-l">of calls end in an honest abstention</span>
               </div>
               <div className="stat">
-                <span className="stat-n">94.5%</span>
+                <span className="stat-n">96.9%</span>
                 <span className="stat-l">accuracy when it does answer</span>
               </div>
             </div>

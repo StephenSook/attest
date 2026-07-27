@@ -192,3 +192,20 @@ def test_multi_claim_call_reaches_a_verified_verdict() -> None:
     recon = doc["reconciliation"]
     assert recon["verdict"] == "verified"
     assert recon["posterior_probability"] > 0.9
+
+
+def test_landing_and_prompt_pages_agree_with_metrics() -> None:
+    """Both hand-typed surfaces must match the regenerated metrics; the
+    landing published a 31-point-wrong abstention rate when the harness gate
+    and the served gate had silently diverged."""
+    metrics = json.loads((ROOT / "eval" / "results" / "metrics.json").read_text())
+    head = metrics["headline"]
+    expected = {
+        f"{head['empirical_coverage'] * 100:.1f}%",
+        f"{head['abstention_rate'] * 100:.1f}%",
+        f"{head['accuracy_when_answering'] * 100:.1f}%",
+    }
+    for page in ("experience/Landing.tsx", "pages/PromptPage.tsx"):
+        text = (ROOT / "frontend" / "src" / page).read_text()
+        for token in expected:
+            assert token in text, f"{page} is missing {token}; regenerate from metrics.json"

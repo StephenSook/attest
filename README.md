@@ -19,7 +19,7 @@
 | Verify a certificate | <https://attest-web-phi.vercel.app/verify> (paste any attestation; verifies in your browser) |
 | The measured guarantee | <https://attest-web-phi.vercel.app/calibration> |
 | API | <https://attest-api-o5gm.onrender.com/healthz> (free tier; first hit may take a moment to warm) |
-| Attestation public key | <https://attest-api-o5gm.onrender.com/api/attestation-key> (also committed at [`docs/attestation-public-key.pem`](docs/attestation-public-key.pem)) |
+| Attestation public key | <https://attest-api-o5gm.onrender.com/api/attestation-key> (also committed at [`docs/attestation-public-key.pem`](docs/attestation-public-key.pem), which verifies certificates from the deployed API. The local `docker compose` path signs with a separate, deliberately public demo key served at its own `/api/attestation-key`, so verify local certificates against that one.) |
 | Android app (APK) | <https://github.com/StephenSook/attest/releases/latest> |
 | iOS app (TestFlight) | in Beta App Review; the public link lands here on approval |
 | Zero-credential local run | `docker compose up --build` |
@@ -37,8 +37,8 @@ Every figure and number below comes from `uv run python -m eval`: fixed seed 202
 | At a 90% coverage target | |
 | --- | --- |
 | Empirical coverage on the held-out fold | **90.3%** (Wilson 95%: 86.5 to 93.2) |
-| Abstention rate | **26.7%** |
-| Accuracy when answering | **94.5%** |
+| Abstention rate | **57.7%** |
+| Accuracy when answering | **96.9%** |
 | Error if forced to answer everything | 12.3% |
 
 ![Reliability diagram](eval/results/reliability_diagram.png)
@@ -47,7 +47,7 @@ Every figure and number below comes from `uv run python -m eval`: fixed seed 202
 
 ![Match-weight waterfall](eval/results/match_weight_waterfall.png)
 
-Real-channel transfer: 36 pre-registered scripted calls to a consented line (28 attributable after a documented deviation protocol) scored with the harness-calibrated threshold gave 28 of 28 coverage (Wilson lower bound 87.9 percent; worst-case floor counting every excluded call as a miss, 77.8 percent), 42.9 percent abstention, and no wrong answers. A transfer test of extraction plus calibration across the real telephone channel, with channel noise landing in abstention rather than error. Class-conditional check: the marginal average hid an under-covered class ("no" at 83.2 percent against the 90 percent target); Mondrian per-class thresholds close most of that gap (88.5 percent) and the finding ships in the metrics rather than being averaged away. Coverage holds from calibration folds as small as 50. Ablations (same folds): remove hedge detection and accuracy-when-answering drops to 89.1 percent; remove the dead-end guard and wrong-number chatter gets parsed as answers: accuracy when answering drops to 89.8 percent while abstention balloons to 54.3 percent; remove conformal calibration and the coverage guarantee disappears entirely. The full table is in `eval/results/ablation.md`.
+Real-channel transfer: 36 pre-registered scripted calls to a consented line (28 attributable after a documented deviation protocol) scored with the harness-calibrated threshold gave 28 of 28 coverage (Wilson lower bound 87.9 percent; worst-case floor counting every excluded call as a miss, 77.8 percent), 42.9 percent abstention, and no wrong answers. A transfer test of extraction plus calibration across the real telephone channel. Measured against the same gate, the real channel abstained less than the seeded harness (42.9 against 57.7 percent) and still produced no wrong answers. Class-conditional check: the marginal average hid an under-covered class ("no" at 83.2 percent against the 90 percent target); Mondrian per-class thresholds close most of that gap (88.5 percent) and the finding ships in the metrics rather than being averaged away. Coverage holds from calibration folds as small as 50. Ablations (same folds): remove hedge detection and accuracy-when-answering drops to 87.8 percent; remove the dead-end guard and wrong-number chatter gets parsed as answers: accuracy when answering drops to 89.8 percent while abstention balloons to 54.3 percent; remove conformal calibration and the coverage guarantee disappears entirely. The full table is in `eval/results/ablation.md`.
 
 ## Where the load-bearing CALL-E call lives
 
@@ -64,7 +64,7 @@ docker compose up --build
 Or natively:
 
 ```bash
-uv sync && uv run pytest          # 123 tests, no network, no real calls ever
+uv sync && uv run pytest          # 129 tests, no network, no real calls ever
 uv run python -m eval             # regenerates every number and figure above
 uv run python scripts/seed_replay.py
 uv run uvicorn app.main:app       # backend on :8000
@@ -108,7 +108,7 @@ Server-authoritative state (the browser never submits verdicts), phone numbers r
 
 ```mermaid
 C4Context
-  title Attest — System Context
+  title Attest, System Context
   Person(patient, "Patient or auditor", "Needs to know whether a directory listing is true today")
   System(attest, "Attest", "Places one disclosed call, cites spans, reconciles, calibrates or abstains")
   System_Ext(calle, "CALL-E", "Outbound voice agent platform")

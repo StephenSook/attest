@@ -16,7 +16,7 @@ Last audited: 2026-07-25.
 | Hedge detection uses a graded lexicon that dampens trust proportionally | `backend/app/hedge.py` |
 | Reconciliation is direct Fellegi-Sunter with fixed documented priors | `backend/app/reconcile.py` (`_FIELD_PARAMS`, `PRIOR_LOG_ODDS`) |
 | The conformal core is implemented directly, finite-sample corrected | `eval/conformal.py` (`conformal_quantile`) |
-| Do NOT claim: MAPIE, Splink, shadcn/ui | struck 2026-07-25; never imported anywhere (`grep -ri mapie\|splink` returns nothing in code) |
+| Do NOT claim: MAPIE, Splink, shadcn/ui, numpy | struck 2026-07-25; never imported anywhere (`grep -ri mapie\|splink` returns nothing in code) |
 
 ## Problem statistics (sourced; quote only these)
 
@@ -32,8 +32,8 @@ Last audited: 2026-07-25.
 | Scenario folds | 300 calibration / 300 held-out test, disjoint |
 | Personas | cooperative, hedging, contradictory, evasive, wrong_number, refuses |
 | Empirical coverage at 90% target | 90.3% (Wilson 95%: 86.5 to 93.2) |
-| Abstention rate | 26.7% |
-| Accuracy when answering | 94.5% |
+| Abstention rate | 57.7% |
+| Accuracy when answering | 96.9% |
 | Error when forced to answer everything | 12.3% |
 | Ablation: no hedge detection | accuracy-when-answering drops to 89.1% |
 | Ablation: no dead-end guard | abstention doubles to 54.3%, accuracy still worse (89.8%) |
@@ -44,7 +44,7 @@ Regeneration: `uv run python -m eval` reproduces every number and figure above o
 ## Real-channel transfer study (final, audited 2026-07-27)
 
 - 36 pre-registered scripted calls placed to the consented builder line across three sessions (2026-07-26 to 27); the respondent answered from ground-truth script sheets. 8 calls excluded by the documented deviation protocol (sheet-drift attribution ambiguity on hedged lines), leaving n=28.
-- At the HARNESS-calibrated threshold (qhat 0.75, never fit on this data): empirical coverage 100.0% (28 of 28; 95 percent Wilson lower bound 34.2%), abstention 0.0%, accuracy when answering 100.0%.
+- At the HARNESS-calibrated threshold (qhat 0.75, never fit on this data): empirical coverage 100.0% (28 of 28; 95 percent Wilson lower bound 87.9%), abstention 42.9%, accuracy when answering 100.0%.
 - Reading, stated precisely: on the 28 attributable calls, coverage was 28 of 28 and every answered call was correct; channel noise became honest abstention (42.9 percent vs 26.7 on the harness), the designed failure mode. This is a transfer test of extraction plus calibration across the real channel (does the system faithfully report or abstain on what was actually said), not a claim about underlying directory facts.
 - Selection-bias floor: the 8 excluded calls are non-random (ambiguous hedged deliveries). Counting every excluded call as a coverage miss gives a worst-case floor of 77.8 percent; 6 of the 8 abstained, and counting the 2 that answered as errors gives a worst-case accuracy-when-answering of 88.9 percent. Both bounds ship in the report.
 - Provenance on every surface: real phone channel, builder-answered scripted ground truth, consented builder line, never presented as calls to real practices. Reproduce: uv run python -m eval.study analyze on the committed scrubbed payloads.
@@ -97,7 +97,7 @@ Regeneration: `uv run python -m eval` reproduces every number and figure above o
 
 ## Engineering facts
 
-- 94 backend tests; strict mypy; ruff lint + format in CI; gitleaks over full history in CI; 15 merged PRs as of this audit (re-count with `gh pr list --state merged` before quoting).
+- 129 backend tests; strict mypy; ruff lint + format in CI; gitleaks over full history in CI; 15 merged PRs as of this audit (re-count with `gh pr list --state merged` before quoting).
 - The upstream skill `skills/verify-by-phone` passes `validate_repository.py` from CALLE-AI/awesome-phone-call-agents staged against a clean clone (verified 2026-07-25). Upstream PR not yet opened.
 - Second-model adversarial review found 7 verified issues in the loop/security wave (all fixed and regression-pinned); the harness twice caught confident-wrong extraction ("there's NO doctor's office here" parsing as a no; a plan claim stealing an unrelated span).
 
