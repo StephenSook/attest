@@ -15,6 +15,29 @@ import uuid
 E164 = re.compile(r"^\+[1-9]\d{6,14}$")
 
 
+# Must stay byte-identical to CALL_CONDUCT in backend/app/runs.py. This file is
+# standard-library-only on purpose so the skill installs standalone, so it cannot
+# import the original; tests/test_skill_parity.py compares the two strings and
+# fails on the commit that lets them drift.
+CALL_CONDUCT = (
+    "Record the answers exactly as given. If the person "
+    "hedges, capture their exact wording. If they decline to speak with an automated "
+    "caller, thank them and end the call immediately. If asked to hold, wait briefly, "
+    "then thank them and end the call rather than waiting indefinitely. If you "
+    "reach voicemail or an answering machine, do NOT leave a message: end the "
+    "call politely and immediately, because a directory answer cannot be "
+    "established from a recording and nobody should find a robot message on "
+    "their line. If you are asked for patient details, such as a name, a date of "
+    "birth, an insurance member or card number, or a reason for the visit, say "
+    "plainly that you do not have that information because this is a directory "
+    "verification call and not an appointment request, then repeat the question "
+    "you called to ask. Never invent any such detail, not even a placeholder. "
+    "Never guess: "
+    "anything not clearly stated must be recorded as unknown. Keep the call under two "
+    "minutes and always remain polite."
+)
+
+
 def build_task(org: str, accepting: str | None, plan: str | None) -> str:
     questions = []
     if accepting is not None:
@@ -28,12 +51,7 @@ def build_task(org: str, accepting: str | None, plan: str | None) -> str:
         f"You are placing a short verification call to {org} on behalf of a records "
         "verification service. Open with: 'Hi, this is an automated assistant calling "
         f"to verify directory information for {org}. This call may be recorded.' "
-        f"Then politely ask: {asks}. Record the answers exactly as given. If the person "
-        "hedges, capture their exact wording. If they decline to speak with an automated "
-        "caller, thank them and end the call immediately. If asked to hold, wait briefly, "
-        "then thank them and end the call rather than waiting indefinitely. Never guess: "
-        "anything not clearly stated must be recorded as unknown. Keep the call under two "
-        "minutes and always remain polite."
+        f"Then politely ask: {asks}. " + CALL_CONDUCT
     )
 
 
