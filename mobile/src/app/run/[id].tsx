@@ -207,8 +207,7 @@ export default function RunScreen() {
                 />
               </View>
               <Text style={{ fontFamily: fonts.evidence, fontSize: 10, color: colors.inkFaint, marginTop: 6 }}>
-                {detail.audio_note ??
-                  "audio captured on the receiving end of this consented call, builder line"}
+                {detail.audio_note ?? "provenance not recorded for this audio"}
               </Text>
             </View>
           </View>
