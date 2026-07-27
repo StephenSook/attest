@@ -22,6 +22,7 @@ type Outcome =
   | { state: "checking" }
   | { state: "valid"; runId: string; verdict: string }
   | { state: "invalid"; reason: string }
+  | { state: "unchecked"; reason: string }
   | { state: "unsigned" };
 
 export default function VerifyPage() {
@@ -54,11 +55,48 @@ export default function VerifyPage() {
         return JSON.stringify(value);
       };
       const message = new TextEncoder().encode(canonicalize(stripped));
-      const pem = await (await fetch(`${BASE}/api/attestation-key`)).text();
-      const publicKey = pemToRawPublicKey(pem);
-      const signatureBytes = Uint8Array.from(atob(signature.value), (c) =>
-        c.charCodeAt(0),
-      );
+
+      // A key we cannot fetch or parse means we did NOT check the signature.
+      // Saying "not valid" there would call a genuine certificate forged,
+      // which is the worst thing a verification tool can do.
+      let publicKey: Uint8Array;
+      try {
+        const response = await fetch(`${BASE}/api/attestation-key`);
+        if (!response.ok) {
+          setOutcome({
+            state: "unchecked",
+            reason: `this deployment did not return a public key (HTTP ${response.status}); nothing was verified`,
+          });
+          return;
+        }
+        const pem = await response.text();
+        publicKey = pemToRawPublicKey(pem);
+        if (publicKey.length !== 32) {
+          setOutcome({
+            state: "unchecked",
+            reason: "the public key could not be parsed; nothing was verified",
+          });
+          return;
+        }
+      } catch {
+        setOutcome({
+          state: "unchecked",
+          reason:
+            "could not reach this deployment's public key (the free-tier backend may be waking up); nothing was verified",
+        });
+        return;
+      }
+
+      let signatureBytes: Uint8Array;
+      try {
+        signatureBytes = Uint8Array.from(atob(signature.value), (c) => c.charCodeAt(0));
+      } catch {
+        setOutcome({
+          state: "unchecked",
+          reason: "the signature field is not valid base64; nothing was verified",
+        });
+        return;
+      }
       const ok = await verifyAsync(signatureBytes, message, publicKey);
       if (ok) {
         const recon = doc.reconciliation as { verdict?: string } | undefined;
@@ -71,9 +109,13 @@ export default function VerifyPage() {
         setOutcome({ state: "invalid", reason: "signature does not match this document" });
       }
     } catch (error) {
+      // Anything left here is a malformed paste, not a failed signature.
       setOutcome({
-        state: "invalid",
-        reason: error instanceof Error ? error.message : "could not parse that JSON",
+        state: "unchecked",
+        reason:
+          error instanceof Error && error.message
+            ? `could not read that document: ${error.message}`
+            : "could not parse that JSON",
       });
     }
   };
@@ -120,6 +162,18 @@ export default function VerifyPage() {
             not valid
           </p>
           <p className="mt-1 font-evidence text-xs text-contra">{outcome.reason}</p>
+        </div>
+      )}
+      {outcome.state === "unchecked" && (
+        <div className="mt-6 rounded-lg border border-doubt bg-doubt-soft px-5 py-3">
+          <p className="font-evidence text-sm uppercase tracking-[0.2em] text-doubt">
+            not checked
+          </p>
+          <p className="mt-1 font-evidence text-xs text-doubt">{outcome.reason}</p>
+          <p className="mt-2 font-evidence text-[11px] text-ink-soft">
+            This is not a verdict on the certificate. Try again, or verify
+            offline against docs/attestation-public-key.pem in the repository.
+          </p>
         </div>
       )}
       {outcome.state === "unsigned" && (
