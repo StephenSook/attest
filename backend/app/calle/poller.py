@@ -5,13 +5,17 @@ the process mid-call and restarting picks up exactly where it left off.
 """
 
 import asyncio
+import json
 import logging
 from pathlib import Path
 
-from app import db, runs
+from app import db, fsm, runs
 from app.calle.client import CalleService
 
 logger = logging.getLogger(__name__)
+
+# A run that cannot be polled this many times in a row is failed, not pending.
+_MAX_POLL_FAILURES = 5
 
 
 class Poller:
@@ -28,6 +32,7 @@ class Poller:
         self._interval = interval_seconds
         self._max_interval = max_interval_seconds
         self._wake = asyncio.Event()
+        self._failures: dict[str, int] = {}
 
     def wake(self) -> None:
         """Request an immediate tick and reset backoff.
@@ -48,11 +53,42 @@ class Poller:
         advanced = 0
         for row in pending:
             calle_call_id = str(row["calle_call_id"])
+            run_id = str(row["run_id"])
             try:
                 call = await self._service.get_call(calle_call_id)
-            except Exception:
-                logger.warning("poll failed for %s; will retry", calle_call_id, exc_info=True)
+            except Exception as exc:
+                # Retrying forever leaves the run "in progress" in the console
+                # with a spinner nobody can interpret. Give up loudly instead.
+                self._failures[run_id] = self._failures.get(run_id, 0) + 1
+                attempts = self._failures[run_id]
+                logger.warning(
+                    "poll failed for %s (attempt %d of %d)",
+                    calle_call_id,
+                    attempts,
+                    _MAX_POLL_FAILURES,
+                    exc_info=True,
+                )
+                if attempts >= _MAX_POLL_FAILURES:
+                    logger.error("giving up on %s after %d poll failures", run_id, attempts)
+                    conn = db.connect(self._database)
+                    try:
+                        fsm.advance(
+                            conn,
+                            run_id,
+                            "failed",
+                            terminal_payload=json.dumps(
+                                {
+                                    "error": f"the call status could not be read after "
+                                    f"{attempts} attempts: {exc}",
+                                    "stage": "poll_exhausted",
+                                }
+                            ),
+                        )
+                    finally:
+                        conn.close()
+                    self._failures.pop(run_id, None)
                 continue
+            self._failures.pop(run_id, None)
             if runs.apply_terminal_payload(self._database, call):
                 advanced += 1
         return advanced
