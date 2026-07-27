@@ -114,7 +114,11 @@ def test_served_abstention_is_the_conformal_gate(tmp_path, monkeypatch) -> None:
     strict = tmp_path / "strict.json"
     strict.write_text(json.dumps({"headline": {"qhat": 0.99}}))
     monkeypatch.setenv("ATTEST_METRICS_PATH", str(strict))
-    claim = analysis.analyze_run(fake_row(payload))["claims"][0]
+
+    def accepting(doc: dict) -> dict:
+        return next(c for c in doc["claims"] if c["claim"] == "accepting_new_patients")
+
+    claim = accepting(analysis.analyze_run(fake_row(payload)))
     assert claim["calibrated"] is True
     assert claim["abstain"] is True
     assert claim["answer"] == "unknown"
@@ -124,12 +128,65 @@ def test_served_abstention_is_the_conformal_gate(tmp_path, monkeypatch) -> None:
     committed = tmp_path / "committed.json"
     committed.write_text(json.dumps({"headline": {"qhat": 0.75}}))
     monkeypatch.setenv("ATTEST_METRICS_PATH", str(committed))
-    claim = analysis.analyze_run(fake_row(payload))["claims"][0]
+    claim = accepting(analysis.analyze_run(fake_row(payload)))
     assert claim["calibrated"] is True
     assert claim["abstain"] is False
     assert claim["answer"] == "yes"
 
     # No metrics file: the response is honest that no calibration applied.
     monkeypatch.setenv("ATTEST_METRICS_PATH", str(tmp_path / "missing.json"))
-    claim = analysis.analyze_run(fake_row(payload))["claims"][0]
+    claim = accepting(analysis.analyze_run(fake_row(payload)))
     assert claim["calibrated"] is False
+
+
+def test_multi_claim_call_reaches_a_verified_verdict() -> None:
+    """Wave N1: three agreeing claims clear the 0.85 verified bar, which a
+    single claim mathematically never could (+1.36 bits from even odds)."""
+    import sqlite3
+
+    from app import analysis
+
+    def fake_row(payload: dict, record: dict) -> sqlite3.Row:
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        conn.execute("CREATE TABLE r (terminal_payload TEXT, record_json TEXT)")
+        conn.execute("INSERT INTO r VALUES (?, ?)", (json.dumps(payload), json.dumps(record)))
+        return conn.execute("SELECT * FROM r").fetchone()
+
+    payload = {
+        "recipients": [
+            {
+                "attempts": [
+                    {
+                        "transcript_turns": [
+                            {
+                                "speaker": "bot",
+                                "text": "Is this the office of Example Counseling Center?",
+                            },
+                            {"speaker": "user", "text": "Yes, this is."},
+                            {"speaker": "bot", "text": "Are you accepting new patients?"},
+                            {"speaker": "user", "text": "Yes, we are accepting new patients."},
+                            {"speaker": "bot", "text": "Do you accept the Aetna plan?"},
+                            {"speaker": "user", "text": "Yes, we take that insurance."},
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+    record = {
+        "org": "Example Counseling Center",
+        "claims": {
+            "office_name_confirmed": "yes",
+            "accepting_new_patients": "yes",
+            "accepts_plan": "yes",
+        },
+    }
+    doc = analysis.analyze_run(fake_row(payload, record))
+    answers = {c["claim"]: c["answer"] for c in doc["claims"]}
+    assert answers["office_name_confirmed"] == "yes"
+    assert answers["accepting_new_patients"] == "yes"
+    assert answers["accepts_plan"] == "yes"
+    recon = doc["reconciliation"]
+    assert recon["verdict"] == "verified"
+    assert recon["posterior_probability"] > 0.9

@@ -11,6 +11,7 @@ export default function NewRunPage() {
   const [org, setOrg] = useState("");
   const [phone, setPhone] = useState("");
   const [accepting, setAccepting] = useState("yes");
+  const [plan, setPlan] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -23,7 +24,13 @@ export default function NewRunPage() {
         judgeKey,
         org,
         phone,
-        claims: { accepting_new_patients: accepting },
+        claims: {
+          office_name_confirmed: "yes",
+          accepting_new_patients: accepting,
+          ...(plan.trim()
+            ? { plan_name: plan.trim(), accepts_plan: "yes" }
+            : {}),
+        },
       });
       navigate(`/runs/${run_id}`);
     } catch (err) {
@@ -110,6 +117,22 @@ export default function NewRunPage() {
             ))}
           </div>
         </fieldset>
+
+        <label className="block">
+          <span className="font-evidence text-[11px] uppercase tracking-widest text-ink-faint">
+            insurance plan on the record (optional)
+          </span>
+          <input
+            value={plan}
+            onChange={(event) => setPlan(event.target.value)}
+            placeholder="e.g. Aetna PPO"
+            className="mt-1 w-full rounded-md border border-rule bg-white/70 px-3 py-2 font-evidence text-sm focus:border-trust focus:outline-none"
+          />
+          <span className="mt-1 block font-evidence text-[10px] text-ink-faint">
+            when set, the call also verifies plan acceptance; the record claims
+            the plan is accepted
+          </span>
+        </label>
         {error && <p className="font-evidence text-sm text-contra">{error}</p>}
         <button
           type="submit"
