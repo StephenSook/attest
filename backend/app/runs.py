@@ -31,7 +31,11 @@ def build_task(org: str, claims: dict[str, str]) -> str:
         f"Then politely ask: {asks}. Record the answers exactly as given. If the person "
         "hedges, capture their exact wording. If they decline to speak with an automated "
         "caller, thank them and end the call immediately. If asked to hold, wait briefly, "
-        "then thank them and end the call rather than waiting indefinitely. Never guess: "
+        "then thank them and end the call rather than waiting indefinitely. If you "
+        "reach voicemail or an answering machine, do NOT leave a message: end the "
+        "call politely and immediately, because a directory answer cannot be "
+        "established from a recording and nobody should find a robot message on "
+        "their line. Never guess: "
         "anything not clearly stated must be recorded as unknown. Keep the call under two "
         "minutes and always remain polite."
     )

@@ -23,6 +23,13 @@ def _default_base_url() -> str:
     return os.environ.get("CALLE_API_BASE_URL", _PROD_BASE_URL)
 
 
+def is_mock_mode() -> bool:
+    """True when calls are served by the local mock rather than the real
+    platform. Recorded on every run so a simulated result can never be
+    mistaken for a real one."""
+    return os.environ.get("ATTEST_USE_MOCK", "true").lower() == "true"
+
+
 class CalleService:
     """One outbound verification call at a time. No batching, by design."""
 

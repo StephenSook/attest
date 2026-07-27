@@ -24,6 +24,7 @@ from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field, StrictBool, field_validator
 
 from app import analysis, db, runs
+from app.calle import client as calle_client
 from app.calle.client import CalleService
 from app.calle.poller import Poller
 from app.calle.webhook import router as webhook_router
@@ -47,6 +48,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
     )
     application.state.calle_service = service
     application.state.poller = poller
+    application.state.poller_task = task
     try:
         yield
     finally:
@@ -74,8 +76,18 @@ app.add_middleware(
 
 
 @app.get("/healthz")
-async def healthz() -> dict[str, str]:
-    return {"status": "ok", "service": "attest"}
+async def healthz() -> dict[str, object]:
+    """Liveness that tells the truth about the background poller: a dead
+    poller means no run can ever reach a terminal state, and a blanket ok
+    would hide that from every monitor."""
+    task = getattr(app.state, "poller_task", None)
+    poller_alive = task is not None and not task.done()
+    body: dict[str, object] = {
+        "status": "ok" if poller_alive else "degraded",
+        "service": "attest",
+        "poller": "running" if poller_alive else "stopped",
+    }
+    return body
 
 
 @app.get("/api/runs")
@@ -94,6 +106,7 @@ async def api_runs() -> dict[str, list[dict[str, object]]]:
             "created_at": row["created_at"],
             "org": record.get("org"),
             "replay": bool(record.get("replay", False)),
+            "provider": record.get("provider"),
         }
         # A completed run carries its verdict so the ledger reads at a glance;
         # computed from the same server-authoritative analysis, never stored.
@@ -196,6 +209,7 @@ async def api_run_detail(run_id: str) -> dict[str, object]:
         "updated_at": row["updated_at"],
         "payload": analysis.redact_payload(payload) if payload else None,
         "has_audio": _audio_file(run_id) is not None,
+        "provider": record.get("provider"),
     }
     if record.get("audio_note"):
         detail["audio_note"] = str(record["audio_note"])[:160]
@@ -260,6 +274,10 @@ async def api_run_attestation(run_id: str) -> dict[str, object]:
         "policy": (
             "every answer cites a verbatim transcript span; abstention is the "
             "calibrated conformal decision; nothing here was hand-edited"
+            if calibration["available"]
+            else "every answer cites a verbatim transcript span; NO calibrated "
+            "gate was available on this deployment, so abstention here is the "
+            "uncalibrated extraction decision; nothing here was hand-edited"
         ),
     }
     doc = cast(dict[str, object], _jcs_numbers(doc))
@@ -323,8 +341,11 @@ class StartRunRequest(BaseModel):
     @field_validator("phone")
     @classmethod
     def _not_premium(cls, value: str) -> str:
+        # value is "+1" + 10 national digits, so the area code is [2:5].
+        # The old toll check sliced [2:6] against "1950" and could never
+        # match, so 950 numbers were accepted.
         area = value[2:5]
-        if area in {"900", "976"} or value[2:6] == "1950":
+        if area in {"900", "976", "950"}:
             raise ValueError("premium-rate and toll numbers are not allowed")
         return value
 
@@ -384,7 +405,13 @@ async def start_run(
     x_attest_key: str | None = Header(default=None, alias="X-Attest-Key"),
 ) -> dict[str, str]:
     role = _caller_role(x_attest_key)
-    record: dict[str, object] = {"org": body.org, "claims": body.claims}
+    record: dict[str, object] = {
+        "org": body.org,
+        "claims": body.claims,
+        # Provenance, stamped at creation: a mock-served run must never be
+        # mistakable for a real call anywhere downstream.
+        "provider": "mock" if calle_client.is_mock_mode() else "live",
+    }
     phone_hash = ""
     if role == "judge":
         phone_hash = _sandbox_precheck(body)

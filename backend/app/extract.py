@@ -16,20 +16,28 @@ from app.models import Answer
 
 _YES_CUES = (
     r"\byes\b",
+    # guard the same way for the other agreement cues
     r"\byeah\b",
     r"\byep\b",
     r"\babsolutely\b",
     r"\bcorrect\b",
     r"\bdefinitely\b",
-    r"\bwe are\b",
+    # "we are not taking" must never read as agreement: without the
+    # lookahead this matched inside a refusal and won the tie-break.
+    r"\bwe are\b(?!\s+not\b)",
     r"\bsure are\b",
     r"\bof course\b",
 )
 _NO_CUES = (
-    r"\bno\b",
+    # "no problem" / "no worries" / "not at all" are agreement, not refusal.
+    # Without this guard "Sure, no problem, we are accepting new patients"
+    # extracts a confident NO, which is the worst failure this system can
+    # produce: a wrong answer delivered with a highlighted span.
+    r"\bno\b(?!\s+(?:problem|worries|trouble|issue|doubt)\b)",
     r"\bnope\b",
     r"\bnot accepting\b",
     r"\bnot taking\b",
+    r"\bnot at all\b(?=.*\baccept)",
     r"\bwe aren'?t\b",
     r"\bwe'?re not\b",
     r"\bunfortunately\b",
@@ -78,13 +86,20 @@ def _find(cues: tuple[str, ...], text: str) -> bool:
     return any(re.search(cue, lowered) for cue in cues)
 
 
-def _first_span(cues: tuple[str, ...], text: str) -> tuple[int, int] | None:
+def _last_span(cues: tuple[str, ...], text: str) -> tuple[int, int] | None:
+    """The LAST cue occurrence of this polarity in the turn.
+
+    Last, not first, because the documented rule is to trust the final clear
+    statement. Taking the first occurrence made a refusal that opens with
+    "Unfortunately no, we are full" lose the tie-break to the "we are" that
+    appears later, and be served as a confident yes.
+    """
     lowered = text.lower()
     best: tuple[int, int] | None = None
     for cue in cues:
-        match = re.search(cue, lowered)
-        if match and (best is None or match.start() < best[0]):
-            best = (match.start(), match.end())
+        for match in re.finditer(cue, lowered):
+            if best is None or match.start() > best[0]:
+                best = (match.start(), match.end())
     return best
 
 
@@ -131,10 +146,10 @@ def extract_yes_no(
         hedge_analysis = analyze_hedges(text)
         if hedge_analysis.hedged:
             hedge_strength = max(hedge_strength, hedge_analysis.strength)
-        yes_span = _first_span(_YES_CUES, text)
+        yes_span = _last_span(_YES_CUES, text)
         if yes_span:
             yes_hits.append(_Hit(index, text, yes_span[0], yes_span[1]))
-        no_span = _first_span(_NO_CUES, text)
+        no_span = _last_span(_NO_CUES, text)
         if no_span:
             no_hits.append(_Hit(index, text, no_span[0], no_span[1]))
 
