@@ -17,7 +17,7 @@ Every figure and number below comes from `uv run python -m eval`: fixed seed 202
 | Empirical coverage on the held-out fold | **90.3%** (Wilson 95%: 86.5 to 93.2) |
 | Abstention rate | **26.7%** |
 | Accuracy when answering | **94.5%** |
-| Error if forced to answer everything | 15.3% |
+| Error if forced to answer everything | 12.3% |
 
 ![Reliability diagram](eval/results/reliability_diagram.png)
 

@@ -79,7 +79,7 @@ def create_run(
 def list_runs(conn: sqlite3.Connection, limit: int = 50) -> list[sqlite3.Row]:
     return list(
         conn.execute(
-            "SELECT run_id, state, created_at, updated_at, record_json "
+            "SELECT run_id, state, created_at, updated_at, record_json, terminal_payload "
             "FROM call_runs ORDER BY created_at DESC LIMIT ?",
             (limit,),
         )
