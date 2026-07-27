@@ -129,7 +129,8 @@ def test_reservation_is_atomic_for_cap_and_dedup(tmp_path, monkeypatch):  # type
 
 async def test_premium_and_toll_numbers_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
     async with _client() as client:
-        for bad in ("+19005551234", "+19765551234"):
+        # 950 was accepted before: the old check sliced the wrong offset.
+        for bad in ("+19005551234", "+19765551234", "+19501234567"):
             response = await client.post(
                 "/internal/runs", json={**BODY, "phone": bad}, headers=HEADERS_JUDGE
             )

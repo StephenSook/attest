@@ -52,12 +52,6 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
     for pragma in _PRAGMAS:
         conn.execute(pragma)
     conn.executescript(_SCHEMA)
-    try:
-        conn.execute("ALTER TABLE call_runs ADD COLUMN record_json TEXT")
-        conn.commit()
-    except sqlite3.OperationalError as exc:
-        if "duplicate column" not in str(exc):
-            raise  # locked db, disk error: anything but the expected no-op
     return conn
 
 
