@@ -154,193 +154,265 @@
       "persona": "cooperative",
       "truth": "yes",
       "line": "Yes, definitely taking new patients.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call_vew1JiaSZ6qnWL2HaEKB7Q",
+      "persona_delivered": "cooperative",
+      "truth_delivered": "yes",
+      "included": true
     },
     {
       "n": 14,
       "persona": "cooperative",
       "truth": "yes",
       "line": "Yep.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call_FRthly0LrB061UOGJHV-9Q",
+      "persona_delivered": "cooperative",
+      "truth_delivered": "yes",
+      "included": true
     },
     {
       "n": 15,
       "persona": "hedging",
       "truth": "no",
       "line": "Probably not, honestly.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call_wDX1NQy6oYzwZvsEe78O7A",
+      "persona_delivered": "hedging",
+      "truth_delivered": null,
+      "included": false
     },
     {
       "n": 16,
       "persona": "hedging",
       "truth": "no",
       "line": "I believe we're full, no.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call_z7akFvCE8A0mQ-I3wdXG4w",
+      "persona_delivered": "hedging",
+      "truth_delivered": "no",
+      "included": true
     },
     {
       "n": 17,
       "persona": "hedging",
       "truth": "no",
       "line": "Pretty sure, yes.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call_KrPdn5M_xbWy-LJorWKIqQ",
+      "persona_delivered": "hedging",
+      "truth_delivered": null,
+      "included": false
     },
     {
       "n": 18,
       "persona": "hedging",
       "truth": "yes",
       "line": "Probably not, honestly.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call_egW4vAm30fqfx8K0u9VLHA",
+      "persona_delivered": "hedging",
+      "truth_delivered": null,
+      "included": false
     },
     {
       "n": 19,
       "persona": "hedging",
       "truth": "yes",
       "line": "Probably not, honestly.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call_71IFmijuprPhD_KKHer4Qw",
+      "persona_delivered": "hedging",
+      "truth_delivered": null,
+      "included": false
     },
     {
       "n": 20,
       "persona": "cooperative",
       "truth": "no",
       "line": "No, we're not taking new patients right now.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call_d_c1fq5wPftHzoHJGDTPqQ",
+      "persona_delivered": "hedging",
+      "truth_delivered": null,
+      "included": false
     },
     {
       "n": 21,
       "persona": "contradictory",
       "truth": "yes",
       "line": "No, I don't think so. ... Actually yes, we do have openings, yes.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call_mIUDomnd6Sh1GKADTALRCQ",
+      "persona_delivered": "cooperative",
+      "truth_delivered": "no",
+      "included": true
     },
     {
       "n": 22,
       "persona": "cooperative",
       "truth": "yes",
       "line": "Yeah, absolutely.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call_xBo_N8gxG7TEQHRVcTAm3w",
+      "persona_delivered": "contradictory",
+      "truth_delivered": "yes",
+      "included": true
     },
     {
       "n": 23,
       "persona": "hedging",
       "truth": "yes",
       "line": "Pretty sure, yes.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call_oFf1KGxVa-uW0W-gd5UX5A",
+      "persona_delivered": "cooperative",
+      "truth_delivered": "yes",
+      "included": true
     },
     {
       "n": 24,
       "persona": "refuses",
       "truth": "unknown",
       "line": "I'm not comfortable answering questions from a robot, sorry.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call_AwuicjeC-Vg9mqBfgT2xxg",
+      "persona_delivered": "hedging",
+      "truth_delivered": null,
+      "included": false
     },
     {
       "n": 25,
       "persona": "cooperative",
       "truth": "no",
       "line": "Unfortunately no, we're full.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call_QUIkBjQe5MRTH2vDwsJgMA",
+      "persona_delivered": "refuses",
+      "truth_delivered": "unknown",
+      "included": true
     },
     {
       "n": 26,
       "persona": "cooperative",
       "truth": "yes",
       "line": "Yes, definitely taking new patients.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call_GRoKkDm7r4WuIsRiMyacPw",
+      "persona_delivered": "cooperative",
+      "truth_delivered": "no",
+      "included": true
     },
     {
       "n": 27,
       "persona": "hedging",
       "truth": "yes",
       "line": "I believe we are, yes.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call_RdVnlBCAJaMKjBiYBGreVQ",
+      "persona_delivered": "cooperative",
+      "truth_delivered": "yes",
+      "included": true
     },
     {
       "n": 28,
       "persona": "evasive",
       "truth": "unknown",
       "line": "I don't know, the person who handles that is out today.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call_lRnpRZ1VvO_koY0OEf6-HQ",
+      "persona_delivered": "hedging",
+      "truth_delivered": "yes",
+      "included": true
     },
     {
       "n": 29,
       "persona": "evasive",
       "truth": "unknown",
       "line": "I really can't answer that, you'd need to speak to billing.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call_O7AYeQ4ZPB7KcHgQhRw7BQ",
+      "persona_delivered": "evasive",
+      "truth_delivered": "unknown",
+      "included": true
     },
     {
       "n": 30,
       "persona": "cooperative",
       "truth": "yes",
       "line": "Yeah, absolutely.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call_AA2Z-c6qfcjN3nGN3C8Opg",
+      "persona_delivered": "evasive",
+      "truth_delivered": "unknown",
+      "included": true
     },
     {
       "n": 31,
       "persona": "cooperative",
       "truth": "no",
       "line": "Nope, there's a waitlist.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call_ZqAzEztG33mHPKIHZyGH6w",
+      "persona_delivered": "cooperative",
+      "truth_delivered": "yes",
+      "included": true
     },
     {
       "n": 32,
       "persona": "cooperative",
       "truth": "no",
       "line": "No, we're not taking new patients right now.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call_S8p_j3-32uNPdZglVgDqzQ",
+      "persona_delivered": "cooperative",
+      "truth_delivered": "no",
+      "included": true
     },
     {
       "n": 33,
       "persona": "cooperative",
       "truth": "yes",
       "line": "Yes, definitely taking new patients.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call_7y1u6-Yrob-Z47dG2-uulA",
+      "persona_delivered": "cooperative",
+      "truth_delivered": "no",
+      "included": true
     },
     {
       "n": 34,
       "persona": "hedging",
       "truth": "no",
       "line": "I believe we're full, no.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call__GeMLZOlY_NefVlhaUmXbQ",
+      "persona_delivered": "cooperative",
+      "truth_delivered": "yes",
+      "included": true
     },
     {
       "n": 35,
       "persona": "cooperative",
       "truth": "yes",
       "line": "Yes, definitely taking new patients.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call_mYya_WI5E594ZVQSloUZtg",
+      "persona_delivered": "hedging",
+      "truth_delivered": "no",
+      "included": true
     },
     {
       "n": 36,
       "persona": "cooperative",
       "truth": "yes",
       "line": "Yes, we are.",
-      "status": "pending",
-      "calle_call_id": null
+      "status": "done",
+      "calle_call_id": "call_yhIrtMf7zLqx0TNf-7Iq7g",
+      "persona_delivered": "cooperative",
+      "truth_delivered": "yes",
+      "included": true
     }
   ],
-  "deviation_protocol": "Session 1 (calls 1-12, 2026-07-26): the respondent drifted one sheet line ahead from call 6 onward. Written BEFORE analysis: each call is attributed to the manifest row whose scripted line matches the delivered line, with the attribution universe limited to the session slice (rows 1-12). Calls whose delivered line matches multiple rows with DIFFERING truths are excluded. Original pre-registered fields are preserved unchanged; delivered fields are additive. Dialer fixed after session 1 to print the full line before each call."
+  "deviation_protocol": "Session 1 (calls 1-12, 2026-07-26): the respondent drifted one sheet line ahead from call 6 onward. Written BEFORE analysis: each call is attributed to the manifest row whose scripted line matches the delivered line, with the attribution universe limited to the session slice (rows 1-12). Calls whose delivered line matches multiple rows with DIFFERING truths are excluded. Original pre-registered fields are preserved unchanged; delivered fields are additive. Dialer fixed after session 1 to print the full line before each call. Sessions 2-3 (calls 13-36): the respondent lost his place around call 20 (three manifest rows share the line 'Probably not, honestly.') and from call 21 delivered each PREVIOUS row's line. Same attribution rule, with one clarification that also covers session 1 consistently: a cooperative, refusal, evasive, or wrong-number delivery carries its ground truth BY CONSTRUCTION (stated polarity, or unknown), so it is included regardless of row attribution; hedged and contradictory deliveries require a unique row match or agreeing truths among tied rows, else the call is excluded. Excluded here: 15, 17, 18, 19, 20, 24 (hedged lines whose tied rows carry differing truths)."
 }
