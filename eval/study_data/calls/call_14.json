@@ -1,0 +1,170 @@
+{
+  "id": "call_FRthly0LrB061UOGJHV-9Q",
+  "object": "call_task",
+  "status": "completed",
+  "task": "You are placing a short verification call to Attest builder test line on behalf of a records verification service. Open with: 'Hi, this is an automated assistant calling to verify directory information for Attest builder test line. This call may be recorded.' Then politely ask: whether the practice is currently accepting new patients. Record the answers exactly as given. If the person hedges, capture their exact wording. If they decline to speak with an automated caller, thank them and end the call immediately. If asked to hold, wait briefly, then thank them and end the call rather than waiting indefinitely. Never guess: anything not clearly stated must be recorded as unknown. Keep the call under two minutes and always remain polite.",
+  "recipients": [
+    {
+      "id": "rcp_53cdbaf8424b7827",
+      "phones": [
+        "+15550101234"
+      ],
+      "locale": null,
+      "region": null,
+      "status": "completed",
+      "structured_result": null,
+      "summary": "Verification completed. The practice confirmed it is currently accepting new patients: \u201cYes. Definitely taking new patient.\u201d",
+      "attempts": [
+        {
+          "id": "att_62e1a0b2c31570be",
+          "phone": "+15550101234",
+          "status": "completed",
+          "started_at": "2026-07-27T04:04:10.357069Z",
+          "completed_at": "2026-07-27T04:05:30.288129Z",
+          "summary": "Verification completed. The practice confirmed it is currently accepting new patients: \u201cYes. Definitely taking new patient.\u201d",
+          "transcript_turns": [
+            {
+              "offset_seconds": 0,
+              "speaker": "bot",
+              "text": "Hi,"
+            },
+            {
+              "offset_seconds": 0,
+              "speaker": "bot",
+              "text": "this is an automated assistant calling to verify directory information for Attest builder test line."
+            },
+            {
+              "offset_seconds": 5,
+              "speaker": "bot",
+              "text": "This call may be recorded."
+            },
+            {
+              "offset_seconds": 12,
+              "speaker": "bot",
+              "text": "I'm calling for a records verification service to ask whether the practice is currently accepting new patients."
+            },
+            {
+              "offset_seconds": 21,
+              "speaker": "user",
+              "text": "Yep."
+            },
+            {
+              "offset_seconds": 22,
+              "speaker": "bot",
+              "text": "Are you currently accepting new patients?"
+            },
+            {
+              "offset_seconds": 26,
+              "speaker": "user",
+              "text": "Yep."
+            },
+            {
+              "offset_seconds": 27,
+              "speaker": "bot",
+              "text": "Yes,"
+            },
+            {
+              "offset_seconds": 28,
+              "speaker": "bot",
+              "text": "we're currently accepting new patients."
+            },
+            {
+              "offset_seconds": 35,
+              "speaker": "bot",
+              "text": "Could you repeat that?"
+            },
+            {
+              "offset_seconds": 39,
+              "speaker": "user",
+              "text": "Yep."
+            },
+            {
+              "offset_seconds": 40,
+              "speaker": "bot",
+              "text": "Are you currently accepting new patients?"
+            },
+            {
+              "offset_seconds": 43,
+              "speaker": "user",
+              "text": "Yep."
+            },
+            {
+              "offset_seconds": 45,
+              "speaker": "bot",
+              "text": "Are you currently accepting new patients?"
+            },
+            {
+              "offset_seconds": 49,
+              "speaker": "user",
+              "text": "Yep."
+            },
+            {
+              "offset_seconds": 50,
+              "speaker": "bot",
+              "text": "Are you currently accepting new patients?"
+            },
+            {
+              "offset_seconds": 54,
+              "speaker": "user",
+              "text": "Yeah."
+            },
+            {
+              "offset_seconds": 55,
+              "speaker": "bot",
+              "text": "Got it."
+            },
+            {
+              "offset_seconds": 56,
+              "speaker": "bot",
+              "text": "Are you currently accepting new patients?"
+            },
+            {
+              "offset_seconds": 61,
+              "speaker": "user",
+              "text": "Yes. Definitely taking new patient."
+            },
+            {
+              "offset_seconds": 63,
+              "speaker": "bot",
+              "text": "Got it."
+            },
+            {
+              "offset_seconds": 69,
+              "speaker": "bot",
+              "text": "\u091fThis is an automated assistant calling for a records verification service to verify whether Attest builder test line is currently accepting new patients."
+            },
+            {
+              "offset_seconds": 77,
+              "speaker": "bot",
+              "text": "Thank you."
+            }
+          ],
+          "provider_call_id": "27ceb7f5b7ae469d8d3670d612958d8f",
+          "failure_code": null,
+          "failure_message": null
+        }
+      ]
+    }
+  ],
+  "structured_result": null,
+  "summary": "Verification completed. The practice confirmed it is currently accepting new patients: \u201cYes. Definitely taking new patient.\u201d",
+  "task_completed": true,
+  "completion_confidence": {
+    "score": 0.94,
+    "label": "high"
+  },
+  "evidence": [
+    "A live respondent answered the verification question.",
+    "The final response clearly confirmed the practice is accepting new patients.",
+    "The call stayed within the requested short verification format."
+  ],
+  "metadata": {
+    "n": 14,
+    "purpose": "real-channel-study",
+    "budget_line": "real-call validation"
+  },
+  "failure_code": null,
+  "failure_message": null,
+  "created_at": "2026-07-27T04:03:19.600218Z",
+  "completed_at": "2026-07-27T04:05:47.257646Z"
+}

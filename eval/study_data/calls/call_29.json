@@ -1,0 +1,105 @@
+{
+  "id": "call_O7AYeQ4ZPB7KcHgQhRw7BQ",
+  "object": "call_task",
+  "status": "completed",
+  "task": "You are placing a short verification call to Attest builder test line on behalf of a records verification service. Open with: 'Hi, this is an automated assistant calling to verify directory information for Attest builder test line. This call may be recorded.' Then politely ask: whether the practice is currently accepting new patients. Record the answers exactly as given. If the person hedges, capture their exact wording. If they decline to speak with an automated caller, thank them and end the call immediately. If asked to hold, wait briefly, then thank them and end the call rather than waiting indefinitely. Never guess: anything not clearly stated must be recorded as unknown. Keep the call under two minutes and always remain polite.",
+  "recipients": [
+    {
+      "id": "rcp_e86a906ff26cadf3",
+      "phones": [
+        "+15550101234"
+      ],
+      "locale": null,
+      "region": null,
+      "status": "completed",
+      "structured_result": null,
+      "summary": "The call connected and the verification question was asked. The person who answered did not know whether the practice is accepting new patients and indicated that the person who handles that information was out today, so the status should be recorded as unknown.",
+      "attempts": [
+        {
+          "id": "att_ea992059d497eded",
+          "phone": "+15550101234",
+          "status": "completed",
+          "started_at": "2026-07-27T04:37:31.630200Z",
+          "completed_at": "2026-07-27T04:38:24.925675Z",
+          "summary": "The call connected and the verification question was asked. The person who answered did not know whether the practice is accepting new patients and indicated that the person who handles that information was out today, so the status should be recorded as unknown.",
+          "transcript_turns": [
+            {
+              "offset_seconds": 0,
+              "speaker": "bot",
+              "text": "Hi,"
+            },
+            {
+              "offset_seconds": 0,
+              "speaker": "bot",
+              "text": "this is an automated assistant calling to verify directory information for Attest builder test line."
+            },
+            {
+              "offset_seconds": 5,
+              "speaker": "bot",
+              "text": "This call may be recorded."
+            },
+            {
+              "offset_seconds": 12,
+              "speaker": "bot",
+              "text": "Is the practice currently accepting new patients?"
+            },
+            {
+              "offset_seconds": 20,
+              "speaker": "user",
+              "text": "I don't know. The person who handles that is out today."
+            },
+            {
+              "offset_seconds": 22,
+              "speaker": "bot",
+              "text": "Okay, I\u2019ll note that."
+            },
+            {
+              "offset_seconds": 29,
+              "speaker": "bot",
+              "text": "No rush."
+            },
+            {
+              "offset_seconds": 36,
+              "speaker": "user",
+              "text": "I don't know. The person who handled that is out today."
+            },
+            {
+              "offset_seconds": 37,
+              "speaker": "bot",
+              "text": "Okay, I\u2019ll note that."
+            },
+            {
+              "offset_seconds": 45,
+              "speaker": "bot",
+              "text": "No rush."
+            }
+          ],
+          "provider_call_id": "8f33a262dbf847bb99b3ec9ab0ff2ce0",
+          "failure_code": null,
+          "failure_message": null
+        }
+      ]
+    }
+  ],
+  "structured_result": null,
+  "summary": "The call connected and the verification question was asked. The person who answered did not know whether the practice is accepting new patients and indicated that the person who handles that information was out today, so the status should be recorded as unknown.",
+  "task_completed": true,
+  "completion_confidence": {
+    "score": 0.9,
+    "label": "high"
+  },
+  "evidence": [
+    "A live person answered the call.",
+    "The bot asked whether the practice is currently accepting new patients.",
+    "The respondent gave an unknown/hedged answer and said the responsible person was out today."
+  ],
+  "metadata": {
+    "n": 29,
+    "purpose": "real-channel-study",
+    "budget_line": "real-call validation"
+  },
+  "failure_code": null,
+  "failure_message": null,
+  "created_at": "2026-07-27T04:36:44.552591Z",
+  "completed_at": "2026-07-27T04:38:41.743441Z"
+}
