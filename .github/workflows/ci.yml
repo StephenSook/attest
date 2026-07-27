@@ -41,6 +41,8 @@ jobs:
         run: npm ci
       - name: Typecheck
         run: npx tsc --noEmit
+      - name: Test
+        run: node --experimental-strip-types --test "src/**/*.test.ts"
 
   gitleaks:
     runs-on: ubuntu-latest
