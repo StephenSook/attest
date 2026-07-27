@@ -50,7 +50,8 @@ async def test_correct_key_creates_submitted_run(
 ) -> None:
     database = tmp_path / "c.db"
     monkeypatch.setenv("ATTEST_DB_PATH", str(database))
-    monkeypatch.setenv("ATTEST_JUDGE_KEY", "right-key")
+    monkeypatch.setenv("ATTEST_OPERATOR_KEY", "right-key")
+    monkeypatch.setenv("ATTEST_JUDGE_KEY", "judge-only")
     monkeypatch.setenv("ATTEST_USE_MOCK", "true")
     app.state.calle_service = None  # force a fresh service against the mocked base
     respx.post(f"{MOCK_BASE}/v1/calls").mock(return_value=Response(201, json=FIXTURE))
