@@ -18,6 +18,7 @@ from app.reconcile import reconcile
 from eval.conformal import prediction_set
 
 CLAIM_QUESTIONS = {
+    "office_name_confirmed": r"have i reached|am i speaking with|is this the office|is this .*(?:office|practice|center|clinic)",
     "accepting_new_patients": r"accepting new patients",
     "accepts_plan": r"\baccepts?\b|\btakes?\b.*\b(?:plan|insurance)\b|\bin[- ]network\b",
 }
