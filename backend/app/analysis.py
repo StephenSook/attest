@@ -50,8 +50,14 @@ def redact_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def transcript_turns(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    for recipient in payload.get("recipients", []):
-        for attempt in recipient.get("attempts", []):
+    """Find the transcript in a terminal payload.
+
+    `or []` rather than a default, because the API sends an explicit null for
+    a list it has no value for, and a default only covers the absent key. The
+    served path raised TypeError on a payload carrying "recipients": null.
+    """
+    for recipient in payload.get("recipients") or []:
+        for attempt in recipient.get("attempts") or []:
             turns = attempt.get("transcript_turns")
             if turns:
                 return list(turns)

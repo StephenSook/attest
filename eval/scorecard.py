@@ -9,7 +9,10 @@ principle for defender-side tooling.
 Input: a consent manifest listing run payload files that each carry
 written per-surface consent, plus the directory claims each call verified.
 
-    uv run python -m eval.scorecard eval/scorecard_data/manifest.json
+    uv run python -m eval.scorecard <path/to/manifest.json>
+
+No manifest is committed: it names real consented practices, so it stays out
+of the repository along with the payloads it points at.
 """
 
 import json
@@ -17,19 +20,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from app.analysis import CLAIM_QUESTIONS
+from app.analysis import CLAIM_QUESTIONS, transcript_turns
 from app.extract import extract_yes_no
 from app.models import Answer
 from app.reconcile import reconcile
-
-
-def _transcript_turns(payload: dict[str, Any]) -> list[dict[str, object]]:
-    for recipient in payload.get("recipients") or []:
-        for attempt in recipient.get("attempts") or []:
-            turns = attempt.get("transcript_turns")
-            if turns:
-                return list(turns)
-    return []
 
 
 def build_scorecard(manifest_path: Path) -> dict[str, Any]:
@@ -39,7 +33,7 @@ def build_scorecard(manifest_path: Path) -> dict[str, Any]:
         if entry.get("consent_on_file") is not True:
             raise SystemExit(f"run {entry.get('label', '?')} lacks consent_on_file=true; refusing")
         payload = json.loads((manifest_path.parent / entry["payload"]).read_text())
-        turns = _transcript_turns(payload)
+        turns = transcript_turns(payload)
         call_answers = {
             claim: extract_yes_no(turns, question_pattern=pattern).answer
             for claim, pattern in CLAIM_QUESTIONS.items()
