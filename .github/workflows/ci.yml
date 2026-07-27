@@ -59,7 +59,7 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 10
       - uses: actions/setup-node@v4
@@ -82,7 +82,7 @@ jobs:
           # CI-only: seed an honestly labeled synthetic tone so the waveform
           # player gets exercised end to end. Never set on any deployed path.
           ATTEST_SEED_TEST_TONE: '1'
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 10
       - uses: actions/setup-node@v4
