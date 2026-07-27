@@ -10,7 +10,10 @@ services:
       ATTEST_USE_MOCK: "true"
       ATTEST_MOCK_BASE_URL: "http://mock:8100"
       ATTEST_DB_PATH: "/app/data/attest.db"
+      # Judge sandbox credential: self-dial only, consent-checked, capped.
       ATTEST_JUDGE_KEY: "demo-mode-key"
+      # Operator credential: unrestricted, for the builder's own runs.
+      ATTEST_OPERATOR_KEY: "demo-operator-key"
       # Demo signing key so the zero-credential judge path serves SIGNED
       # attestations; production uses a real secret.
       # "demo" selects a deliberately public deterministic signing key so
