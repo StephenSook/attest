@@ -5,7 +5,15 @@ Devpost submission, and the demo video narration all cite THIS file, and this
 file cites the shipped code. Every entry lists where it was verified. If an
 artifact needs a number that is not here, add it here first, with its audit.
 
-Last audited: 2026-07-27.
+Last audited: 2026-07-27, full pass against shipped code and live surfaces.
+
+Audit method, because "audited" has to mean something: every number below was re-read from its
+generating artifact (`eval/results/metrics.json`, `eval/results/real_channel.json`,
+`eval/results/ablation.md`), every physical asset was re-measured with ffprobe, every deployed
+surface was fetched, and every code claim was grepped in the shipped source. Nothing was confirmed
+from the README, from a prior version of this file, or from memory. That pass found three wrong
+numbers in this file, all of them left behind when the abstention gate was unified in PR #51: the
+README was corrected then and this sheet was not.
 
 ## Product claims
 
@@ -35,9 +43,14 @@ Last audited: 2026-07-27.
 | Abstention rate | 57.7% |
 | Accuracy when answering | 96.9% |
 | Error when forced to answer everything | 12.3% |
-| Ablation: no hedge detection | accuracy-when-answering drops to 89.1% |
-| Ablation: no dead-end guard | abstention doubles to 54.3%, accuracy still worse (89.8%) |
-| Ablation: no calibration | 89.1% accuracy, no coverage guarantee at all |
+| Ablation: no hedge detection | accuracy-when-answering drops to 87.8% (abstention 42.7%) |
+| Ablation: no dead-end guard | accuracy-when-answering drops to 89.8%; abstention falls to 54.3% |
+| Ablation: no calibration | 89.1% accuracy, abstention collapses to 11.7%, no coverage guarantee at all |
+
+Read the ablation abstention numbers against the full config's **57.7%**, not against zero: every
+ablation abstains LESS than the shipped system, which is the point. Removing a guard does not make
+the system more cautious, it makes it answer more often and be wrong more often. Canonical table:
+`eval/results/ablation.md`.
 
 Regeneration: `uv run python -m eval` reproduces every number and figure above on a clean checkout. Do not quote any eval number from memory; re-read `metrics.json`.
 
@@ -45,7 +58,7 @@ Regeneration: `uv run python -m eval` reproduces every number and figure above o
 
 - 36 pre-registered scripted calls placed to the consented builder line across three sessions (2026-07-26 to 27); the respondent answered from ground-truth script sheets. 8 calls excluded by the documented deviation protocol (sheet-drift attribution ambiguity on hedged lines), leaving n=28.
 - At the HARNESS-calibrated threshold (qhat 0.75, never fit on this data): empirical coverage 100.0% (28 of 28; 95 percent Wilson lower bound 87.9%), abstention 42.9%, accuracy when answering 100.0%.
-- Reading, stated precisely: on the 28 attributable calls, coverage was 28 of 28 and every answered call was correct; channel noise became honest abstention (42.9 percent vs 26.7 on the harness), the designed failure mode. This is a transfer test of extraction plus calibration across the real channel (does the system faithfully report or abstain on what was actually said), not a claim about underlying directory facts.
+- Reading, stated precisely: on the 28 attributable calls, coverage was 28 of 28 and every answered call was correct. Measured against the SAME gate, the real channel abstained LESS than the seeded harness, 42.9 percent against 57.7 percent, and still produced no wrong answers. This is a transfer test of extraction plus calibration across the real channel (does the system faithfully report or abstain on what was actually said), not a claim about underlying directory facts.
 - Selection-bias floor: the 8 excluded calls are non-random (ambiguous hedged deliveries). Counting every excluded call as a coverage miss gives a worst-case floor of 77.8 percent; 6 of the 8 abstained, and counting the 2 that answered as errors gives a worst-case accuracy-when-answering of 88.9 percent. Both bounds ship in the report.
 - Provenance on every surface: real phone channel, builder-answered scripted ground truth, consented builder line, never presented as calls to real practices. Reproduce: uv run python -m eval.study analyze on the committed scrubbed payloads.
 
@@ -104,7 +117,7 @@ Regeneration: `uv run python -m eval` reproduces every number and figure above o
   `gh pr list --state merged --limit 100 --json number --jq 'length'`. Deliberately not repeated in the
   README, because a count duplicated across surfaces is a count that goes stale on one of them: that
   drift has now been caught three separate times on this repository.
-- The upstream skill `skills/verify-by-phone` passes `validate_repository.py` from CALLE-AI/awesome-phone-call-agents staged against a clean clone (verified 2026-07-25). Upstream PR not yet opened.
+- The upstream skill `skills/verify-by-phone` passes `validate_repository.py` from CALLE-AI/awesome-phone-call-agents staged against a clean clone. Re-verified 2026-07-27 against a fresh clone at upstream HEAD `df8c709`, carrying the current SKILL.md. Upstream PR not yet opened. Re-run this on every change to the skill, because the validator itself changes upstream (it gained a CRLF fix after our first pass).
 - Second-model adversarial review found 7 verified issues in the loop/security wave (all fixed and regression-pinned); the harness twice caught confident-wrong extraction ("there's NO doctor's office here" parsing as a no; a plan claim stealing an unrelated span).
 
 ## Language rules for every artifact
