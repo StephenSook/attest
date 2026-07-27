@@ -107,3 +107,30 @@ async def test_wrong_key_is_forbidden_and_no_key_unconfigured_is_503(
         assert (
             await client.post("/internal/runs", json=BODY, headers=HEADERS_JUDGE)
         ).status_code == 503
+
+
+def test_reservation_is_atomic_for_cap_and_dedup(tmp_path, monkeypatch):  # type: ignore[no-untyped-def]
+    """The reservation transaction enforces cap and dedup even if the
+    endpoint's lock were bypassed: this pins the db-level guarantee."""
+    monkeypatch.setenv("ATTEST_DB_PATH", str(tmp_path / "resv.db"))
+    from app import db
+
+    conn = db.connect(db.db_path())
+    try:
+        assert db.reserve_sandbox_slot(conn, "hashA", cap=2) == "ok"
+        assert db.reserve_sandbox_slot(conn, "hashA", cap=2) == "duplicate"
+        assert db.reserve_sandbox_slot(conn, "hashB", cap=2) == "ok"
+        assert db.reserve_sandbox_slot(conn, "hashC", cap=2) == "capped"
+        db.release_sandbox_slot(conn, "hashB")
+        assert db.reserve_sandbox_slot(conn, "hashC", cap=2) == "ok"
+    finally:
+        conn.close()
+
+
+async def test_premium_and_toll_numbers_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    async with _client() as client:
+        for bad in ("+19005551234", "+19765551234"):
+            response = await client.post(
+                "/internal/runs", json={**BODY, "phone": bad}, headers=HEADERS_JUDGE
+            )
+            assert response.status_code == 422, bad

@@ -21,7 +21,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictBool, field_validator
 
 from app import analysis, db, runs
 from app.calle.client import CalleService
@@ -309,10 +309,21 @@ async def api_metrics() -> dict[str, object]:
 
 
 class StartRunRequest(BaseModel):
+    # +1 E.164, 10 digits. The reserved fictional 555-01XX range is
+    # intentionally accepted (used for demos and tests); premium and toll
+    # prefixes are rejected in the validator below.
     phone: str = Field(pattern=r"^\+1\d{10}$")
     org: str = Field(min_length=2, max_length=120)
     claims: dict[str, str] = Field(default_factory=dict)
-    consent: bool = False
+    consent: StrictBool = False
+
+    @field_validator("phone")
+    @classmethod
+    def _not_premium(cls, value: str) -> str:
+        area = value[2:5]
+        if area in {"900", "976"} or value[2:6] == "1950":
+            raise ValueError("premium-rate and toll numbers are not allowed")
+        return value
 
 
 def _caller_role(provided: str | None) -> str:
@@ -336,10 +347,9 @@ def _caller_role(provided: str | None) -> str:
 _SANDBOX_CAP = int(os.environ.get("ATTEST_SANDBOX_CAP", "15"))
 
 
-def _enforce_sandbox_rails(body: StartRunRequest) -> str:
-    """The judge sandbox dials ONLY the requester's own number, once, with
-    explicit consent, under a global cap, behind a kill switch. Returns the
-    phone hash used for deduplication."""
+def _sandbox_precheck(body: StartRunRequest) -> str:
+    """Kill switch and consent gate before we touch the database. Returns
+    the phone hash; the actual slot is reserved atomically under the lock."""
     if os.environ.get("ATTEST_SANDBOX_ENABLED", "1") == "0":
         raise HTTPException(status_code=503, detail="the live demo is currently disabled")
     if not body.consent:
@@ -350,28 +360,7 @@ def _enforce_sandbox_rails(body: StartRunRequest) -> str:
                 "you are requesting this call"
             ),
         )
-    phone_hash = hashlib.sha256(body.phone.encode()).hexdigest()
-    conn = db.connect(db.db_path())
-    try:
-        rows = conn.execute(
-            "SELECT record_json FROM call_runs WHERE record_json LIKE ?",
-            ('%"judge_sandbox": true%',),
-        ).fetchall()
-    finally:
-        conn.close()
-    if len(rows) >= _SANDBOX_CAP:
-        raise HTTPException(
-            status_code=429,
-            detail="the live demo call budget is spent; the replays show real runs",
-        )
-    for row in rows:
-        record = json.loads(str(row[0]))
-        if record.get("judge_phone_hash") == phone_hash:
-            raise HTTPException(
-                status_code=429,
-                detail="this number already received its demo call",
-            )
-    return phone_hash
+    return hashlib.sha256(body.phone.encode()).hexdigest()
 
 
 def _get_service() -> CalleService:
@@ -393,8 +382,9 @@ async def start_run(
 ) -> dict[str, str]:
     role = _caller_role(x_attest_key)
     record: dict[str, object] = {"org": body.org, "claims": body.claims}
+    phone_hash = ""
     if role == "judge":
-        phone_hash = _enforce_sandbox_rails(body)
+        phone_hash = _sandbox_precheck(body)
         record["judge_sandbox"] = True
         record["judge_phone_hash"] = phone_hash
         record["org"] = f"{body.org} (self-requested demo)"
@@ -402,9 +392,38 @@ async def start_run(
     # call script with the disclosure removed.
     task = runs.build_task(str(record["org"]), body.claims)
     async with _submission_lock:
-        run_id = await runs.start_verification_run(
-            _get_service(), db.db_path(), task=task, phone=body.phone, record=record
-        )
+        if role == "judge":
+            # Atomic: dedup + cap enforced in one serialized transaction, so
+            # concurrent judge requests cannot both slip past either rail.
+            conn = db.connect(db.db_path())
+            try:
+                outcome = db.reserve_sandbox_slot(conn, phone_hash, _SANDBOX_CAP)
+            finally:
+                conn.close()
+            if outcome == "capped":
+                raise HTTPException(
+                    status_code=429,
+                    detail="the live demo call budget is spent; the replays show real runs",
+                )
+            if outcome == "duplicate":
+                raise HTTPException(
+                    status_code=429,
+                    detail="this number already received its demo call",
+                )
+        try:
+            run_id = await runs.start_verification_run(
+                _get_service(), db.db_path(), task=task, phone=body.phone, record=record
+            )
+        except Exception:
+            # The call never got placed; give the slot back so an honest
+            # retry is not permanently blocked by a transient failure.
+            if role == "judge":
+                conn = db.connect(db.db_path())
+                try:
+                    db.release_sandbox_slot(conn, phone_hash)
+                finally:
+                    conn.close()
+            raise
     # Fresh submissions poll immediately instead of waiting out idle backoff.
     poller = getattr(app.state, "poller", None)
     if poller is not None:

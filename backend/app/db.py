@@ -23,6 +23,11 @@ CREATE TABLE IF NOT EXISTS call_runs (
     record_json TEXT
 );
 
+CREATE TABLE IF NOT EXISTS sandbox_reservations (
+    phone_hash TEXT PRIMARY KEY,
+    reserved_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
 CREATE TABLE IF NOT EXISTS call_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     run_id TEXT NOT NULL REFERENCES call_runs(run_id),
@@ -117,3 +122,39 @@ def pollable_runs(conn: sqlite3.Connection) -> list[sqlite3.Row]:
             "AND calle_call_id IS NOT NULL AND calle_call_id != ''"
         )
     )
+
+
+def reserve_sandbox_slot(conn: sqlite3.Connection, phone_hash: str, cap: int) -> str:
+    """Atomically claim one judge-sandbox call slot for a phone hash.
+
+    A single serialized transaction enforces BOTH invariants that used to
+    race outside the submission lock: the per-number dedup (PRIMARY KEY on
+    phone_hash) and the global cap (count checked inside the same
+    transaction, before insert). Correct even across processes because
+    SQLite serializes writers. Returns "ok", "duplicate", or "capped"; never
+    raises for the expected outcomes.
+    """
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        count = conn.execute("SELECT COUNT(*) FROM sandbox_reservations").fetchone()[0]
+        if count >= cap:
+            conn.execute("ROLLBACK")
+            return "capped"
+        existing = conn.execute(
+            "SELECT 1 FROM sandbox_reservations WHERE phone_hash = ?", (phone_hash,)
+        ).fetchone()
+        if existing is not None:
+            conn.execute("ROLLBACK")
+            return "duplicate"
+        conn.execute("INSERT INTO sandbox_reservations (phone_hash) VALUES (?)", (phone_hash,))
+        conn.execute("COMMIT")
+        return "ok"
+    except sqlite3.IntegrityError:
+        conn.execute("ROLLBACK")
+        return "duplicate"
+
+
+def release_sandbox_slot(conn: sqlite3.Connection, phone_hash: str) -> None:
+    """Give a slot back if the call never actually got placed."""
+    conn.execute("DELETE FROM sandbox_reservations WHERE phone_hash = ?", (phone_hash,))
+    conn.commit()

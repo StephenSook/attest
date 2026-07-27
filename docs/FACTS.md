@@ -61,6 +61,12 @@ Regeneration: `uv run python -m eval` reproduces every number and figure above o
 - The scrubbed second-probe payload is the mock fixture (`mock_calle/fixtures/terminal_result.json`): phone and identifiers replaced with reserved fictional values, conversation verbatim.
 - Platform findings, all verified empirically: the live API rejects both `result_schema` and `recipient_result_schema`; `webhook_url` is accepted but no webhook was delivered for a completed call (tunnel capture, 20+ minutes); terminal payloads are snake_case `call_task` objects with `recipients[].attempts[].transcript_turns`, `completion_confidence`, and `evidence`; there is no KYC gate before dialing.
 
+## Judge sandbox facts (audited 2026-07-27)
+
+- The judge key lets a judge have Attest call THEIR OWN number to experience the product live. Rails, all fail-closed and test-pinned: explicit StrictBool consent (422 without it); one call per phone number ever (SHA-256 hash, no number stored in the record); global cap of 15 (429); US +1 only with premium 900/976 and toll-950 prefixes rejected; kill switch ATTEST_SANDBOX_ENABLED=0 (503). Dedup and cap are enforced in ONE serialized SQLite transaction (sandbox_reservations table, PRIMARY KEY on the hash, count-in-transaction cap), so concurrent requests cannot bypass either rail even across workers.
+- A second-model adversarial pass (Codex) found both rails were originally raceable (checked before the submission lock) and that consent is not proof of ownership; the races are fixed atomically. Accepted residual, stated plainly: a holder of the secret judge key could cause at most 15 disclosed, capped, one-per-number calls to numbers they do not own. The judge key is the access control and appears only in the judges-only Devpost testing instructions. Full ownership proof (OTP) needs an SMS provider we do not run.
+- The operator key path is unrestricted and never railed; the two keys are distinct env vars.
+
 ## Mobile facts (audited 2026-07-27)
 
 - Attest Pocket: Expo SDK 57 app in mobile/, read-only against the production API, no secrets in the binary, phone numbers masked server-side. Runs ledger, run detail (verdict stamp, claim cards, span-marked transcript synced to an expo-audio player of the receiving-end recording), PDF attestation certificate via the native share sheet, calibration screen with the real-telephone panel.
