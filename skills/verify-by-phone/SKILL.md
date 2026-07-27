@@ -43,13 +43,13 @@ These are load-bearing, not boilerplate:
 
 ## Verification Workflow
 
-1. Collect the record to verify: organization name, published phone number in E.164, and the claims to check (for example accepting new patients, accepts a named plan).
-2. Confirm the operator authorizes this specific call to this specific number.
-3. Build the call task with `scripts/place_verify_call.py`. The script defaults to a dry run that prints the exact task and recipient without dialing; pass `--live` only after the dry run looks right.
-4. Poll for the terminal result with `scripts/poll_result.py`, which saves the full payload to a local file.
-5. Extract the answer with `scripts/extract_answer.py`. Every extracted field carries the verbatim transcript span and character offsets that support it. Hedged answers ("I think so") keep their polarity at a dampened trust score. Non-responsive turns (wrong number, refusal, "call back later") never count as answers.
-6. Reconcile against the stored record with `scripts/reconcile_record.py`: each agreeing field adds documented bits of evidence, each disagreeing field subtracts them, and the verdict is verified, contradicted, or unverifiable.
-7. Calibrate the abstention threshold with `scripts/calibrate.py` on labeled scenario data, so "confident" means something measurable: at the default level, the true answer falls inside the prediction set at least 90 percent of the time on held-out data, and the system abstains rather than answer when the set is not a single value.
+1. Calibrate the abstention threshold first, with `scripts/calibrate.py` on labeled scenario data, so "confident" means something measurable: at the default level, the true answer falls inside the prediction set at least 90 percent of the time on held-out data. It prints a `qhat` that step 6 consumes. This runs with no credentials and no calls, so it can be done once, ahead of any dialing.
+2. Collect the record to verify: organization name, published phone number in E.164, and the claims to check (for example accepting new patients, accepts a named plan).
+3. Confirm the operator authorizes this specific call to this specific number.
+4. Build the call task with `scripts/place_verify_call.py`. The script defaults to a dry run that prints the exact task and recipient without dialing; pass `--live` only after the dry run looks right.
+5. Poll for the terminal result with `scripts/poll_result.py`, which saves the full payload to a local file.
+6. Extract the answer with `scripts/extract_answer.py --qhat` from step 1. Every extracted field carries the verbatim transcript span and character offsets that support it. Hedged answers ("I think so") keep their polarity at a dampened trust score. Non-responsive turns (wrong number, refusal, "call back later") never count as answers. The answer is served only when the calibrated prediction set is a single value and that value is not "unknown"; otherwise the result is an abstention. Omitting `--qhat` abstains on everything and labels the output `uncalibrated`, because a threshold with no calibration behind it guarantees nothing.
+7. Reconcile against the stored record with `scripts/reconcile_record.py`: each agreeing field adds documented bits of evidence, each disagreeing field subtracts them, and the verdict is verified, contradicted, or unverifiable.
 
 ## Maintenance Note
 
@@ -72,31 +72,31 @@ here and answered there.
 ```bash
 pip install calle-ai
 
-# 1. Dry run: prints the task and masked recipient, dials nothing.
+# 1. Calibrate the gate first. Prints the qhat step 5 needs.
+python3 scripts/calibrate.py --data references/sample-scenarios.jsonl --alpha 0.1
+
+# 2. Dry run: prints the task and masked recipient, dials nothing.
 python3 scripts/place_verify_call.py \
   --org "Example Counseling Center" \
   --phone "+15550101234" \
   --claim-accepting-new-patients yes \
   --claim-plan "Example Health PPO"
 
-# 2. Place the call for real (requires CALLE_API_KEY).
+# 3. Place the call for real (requires CALLE_API_KEY).
 python3 scripts/place_verify_call.py ... --live
 
-# 3. Wait for the terminal payload.
+# 4. Wait for the terminal payload.
 python3 scripts/poll_result.py --call-id call_abc123 --out result.json
 
-# 4. Extract the span-grounded answer.
-python3 scripts/extract_answer.py --payload result.json
+# 5. Extract the span-grounded answer, gated by the calibrated threshold.
+python3 scripts/extract_answer.py --payload result.json --qhat 0.750
 
-# 5. Reconcile against the stored record.
+# 6. Reconcile against the stored record.
 python3 scripts/reconcile_record.py --payload result.json \
   --claim-accepting-new-patients yes --claim-plan-accepted yes
-
-# 6. Calibrate the abstention threshold on labeled scenarios.
-python3 scripts/calibrate.py --data references/sample-scenarios.jsonl --alpha 0.1
 ```
 
-All sample numbers in this skill are reserved fictional numbers. The dry run path and the bundled scenario data mean everything except step 2 runs with no credentials and no real call.
+All sample numbers in this skill are reserved fictional numbers. The dry run path and the bundled scenario data mean everything except step 3 runs with no credentials and no real call.
 
 ## What The Output Looks Like
 
@@ -109,11 +109,12 @@ All sample numbers in this skill are reserved fictional numbers. The dry run pat
   "trust_score": 0.9,
   "hedged": false,
   "span": {"turn": 6, "text": "Yep.", "char_start": 0, "char_end": 3},
-  "abstain": false
+  "abstain": false,
+  "gate": "conformal(qhat=0.750)"
 }
 ```
 
-An abstention keeps the same shape with `"answer": "unknown"` and `"abstain": true`. `reconcile_record.py` adds the match-weight arithmetic and a verdict. No field ever appears without either a supporting span or an explicit abstention.
+An abstention keeps the same shape with `"abstain": true`, either because the calibrated prediction set held more than one label or because the extractor found no answer at all (`"answer": "unknown"`). The `gate` field names the threshold that made the decision, and reads `uncalibrated` when no `--qhat` was supplied, which is the one case where every claim abstains regardless of what was said. `reconcile_record.py` adds the match-weight arithmetic and a verdict. No field ever appears without either a supporting span or an explicit abstention.
 
 ## Side Effects And Cancellation
 
