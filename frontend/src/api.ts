@@ -6,6 +6,7 @@ export type RunSummary = {
   created_at: string;
   org: string | null;
   replay: boolean;
+  verdict?: "verified" | "contradicted" | "unverifiable";
 };
 
 export type Span = {

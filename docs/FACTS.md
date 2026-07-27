@@ -34,7 +34,7 @@ Last audited: 2026-07-25.
 | Empirical coverage at 90% target | 90.3% (Wilson 95%: 86.5 to 93.2) |
 | Abstention rate | 26.7% |
 | Accuracy when answering | 94.5% |
-| Error when forced to answer everything | 15.3% |
+| Error when forced to answer everything | 12.3% |
 | Ablation: no hedge detection | accuracy-when-answering drops to 89.1% |
 | Ablation: no dead-end guard | abstention doubles to 54.3%, accuracy still worse (89.8%) |
 | Ablation: no calibration | 89.1% accuracy, no coverage guarantee at all |
