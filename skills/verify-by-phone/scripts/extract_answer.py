@@ -6,6 +6,11 @@ transcript turns, and emits one JSON object per claim with the verbatim
 supporting span and character offsets, or an explicit abstention. Hedged
 answers keep their polarity at a dampened trust score. Non-responsive turns
 (wrong number, refusal, call-back deflections) never count as answers.
+
+This is a self-contained copy of the reference extractor in backend/app of the
+source repository. It is not kept in sync by hand: tests/test_skill_parity.py
+runs both extractors over the same transcripts and fails if they disagree on
+the answer, the span, or the cue lexicons.
 """
 
 import argparse
@@ -15,28 +20,36 @@ import sys
 
 YES_CUES = (
     r"\byes\b",
+    # guard the same way for the other agreement cues
     r"\byeah\b",
     r"\byep\b",
     r"\babsolutely\b",
     r"\bcorrect\b",
     r"\bdefinitely\b",
-    r"\bwe are\b",
-    r"\bwe do\b",
+    # "we are not taking" must never read as agreement: without the
+    # lookahead this matched inside a refusal and won the tie-break.
+    r"\bwe are\b(?!\s+not\b)",
+    r"\bsure are\b",
     r"\bof course\b",
 )
 NO_CUES = (
-    r"\bno\b",
+    # "no problem" / "no worries" / "not at all" are agreement, not refusal.
+    # Without this guard "Sure, no problem, we are accepting new patients"
+    # extracts a confident NO, which is the worst failure this system can
+    # produce: a wrong answer delivered with a highlighted span.
+    r"\bno\b(?!\s+(?:problem|worries|trouble|issue|doubt)\b)",
     r"\bnope\b",
     r"\bnot accepting\b",
     r"\bnot taking\b",
+    r"\bnot at all\b(?=.*\baccept)",
     r"\bwe aren'?t\b",
     r"\bwe'?re not\b",
     r"\bunfortunately\b",
     r"\bfull\b",
     r"\bwaitlist\b",
     r"\bstopped\b",
-    r"\bwe don'?t\b",
 )
+# strength: 1.0 = strong hedge, 0.8 = belief-verb, 0.4 = mild softener.
 HEDGES = (
     (r"\bnot sure\b", 1.0),
     (r"\bno idea\b", 1.0),
@@ -48,8 +61,10 @@ HEDGES = (
     (r"\bi believe\b", 0.8),
     (r"\bprobably\b", 0.8),
     (r"\bas far as i know\b", 0.8),
+    (r"\bif i remember\b", 0.8),
     (r"\bpretty sure\b", 0.4),
     (r"\bshould be\b", 0.4),
+    (r"\bi'?d say\b", 0.4),
 )
 DEAD_ENDS = (
     r"\bwrong number\b",
@@ -67,7 +82,8 @@ CLAIM_PATTERNS = {
     # new-patients answer gets mis-attributed to the insurance question.
     "accepts_plan": r"\baccepts?\b|\btakes?\b.*\b(?:plan|insurance)\b|\bin[- ]network\b",
 }
-DAMPEN = 0.55  # keep in sync with app.hedge.MAX_DAMPEN in the main repo
+DAMPEN = 0.55  # app.hedge.MAX_DAMPEN
+CONTRADICTION_SCORE = 0.25
 ABSTAIN_BELOW = 0.65
 
 
@@ -80,58 +96,87 @@ def turns_from_payload(payload: dict) -> list[dict]:
     return []
 
 
-def first_span(cues: tuple[str, ...], text: str) -> tuple[int, int] | None:
+def last_span(cues: tuple[str, ...], text: str) -> tuple[int, int] | None:
+    """The LAST cue occurrence of this polarity in the turn.
+
+    Last, not first, because the documented rule is to trust the final clear
+    statement. Taking the first occurrence made a refusal that opens with
+    "Unfortunately no, we are full" lose the tie-break to the "we are" that
+    appears later, and be served as a confident yes.
+    """
     lowered = text.lower()
-    best = None
+    best: tuple[int, int] | None = None
     for cue in cues:
-        match = re.search(cue, lowered)
-        if match and (best is None or match.start() < best[0]):
-            best = (match.start(), match.end())
+        for match in re.finditer(cue, lowered):
+            if best is None or match.start() > best[0]:
+                best = (match.start(), match.end())
     return best
 
 
 def extract(turns: list[dict], claim: str, question_pattern: str) -> dict:
     question_seen = False
-    yes_hit = no_hit = None
+    yes_hits: list[tuple[int, str, int, int]] = []
+    no_hits: list[tuple[int, str, int, int]] = []
     hedge_strength = 0.0
     dead_end = False
+
     for index, turn in enumerate(turns):
         text = str(turn.get("text", ""))
+        lowered = text.lower()
         if turn.get("speaker") == "bot":
-            if re.search(question_pattern, text.lower()):
+            if re.search(question_pattern, lowered):
                 question_seen = True
             continue
         if not question_seen:
             continue
-        if any(re.search(cue, text.lower()) for cue in DEAD_ENDS):
+        if any(re.search(cue, lowered) for cue in DEAD_ENDS):
+            # A dead-end turn ("wrong number", "you'd have to call back") is
+            # non-responsive: polarity words inside it are not answers.
             dead_end = True
             continue
         for pattern, strength in HEDGES:
-            if re.search(pattern, text.lower()):
+            if re.search(pattern, lowered):
                 hedge_strength = max(hedge_strength, strength)
-        span = first_span(YES_CUES, text)
-        if span and yes_hit is None:
-            yes_hit = (index, text, span)
-        span = first_span(NO_CUES, text)
-        if span and no_hit is None:
-            no_hit = (index, text, span)
+        yes_span = last_span(YES_CUES, text)
+        if yes_span:
+            yes_hits.append((index, text, yes_span[0], yes_span[1]))
+        no_span = last_span(NO_CUES, text)
+        if no_span:
+            no_hits.append((index, text, no_span[0], no_span[1]))
 
     hedged = hedge_strength > 0
-    if (yes_hit is None) == (no_hit is None):
-        # Neither, or contradictory both: abstain honestly.
+
+    def unknown(score: float) -> dict:
         return {
             "claim": claim,
             "answer": "unknown",
-            "trust_score": 0.85 if dead_end else 0.25 if yes_hit else 0.6,
+            "trust_score": score,
             "hedged": hedged,
             "span": None,
             "abstain": True,
         }
-    index, text, (start, end) = yes_hit or no_hit  # type: ignore[misc]
-    score = 0.9 * (1.0 - DAMPEN * hedge_strength)
+
+    if dead_end and not yes_hits and not no_hits:
+        return unknown(0.85)
+    if yes_hits and no_hits:
+        # Contradiction: trust the LAST clear statement, at a low score, and
+        # tie-break by character offset so a same-turn correction
+        # ("Yes... actually no") trusts the final statement.
+        final = max(yes_hits + no_hits, key=lambda hit: (hit[0], hit[2]))
+        answer = "yes" if final in yes_hits else "no"
+        score = CONTRADICTION_SCORE
+        index, text, start, end = final
+    elif yes_hits or no_hits:
+        hits = yes_hits or no_hits
+        answer = "yes" if yes_hits else "no"
+        score = min(0.9 + 0.02 * (len(hits) - 1), 0.98) * (1.0 - DAMPEN * hedge_strength)
+        index, text, start, end = hits[0]
+    else:
+        return unknown(0.6)
+
     return {
         "claim": claim,
-        "answer": "yes" if yes_hit else "no",
+        "answer": answer,
         "trust_score": round(score, 3),
         "hedged": hedged,
         "span": {"turn": index, "text": text, "char_start": start, "char_end": end},
