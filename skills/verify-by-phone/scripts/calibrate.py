@@ -2,34 +2,16 @@
 """Calibrate the abstention threshold with split conformal prediction.
 
 Standard library only, no credentials, no calls: runs on labeled scenario
-data (see references/sample-scenarios.jsonl). Split conformal with the
-finite-sample correction: with calibration size n and miscoverage alpha, the
-prediction set built from the ceil((n+1)(1-alpha))/n quantile of calibration
-nonconformity scores contains the true label with probability at least
-1 - alpha on held-out exchangeable data. Abstain when the set is not a
-single value. That is the entire guarantee, and you can read it right here.
+data (see references/sample-scenarios.jsonl). The guarantee and the gate both
+live in gate.py, which extract_answer.py also uses, so the threshold printed
+here is the threshold that decides real answers. It is printed for exactly
+that reason: feed it to `extract_answer.py --qhat`.
 """
 
 import argparse
 import json
-import math
 
-CLASSES = ("yes", "no", "unknown")
-
-
-def class_scores(answer: str, trust: float) -> dict[str, float]:
-    if answer == "unknown":
-        return {"yes": (1 - trust) / 2, "no": (1 - trust) / 2, "unknown": trust}
-    other = 1 - trust
-    scores = {"yes": other * 0.4, "no": other * 0.4, "unknown": other * 0.6}
-    scores[answer] = trust
-    return scores
-
-
-def quantile(values: list[float], alpha: float) -> float:
-    ordered = sorted(values)
-    rank = math.ceil((len(ordered) + 1) * (1 - alpha))
-    return float("inf") if rank > len(ordered) else ordered[rank - 1]
+from gate import abstains, class_scores, conformal_quantile, nonconformity, prediction_set
 
 
 def main() -> None:
@@ -48,29 +30,35 @@ def main() -> None:
     if not calibration or not test:
         raise SystemExit("ERROR: need at least two labeled rows to calibrate.")
 
-    cal_scores = [
-        1.0 - class_scores(row["answer"], row["trust_score"])[row["truth"]] for row in calibration
-    ]
-    qhat = quantile(cal_scores, args.alpha)
+    qhat = conformal_quantile(
+        [
+            nonconformity(class_scores(row["answer"], row["trust_score"]), row["truth"])
+            for row in calibration
+        ],
+        args.alpha,
+    )
 
-    covered = singletons = singleton_correct = 0
+    covered = answered = answered_correct = 0
     for row in test:
         scores = class_scores(row["answer"], row["trust_score"])
-        pset = {label for label in CLASSES if 1.0 - scores[label] <= qhat}
-        if row["truth"] in pset:
+        if row["truth"] in prediction_set(scores, qhat):
             covered += 1
-        if len(pset) == 1:
-            singletons += 1
-            if row["truth"] in pset:
-                singleton_correct += 1
+        # The gate the skill actually applies, not a looser one. A singleton
+        # {unknown} is an abstention: counting it as answered would report an
+        # abstention rate lower than the one an operator experiences.
+        if not abstains(scores, row["answer"], qhat):
+            answered += 1
+            if row["answer"] == row["truth"]:
+                answered_correct += 1
 
     n = len(test)
     print(f"calibration n={len(calibration)}, held-out test n={n} (disjoint)")
     print(f"alpha={args.alpha}: qhat={qhat:.3f}")
     print(f"empirical coverage: {covered / n:.1%} (target {1 - args.alpha:.0%})")
-    print(f"abstention rate: {1 - singletons / n:.1%}")
-    if singletons:
-        print(f"accuracy when answering: {singleton_correct / singletons:.1%}")
+    print(f"abstention rate: {1 - answered / n:.1%}")
+    if answered:
+        print(f"accuracy when answering: {answered_correct / answered:.1%}")
+    print(f"\nApply it:  extract_answer.py --payload result.json --qhat {qhat:.3f}")
 
 
 if __name__ == "__main__":

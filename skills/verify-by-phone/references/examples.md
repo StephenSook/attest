@@ -23,16 +23,16 @@ python3 scripts/poll_result.py --call-id call_abc123 --out result.json
 ## Example 2: extraction with a supporting span
 
 ```bash
-python3 scripts/extract_answer.py --payload result.json
+python3 scripts/extract_answer.py --payload result.json --qhat 0.750
 ```
 
 ```json
 {"claim": "accepting_new_patients", "answer": "yes", "trust_score": 0.9,
  "hedged": false,
  "span": {"turn": 6, "text": "Yep.", "char_start": 0, "char_end": 3},
- "abstain": false}
+ "abstain": false, "gate": "conformal(qhat=0.750)"}
 {"claim": "accepts_plan", "answer": "unknown", "trust_score": 0.6,
- "hedged": false, "span": null, "abstain": true}
+ "hedged": false, "span": null, "abstain": true, "gate": "conformal(qhat=0.750)"}
 ```
 
 The second line is the design working as intended: the call never asked about the plan, so the answer is an abstention, not a guess.
