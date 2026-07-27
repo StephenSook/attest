@@ -13,6 +13,32 @@ from app.calle.client import CalleService
 logger = logging.getLogger(__name__)
 
 
+# How the agent must behave once the questions are asked. Held as one constant
+# because the shipped skill carries its own copy of the task builder and cannot
+# import this module: skills/verify-by-phone is standard-library-only by design
+# so it installs on machines that never see this repository. The two copies had
+# already drifted (the skill was missing the voicemail rule entirely), which is
+# the same sync-by-comment failure that let the extractor and the abstention
+# gate diverge. tests/test_skill_parity.py pins them to the same string.
+CALL_CONDUCT = (
+    "Record the answers exactly as given. If the person "
+    "hedges, capture their exact wording. If they decline to speak with an automated "
+    "caller, thank them and end the call immediately. If asked to hold, wait briefly, "
+    "then thank them and end the call rather than waiting indefinitely. If you "
+    "reach voicemail or an answering machine, do NOT leave a message: end the "
+    "call politely and immediately, because a directory answer cannot be "
+    "established from a recording and nobody should find a robot message on "
+    "their line. If you are asked for patient details, such as a name, a date of "
+    "birth, an insurance member or card number, or a reason for the visit, say "
+    "plainly that you do not have that information because this is a directory "
+    "verification call and not an appointment request, then repeat the question "
+    "you called to ask. Never invent any such detail, not even a placeholder. "
+    "Never guess: "
+    "anything not clearly stated must be recorded as unknown. Keep the call under two "
+    "minutes and always remain polite."
+)
+
+
 def build_task(org: str, claims: dict[str, str]) -> str:
     """The disclosure-first call script. Server-owned: disclosure is not
     something a client is allowed to omit."""
@@ -28,16 +54,7 @@ def build_task(org: str, claims: dict[str, str]) -> str:
         f"You are placing a short verification call to {org} on behalf of a records "
         "verification service. Open with: 'Hi, this is an automated assistant calling "
         f"to verify directory information for {org}. This call may be recorded.' "
-        f"Then politely ask: {asks}. Record the answers exactly as given. If the person "
-        "hedges, capture their exact wording. If they decline to speak with an automated "
-        "caller, thank them and end the call immediately. If asked to hold, wait briefly, "
-        "then thank them and end the call rather than waiting indefinitely. If you "
-        "reach voicemail or an answering machine, do NOT leave a message: end the "
-        "call politely and immediately, because a directory answer cannot be "
-        "established from a recording and nobody should find a robot message on "
-        "their line. Never guess: "
-        "anything not clearly stated must be recorded as unknown. Keep the call under two "
-        "minutes and always remain polite."
+        f"Then politely ask: {asks}. " + CALL_CONDUCT
     )
 
 
