@@ -16,11 +16,14 @@ logger = logging.getLogger(__name__)
 def build_task(org: str, claims: dict[str, str]) -> str:
     """The disclosure-first call script. Server-owned: disclosure is not
     something a client is allowed to omit."""
-    questions = ["whether the practice is currently accepting new patients"]
+    questions = [
+        f"first, confirm you have reached {org} by asking: 'Is this the office of {org}?'",
+        "then ask whether the practice is currently accepting new patients",
+    ]
     plan = claims.get("plan_name")
     if plan:
-        questions.append(f"whether the practice currently accepts {plan}")
-    asks = "; and ".join(questions)
+        questions.append(f"then ask whether the practice currently accepts {plan}")
+    asks = "; ".join(questions)
     return (
         f"You are placing a short verification call to {org} on behalf of a records "
         "verification service. Open with: 'Hi, this is an automated assistant calling "
