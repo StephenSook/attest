@@ -93,7 +93,7 @@ test("run detail shows the verdict stamp and the supporting span", async ({ page
   await expect(page.getByText(/record-accurate posterior/)).toBeVisible();
   await expect(page.locator(".evidence-span")).toHaveText("Yep");
   await expect(page.getByText("abstain").first()).toBeVisible();
-  await expect(page.getByText(/no supporting span/)).toBeVisible();
+  await expect(page.getByText(/no supporting span/).first()).toBeVisible();
 });
 
 test("audio evidence: waveform when audio exists, honest absence otherwise", async ({ page }) => {
