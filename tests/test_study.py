@@ -62,7 +62,9 @@ def test_analyze_applies_harness_qhat_with_served_gate(tmp_path: Path) -> None:
     manifest_path = tmp_path / "manifest.json"
     manifest_path.write_text(json.dumps(manifest))
 
-    report = analyze(manifest_path=manifest_path, calls_dir=calls_dir)
+    report = analyze(
+        manifest_path=manifest_path, calls_dir=calls_dir, out_path=tmp_path / "out.json"
+    )
     assert report["provenance"] == PROVENANCE
     assert report["n_collected"] == 12
     assert report["qhat_source"].startswith("harness-calibrated")
@@ -129,9 +131,30 @@ def test_deviation_protocol_exclusions_and_delivered_labels(tmp_path: Path) -> N
     manifest_path = tmp_path / "manifest.json"
     manifest_path.write_text(json.dumps(manifest))
 
-    report = analyze(manifest_path=manifest_path, calls_dir=calls_dir)
+    report = analyze(
+        manifest_path=manifest_path, calls_dir=calls_dir, out_path=tmp_path / "out.json"
+    )
     assert report["n_collected"] == 2
     assert report["n_excluded_by_protocol"] == 1
     assert report["deviation_protocol"] == "test protocol"
     row3 = next(r for r in report["rows"] if r["n"] == 3)
     assert row3["truth"] == scenarios[2].truth
+
+
+def test_committed_real_channel_report_is_current(tmp_path: Path) -> None:
+    """The committed report must match a fresh regeneration from the
+    committed data. Exists because a test once overwrote the shared results
+    file with fixture output and the stale numbers nearly shipped."""
+    committed_path = Path(__file__).parent.parent / "eval" / "results" / "real_channel.json"
+    if not committed_path.exists():
+        return
+    fresh = analyze(out_path=tmp_path / "fresh.json")
+    committed = json.loads(committed_path.read_text())
+    for key in (
+        "n_collected",
+        "empirical_coverage",
+        "abstention_rate",
+        "accuracy_when_answering",
+        "worst_case_coverage_all_excluded_as_misses",
+    ):
+        assert committed[key] == fresh[key], f"stale committed real_channel.json: {key}"
