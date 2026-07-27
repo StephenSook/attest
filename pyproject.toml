@@ -11,6 +11,7 @@ dependencies = [
     "calle-ai>=0.2.0",
     "numpy>=2.5.1",
     "matplotlib>=3.11.1",
+    "cryptography>=49.0.0",
 ]
 
 [dependency-groups]

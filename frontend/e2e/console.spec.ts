@@ -143,7 +143,7 @@ test("attestation certificate renders signed and verifiable fields", async ({ pa
   await page.goto("/runs/run_replay_builder_0001/certificate");
   await expect(page.getByText(/certificate of verification/i)).toBeVisible();
   await expect(page.getByText(/payload sha256 [0-9a-f]{16}/)).toBeVisible();
-  await expect(page.getByText(/signature HMAC-SHA256|unsigned:/)).toBeVisible();
+  await expect(page.getByText(/signature Ed25519|unsigned:/)).toBeVisible();
   await expect(page.getByRole("button", { name: /download json/i })).toBeVisible();
   await expect(page.getByText(/supporting span/).first()).toBeVisible();
 });
@@ -162,6 +162,19 @@ test("risk-coverage explorer snaps to measured targets only", async ({ page }) =
   await expect(
     page.getByText(`${(strictest.abstention_rate * 100).toFixed(1)}%`).first(),
   ).toBeVisible();
+});
+
+test("a real certificate verifies in the browser; a tampered one fails", async ({ page }) => {
+  const doc = await (await fetch(`${API}/api/runs/run_replay_builder_0001/attestation`)).json();
+  await page.goto("/verify");
+  await page.getByPlaceholder(/attestation\/v1/).fill(JSON.stringify(doc));
+  await page.getByRole("button", { name: /verify signature/i }).click();
+  await expect(page.getByText(/signature valid/i)).toBeVisible({ timeout: 15_000 });
+  // Tamper with the verdict and verify again: must fail.
+  doc.reconciliation.verdict = "verified";
+  await page.getByPlaceholder(/attestation\/v1/).fill(JSON.stringify(doc));
+  await page.getByRole("button", { name: /verify signature/i }).click();
+  await expect(page.getByText(/not valid/i)).toBeVisible({ timeout: 15_000 });
 });
 
 test("calibration page serves live metrics, never hardcoded", async ({ page }) => {
