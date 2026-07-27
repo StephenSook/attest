@@ -120,6 +120,56 @@ Regeneration: `uv run python -m eval` reproduces every number and figure above o
 - The upstream skill `skills/verify-by-phone` passes `validate_repository.py` from CALLE-AI/awesome-phone-call-agents staged against a clean clone. Re-verified 2026-07-27 against a fresh clone at upstream HEAD `df8c709`, carrying the current SKILL.md. Upstream PR not yet opened. Re-run this on every change to the skill, because the validator itself changes upstream (it gained a CRLF fix after our first pass).
 - Second-model adversarial review found 7 verified issues in the loop/security wave (all fixed and regression-pinned); the harness twice caught confident-wrong extraction ("there's NO doctor's office here" parsing as a no; a plan claim stealing an unrelated span).
 
+## Saying this out loud (the plain-language version)
+
+Written because a domain expert who has run this exact kind of study could not follow the
+explanation twice in one conversation, and asked to hear it "in general terms, not computer
+science terms". If it cannot be said to him it cannot be said to a judge either. The demo
+narration and any live pitch use this version. Every number in it is the same number as above,
+just spoken.
+
+**Banned from spoken copy:** threshold, calibration, calibrated, coverage, conformal, quantile,
+prediction set, alpha, posterior, marginal. Each one has a plain replacement below.
+
+### One sentence
+
+Attest makes one phone call to a doctor's office to check whether what your insurance directory
+says about them is actually true, and when the call does not give a clear answer it says so
+instead of guessing.
+
+### Sixty seconds (measured: 165 words, so 62 to 71 seconds depending on pace)
+
+Re-count the words if you edit it. The first draft of this was labelled sixty seconds and ran
+eighty-nine, which is the same class of unchecked claim the rest of this file exists to prevent.
+
+Half the listings in health insurance directories are wrong. You call the number and it is a nail
+salon. Nobody finds out until a patient needs care.
+
+Attest makes the call. It says up front that it is an automated assistant and why it is calling,
+asks what a patient would ask, and records the answer with the exact words the person said.
+
+What matters is what it does when the call is unclear. Somebody hedges, or it is voicemail. Most
+systems hand you an answer anyway. This one refuses.
+
+We tuned how cautious it needs to be on three hundred calls where we knew the truth, then ran it
+on three hundred it had never seen. The true answer was in what it reported at least nine times
+in ten. It stayed quiet a little over half the time. When it answered, it was right about
+ninety-seven times in a hundred.
+
+That last number only counts because of the silence in front of it.
+
+### Translation table, for anyone editing the script
+
+| Do not say | Say |
+| --- | --- |
+| calibrated confidence | how cautious it needs to be, tuned on calls where we knew the truth |
+| empirical coverage 90.3 percent | the true answer was in what it reported at least nine times out of ten |
+| abstention rate 57.7 percent | it stayed quiet a little over half the time |
+| accuracy when answering 96.9 percent | when it did answer, it was right about ninety-seven times in a hundred |
+| held-out test fold | three hundred different calls it had never seen |
+| the model abstains | it refuses to answer |
+| verbatim span with character offsets | the exact words the person said, so you can check it |
+
 ## Language rules for every artifact
 
 - The eval dataset is scripted seeded scenario data and is labeled as such wherever it appears; real calls are the only thing presented as real calls.
