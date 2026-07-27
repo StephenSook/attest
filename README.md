@@ -64,7 +64,7 @@ docker compose up --build
 Or natively:
 
 ```bash
-uv sync && uv run pytest          # 217 tests, no network, no real calls ever
+uv sync && uv run pytest          # the full suite, no network, no real calls ever
 uv run python -m eval             # regenerates every number and figure above
 uv run python scripts/seed_replay.py
 uv run uvicorn app.main:app       # backend on :8000
