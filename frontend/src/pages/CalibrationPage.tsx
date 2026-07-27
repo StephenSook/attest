@@ -178,14 +178,21 @@ export default function CalibrationPage() {
       {metrics.real_channel && (
         <div className="mt-8 rounded-lg border-2 border-trust bg-white/60 p-5">
           <h2 className="font-display text-lg font-semibold">
-            The guarantee survived the real telephone
+            The guarantee, tested on the real telephone
           </h2>
           <p className="mt-1 max-w-2xl font-evidence text-xs text-ink-soft">
             {metrics.real_channel.n_collected} real calls to a consented line,
             answered from pre-registered scripted ground truth, scored with the
             HARNESS-calibrated threshold (never fit on this data).{" "}
             {metrics.real_channel.n_excluded_by_protocol} calls excluded by the
-            documented deviation protocol. {metrics.real_channel.provenance}.
+            documented deviation protocol; counting every excluded call as a
+            miss still floors coverage at{" "}
+            {(
+              (metrics.real_channel.worst_case_coverage_all_excluded_as_misses ?? 0) * 100
+            ).toFixed(1)}
+            {" "}percent. A transfer test of
+            extraction and calibration across the channel, not a claim about
+            underlying directory facts. {metrics.real_channel.provenance}.
           </p>
           <div className="mt-4 grid gap-4 sm:grid-cols-3">
             <Stat

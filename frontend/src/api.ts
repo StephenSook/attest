@@ -135,6 +135,7 @@ export type Metrics = {
     coverage_wilson_95: [number, number];
     abstention_rate: number;
     accuracy_when_answering: number | null;
+    worst_case_coverage_all_excluded_as_misses: number | null;
   };
   calibration_sensitivity?: {
     n_cal: number;
