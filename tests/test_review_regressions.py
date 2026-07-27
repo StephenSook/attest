@@ -3,6 +3,7 @@
 import json
 import re
 from pathlib import Path
+from typing import Any, cast
 
 from app.analysis import redact_payload
 
@@ -115,8 +116,9 @@ def test_served_abstention_is_the_conformal_gate(tmp_path, monkeypatch) -> None:
     strict.write_text(json.dumps({"headline": {"qhat": 0.99}}))
     monkeypatch.setenv("ATTEST_METRICS_PATH", str(strict))
 
-    def accepting(doc: dict) -> dict:
-        return next(c for c in doc["claims"] if c["claim"] == "accepting_new_patients")
+    def accepting(doc: dict[str, Any]) -> dict[str, Any]:
+        claims = cast(list[dict[str, Any]], doc["claims"])
+        return next(c for c in claims if c["claim"] == "accepting_new_patients")
 
     claim = accepting(analysis.analyze_run(fake_row(payload)))
     assert claim["calibrated"] is True
@@ -146,12 +148,12 @@ def test_multi_claim_call_reaches_a_verified_verdict() -> None:
 
     from app import analysis
 
-    def fake_row(payload: dict, record: dict) -> sqlite3.Row:
+    def fake_row(payload: dict[str, Any], record: dict[str, Any]) -> sqlite3.Row:
         conn = sqlite3.connect(":memory:")
         conn.row_factory = sqlite3.Row
         conn.execute("CREATE TABLE r (terminal_payload TEXT, record_json TEXT)")
         conn.execute("INSERT INTO r VALUES (?, ?)", (json.dumps(payload), json.dumps(record)))
-        return conn.execute("SELECT * FROM r").fetchone()
+        return cast(sqlite3.Row, conn.execute("SELECT * FROM r").fetchone())
 
     payload = {
         "recipients": [
