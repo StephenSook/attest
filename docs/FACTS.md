@@ -41,6 +41,13 @@ Last audited: 2026-07-25.
 
 Regeneration: `uv run python -m eval` reproduces every number and figure above on a clean checkout. Do not quote any eval number from memory; re-read `metrics.json`.
 
+## Real-channel transfer study (final, audited 2026-07-27)
+
+- 36 pre-registered scripted calls placed to the consented builder line across three sessions (2026-07-26 to 27); the respondent answered from ground-truth script sheets. 8 calls excluded by the documented deviation protocol (sheet-drift attribution ambiguity on hedged lines), leaving n=28.
+- At the HARNESS-calibrated threshold (qhat 0.75, never fit on this data): empirical coverage 100.0% (28 of 28; 95 percent Wilson lower bound 34.2%), abstention 0.0%, accuracy when answering 100.0%.
+- Reading: the guarantee transferred from the seeded text harness to the real telephone channel with zero coverage misses and zero wrong answers; channel noise became honest abstention (42.9 percent vs 26.7 on the harness), which is the designed failure mode.
+- Provenance on every surface: real phone channel, builder-answered scripted ground truth, consented builder line, never presented as calls to real practices. Reproduce: uv run python -m eval.study analyze on the committed scrubbed payloads.
+
 ## Class-conditional (Mondrian) findings (audited 2026-07-26)
 
 - The marginal 90.3 percent coverage HID a per-class gap on the held-out fold: "no" answers were covered 83.2%, below the 90 percent target, while "unknown" sat at 100%. Class-conditional thresholds (one finite-sample-corrected quantile per true class) lift "no" to 88.5% and "yes" to 92.2%; overall Mondrian coverage 93.0%.
