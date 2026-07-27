@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any
 
 from app.extract import extract_yes_no
-from eval.conformal import prediction_set, wilson_interval
+from eval.conformal import abstains, prediction_set, wilson_interval
 from eval.personas import (
     _FINAL_STATEMENT_TRUTH_RATE,
     _HEDGE_WRONG_RATE,
@@ -133,8 +133,7 @@ def analyze(
             excluded += 1
             payload = json.loads(payload_path.read_text())
             extraction = extract_yes_no(_transcript_turns(payload))
-            pset = prediction_set(extraction.class_scores(), qhat)
-            if len(pset) != 1 or extraction.answer.value == "unknown":
+            if abstains(extraction.class_scores(), extraction.answer.value, qhat):
                 excluded_abstained += 1
             continue
         truth = call.get("truth_delivered") or call["truth"]
@@ -143,8 +142,7 @@ def analyze(
         turns = _transcript_turns(payload)
         extraction = extract_yes_no(turns)
         pset = prediction_set(extraction.class_scores(), qhat)
-        # Mirror the served gate exactly (backend/app/analysis.py).
-        abstain = len(pset) != 1 or extraction.answer.value == "unknown"
+        abstain = abstains(extraction.class_scores(), extraction.answer.value, qhat)
         rows.append(
             {
                 "n": call["n"],

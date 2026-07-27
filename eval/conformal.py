@@ -36,6 +36,19 @@ def prediction_set(class_scores: dict[str, float], qhat: float) -> set[str]:
     return {label for label in CLASSES if 1.0 - class_scores[label] <= qhat}
 
 
+def abstains(class_scores: dict[str, float], answer: str, qhat: float) -> bool:
+    """THE abstention gate. One definition, used by the served path
+    (backend/app/analysis.py) and by every number this harness reports.
+
+    Two conditions, both meaning "do not answer": the prediction set is not
+    a single value, or the single value is "unknown". A singleton {unknown}
+    is an abstention, not an answer; counting it as answered inflated the
+    reported abstention rate against what the product actually does.
+    """
+    pset = prediction_set(class_scores, qhat)
+    return len(pset) != 1 or answer == "unknown"
+
+
 @dataclass(frozen=True)
 class ConformalReport:
     alpha: float
@@ -59,9 +72,12 @@ def evaluate_alpha(
         pset = prediction_set(scores, qhat)
         if truth in pset:
             covered += 1
-        if len(pset) == 1:
+        # The served gate, not a looser one: the number reported here is the
+        # number the product produces.
+        answer = max(scores, key=lambda label: scores[label])
+        if not abstains(scores, answer, qhat):
             singletons += 1
-            if truth in pset:
+            if answer == truth:
                 singleton_correct += 1
     n = len(test_scores)
     return ConformalReport(
@@ -69,7 +85,8 @@ def evaluate_alpha(
         qhat=qhat,
         coverage=covered / n,
         abstention_rate=1 - singletons / n,
-        singleton_accuracy=(singleton_correct / singletons) if singletons else 1.0,
+        # Answering nothing is not perfect accuracy; report it as undefined.
+        singleton_accuracy=(singleton_correct / singletons) if singletons else float("nan"),
         n_test=n,
     )
 
