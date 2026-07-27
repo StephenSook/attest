@@ -81,11 +81,13 @@ test("mobile viewport: full traversal, no horizontal overflow, 720p film", async
   expect(result.poster).toContain("hero-poster.jpg");
 });
 
-test("runs ledger lists the seeded replay, labeled as a replay", async ({ page }) => {
+test("runs ledger lists the seeded replay with its verdict badge", async ({ page }) => {
   await page.goto("/runs");
   const row = page.getByRole("link", { name: /Example Counseling Center/ });
   await expect(row).toBeVisible();
   await expect(row).toContainText("replay of real call");
+  // The verdict reads at a glance without opening the run.
+  await expect(row).toContainText(/verified|contradicted|unverifiable/);
 });
 
 test("run detail shows the verdict stamp and the supporting span", async ({ page }) => {

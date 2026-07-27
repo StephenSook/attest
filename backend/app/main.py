@@ -88,15 +88,18 @@ async def api_runs() -> dict[str, list[dict[str, object]]]:
     out: list[dict[str, object]] = []
     for row in rows:
         record = json.loads(str(row["record_json"])) if row["record_json"] else {}
-        out.append(
-            {
-                "run_id": row["run_id"],
-                "state": row["state"],
-                "created_at": row["created_at"],
-                "org": record.get("org"),
-                "replay": bool(record.get("replay", False)),
-            }
-        )
+        item: dict[str, object] = {
+            "run_id": row["run_id"],
+            "state": row["state"],
+            "created_at": row["created_at"],
+            "org": record.get("org"),
+            "replay": bool(record.get("replay", False)),
+        }
+        # A completed run carries its verdict so the ledger reads at a glance;
+        # computed from the same server-authoritative analysis, never stored.
+        if row["state"] == "completed" and row["terminal_payload"]:
+            item["verdict"] = analysis.analyze_run(row)["reconciliation"]["verdict"]
+        out.append(item)
     return {"runs": out}
 
 

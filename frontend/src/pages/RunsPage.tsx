@@ -11,6 +11,12 @@ const stateTone: Record<string, string> = {
   created: "text-ink-faint",
 };
 
+const verdictBadge: Record<string, string> = {
+  verified: "border-trust text-trust bg-trust-soft",
+  contradicted: "border-contra text-contra bg-contra-soft",
+  unverifiable: "border-doubt text-doubt bg-doubt-soft",
+};
+
 export default function RunsPage() {
   const [runs, setRuns] = useState<RunSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -92,10 +98,19 @@ export default function RunsPage() {
                   </span>
                 )}
               </span>
-              <span
-                className={`font-evidence text-xs uppercase tracking-widest ${stateTone[run.state] ?? "text-ink-faint"}`}
-              >
-                {run.state}
+              <span className="flex shrink-0 items-baseline gap-2">
+                {run.verdict && (
+                  <span
+                    className={`rounded border px-1.5 py-0.5 font-evidence text-[10px] uppercase tracking-widest ${verdictBadge[run.verdict] ?? ""}`}
+                  >
+                    {run.verdict}
+                  </span>
+                )}
+                <span
+                  className={`font-evidence text-xs uppercase tracking-widest ${stateTone[run.state] ?? "text-ink-faint"}`}
+                >
+                  {run.state}
+                </span>
               </span>
             </Link>
           </motion.li>
