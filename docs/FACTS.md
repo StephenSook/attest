@@ -71,7 +71,7 @@ Regeneration: `uv run python -m eval` reproduces every number and figure above o
 
 - Attest Pocket: Expo SDK 57 app in mobile/, read-only against the production API, no secrets in the binary, phone numbers masked server-side. Runs ledger, run detail (verdict stamp, claim cards, span-marked transcript synced to an expo-audio player of the receiving-end recording), PDF attestation certificate via the native share sheet, calibration screen with the real-telephone panel.
 - Android: APK built on EAS with zero Apple involvement, hosted permanently as the GitHub release pocket-v0.1.0 asset (Expo artifact links expire in about 30 days and would die mid-judging). QR committed at docs/mobile/android-apk-qr.png.
-- iOS: ad-hoc build installed on the builder's registered iPhone; store build 1.0.0 (3) submitted to TestFlight 2026-07-27, external group "Public Testers", sign-in-not-required declared, Waiting for Beta App Review. Public link + QR to be added ON APPROVAL; never claim the public link exists before it does.
+- iOS: ad-hoc build installed on the builder's registered iPhone; store build 1.0.0 (3) APPROVED by Apple Beta App Review 2026-07-27 (verified against the App Store Connect API: betaReviewState APPROVED, processingState VALID), assigned to external group "Public Testers". The public link is a separate switch on that group and is NOT yet enabled, so no TestFlight URL exists yet. Add the link + QR only after the API reports publicLinkEnabled true and returns a publicLink; never claim the public link exists before it does.
 - Watcher: a read-scoped ASC API key (attest-review-watch, .p8 in gitignored .secrets/) feeds a poller that checks betaReviewState every 30 minutes.
 
 ## Deployment facts
