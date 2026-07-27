@@ -57,6 +57,27 @@ cd frontend && pnpm install && pnpm dev   # console on :5173
 4. Reconciliation adds log2(m/u) bits of evidence per agreeing field on a stated 50/50 audit prior, and the verdict decomposes into a waterfall anyone can audit.
 5. Split conformal calibration decides whether the trust score clears the answering bar; when the prediction set is not a single value, Attest abstains, and the guarantee says how often the truth stays inside the set.
 
+## Attest Pocket: the receipt in your pocket
+
+The patient-side companion app (Expo, iOS and Android, `mobile/`): browse the
+runs ledger, open a run to see the verdict stamp, evidence spans, transcript,
+and the receiving-end call audio (tap a turn to hear it), share the signed
+attestation certificate as a PDF, and check the measured guarantee including
+the real-telephone transfer panel. Read-only against the same production API
+as the web console; nothing is baked into the app.
+
+| Platform | Install |
+| --- | --- |
+| Android | [Direct APK](https://github.com/StephenSook/attest/releases/download/pocket-v0.1.0/attest-pocket.apk) from the release, or scan: |
+| iOS | TestFlight build 1.0.0 (3) is in Beta App Review; the public TestFlight link lands here the moment Apple approves it. |
+
+<img src="docs/mobile/android-apk-qr.png" width="140" alt="QR code for the Android APK" />
+
+<p>
+  <img src="docs/mobile/pocket-ledger.png" width="240" alt="Attest Pocket runs ledger" />
+  <img src="docs/mobile/pocket-run-detail.png" width="240" alt="Attest Pocket run detail with verdict stamp, evidence spans, and audio player" />
+</p>
+
 ## Security posture
 
 Server-authoritative state (the browser never submits verdicts), phone numbers redacted in every API response by test-enforced policy, SSRF resolve-then-pin validation with the full metadata blocklist for any future server-side fetch, raw-byte HMAC webhook verification with replay windows, fail-closed 503s when secrets are unconfigured, keyed run creation with constant-time comparison, gitleaks in CI over full history, and no secret ever reaching the client.
