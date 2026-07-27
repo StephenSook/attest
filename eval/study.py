@@ -113,21 +113,29 @@ def analyze(
     manifest_path: Path = DATA_DIR / "manifest.json",
     calls_dir: Path = CALLS_DIR,
     metrics_path: Path = Path(__file__).parent / "results" / "metrics.json",
+    out_path: Path = RESULTS,
 ) -> dict[str, Any]:
     manifest = json.loads(manifest_path.read_text())
     qhat = float(json.loads(metrics_path.read_text())["headline"]["qhat"])
 
     rows: list[dict[str, Any]] = []
     excluded = 0
+    excluded_abstained = 0
     for call in manifest["calls"]:
         payload_path = calls_dir / f"call_{call['n']:02d}.json"
         if not payload_path.is_file():
             continue
         # Protocol deviations: a call relabeled by the documented deviation
         # protocol uses its DELIVERED truth and persona; a call excluded
-        # there (ambiguous ground truth) never enters the analysis.
+        # there (ambiguous ground truth) never enters the analysis, but its
+        # behavior still feeds the worst-case bound below.
         if call.get("included") is False:
             excluded += 1
+            payload = json.loads(payload_path.read_text())
+            extraction = extract_yes_no(_transcript_turns(payload))
+            pset = prediction_set(extraction.class_scores(), qhat)
+            if len(pset) != 1 or extraction.answer.value == "unknown":
+                excluded_abstained += 1
             continue
         truth = call.get("truth_delivered") or call["truth"]
         persona = call.get("persona_delivered") or call["persona"]
@@ -177,11 +185,17 @@ def analyze(
         "abstention_rate": abstained / n,
         "accuracy_when_answering": (correct / len(answered)) if answered else None,
         "answering_wilson_95": list(wilson_interval(correct, len(answered))) if answered else None,
+        # Selection-bias honesty: exclusions are non-random (ambiguous hedged
+        # deliveries). The floor counts EVERY excluded call as a coverage miss.
+        "worst_case_coverage_all_excluded_as_misses": covered / (n + excluded)
+        if (n + excluded)
+        else None,
+        "excluded_calls_that_abstained": excluded_abstained,
         "per_persona": per_persona,
         "rows": rows,
     }
-    RESULTS.parent.mkdir(parents=True, exist_ok=True)
-    RESULTS.write_text(json.dumps(report, indent=2) + "\n")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(report, indent=2) + "\n")
     return report
 
 
