@@ -56,7 +56,7 @@ export default function PromptPage() {
           as you scroll), the evidence (a citation mark sweeps across the
           answer; a match-weight meter fills to +1.36 bits), the guarantee (an
           SVG coverage line draws itself against a dashed ideal; 90.3% coverage,
-          26.7% abstention, 94.5% accuracy when answering, all regenerated from
+          57.7% abstention, 96.9% accuracy when answering, all regenerated from
           a seeded eval), and a commercial close with two CTAs into the console
           and the calibration page.
         </p>
