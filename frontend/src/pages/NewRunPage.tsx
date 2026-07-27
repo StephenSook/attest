@@ -12,6 +12,7 @@ export default function NewRunPage() {
   const [phone, setPhone] = useState("");
   const [accepting, setAccepting] = useState("yes");
   const [plan, setPlan] = useState("");
+  const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,6 +25,7 @@ export default function NewRunPage() {
         judgeKey,
         org,
         phone,
+        consent,
         claims: {
           office_name_confirmed: "yes",
           accepting_new_patients: accepting,
@@ -134,6 +136,20 @@ export default function NewRunPage() {
           </span>
         </label>
         {error && <p className="font-evidence text-sm text-contra">{error}</p>}
+        <label className="flex items-start gap-2">
+          <input
+            type="checkbox"
+            checked={consent}
+            onChange={(event) => setConsent(event.target.checked)}
+            className="mt-1"
+          />
+          <span className="font-evidence text-[11px] text-ink-soft">
+            This is my own phone number, or a line I am authorized to have
+            called. I am requesting this call, and I understand it will
+            identify itself as an automated assistant and may be recorded.
+          </span>
+        </label>
+
         <button
           type="submit"
           disabled={busy}

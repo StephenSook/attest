@@ -312,15 +312,66 @@ class StartRunRequest(BaseModel):
     phone: str = Field(pattern=r"^\+1\d{10}$")
     org: str = Field(min_length=2, max_length=120)
     claims: dict[str, str] = Field(default_factory=dict)
+    consent: bool = False
 
 
-def _require_internal_key(provided: str | None) -> None:
-    """Fail closed: 503 when the key is unconfigured, 403 on mismatch."""
-    expected = os.environ.get("ATTEST_JUDGE_KEY", "")
-    if not expected:
+def _caller_role(provided: str | None) -> str:
+    """Fail closed: 503 when no key is configured, 403 on mismatch.
+
+    Two credentials exist. The OPERATOR key (the builder) creates
+    unrestricted runs. The JUDGE key exists so a judge can experience the
+    product by having Attest call THEIR OWN phone: every judge run is
+    consent-checked, self-requested, capped, and deduplicated."""
+    operator = os.environ.get("ATTEST_OPERATOR_KEY", "")
+    judge = os.environ.get("ATTEST_JUDGE_KEY", "")
+    if not operator and not judge:
         raise HTTPException(status_code=503, detail="run creation unavailable")
-    if provided is None or not hmac.compare_digest(provided, expected):
-        raise HTTPException(status_code=403, detail="forbidden")
+    if provided is not None and operator and hmac.compare_digest(provided, operator):
+        return "operator"
+    if provided is not None and judge and hmac.compare_digest(provided, judge):
+        return "judge"
+    raise HTTPException(status_code=403, detail="forbidden")
+
+
+_SANDBOX_CAP = int(os.environ.get("ATTEST_SANDBOX_CAP", "15"))
+
+
+def _enforce_sandbox_rails(body: StartRunRequest) -> str:
+    """The judge sandbox dials ONLY the requester's own number, once, with
+    explicit consent, under a global cap, behind a kill switch. Returns the
+    phone hash used for deduplication."""
+    if os.environ.get("ATTEST_SANDBOX_ENABLED", "1") == "0":
+        raise HTTPException(status_code=503, detail="the live demo is currently disabled")
+    if not body.consent:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "consent required: confirm this is your own number and that "
+                "you are requesting this call"
+            ),
+        )
+    phone_hash = hashlib.sha256(body.phone.encode()).hexdigest()
+    conn = db.connect(db.db_path())
+    try:
+        rows = conn.execute(
+            "SELECT record_json FROM call_runs WHERE record_json LIKE ?",
+            ('%"judge_sandbox": true%',),
+        ).fetchall()
+    finally:
+        conn.close()
+    if len(rows) >= _SANDBOX_CAP:
+        raise HTTPException(
+            status_code=429,
+            detail="the live demo call budget is spent; the replays show real runs",
+        )
+    for row in rows:
+        record = json.loads(str(row[0]))
+        if record.get("judge_phone_hash") == phone_hash:
+            raise HTTPException(
+                status_code=429,
+                detail="this number already received its demo call",
+            )
+    return phone_hash
 
 
 def _get_service() -> CalleService:
@@ -340,11 +391,16 @@ async def start_run(
     body: StartRunRequest,
     x_attest_key: str | None = Header(default=None, alias="X-Attest-Key"),
 ) -> dict[str, str]:
-    _require_internal_key(x_attest_key)
+    role = _caller_role(x_attest_key)
     record: dict[str, object] = {"org": body.org, "claims": body.claims}
+    if role == "judge":
+        phone_hash = _enforce_sandbox_rails(body)
+        record["judge_sandbox"] = True
+        record["judge_phone_hash"] = phone_hash
+        record["org"] = f"{body.org} (self-requested demo)"
     # The disclosure-first task is built server-side: no client can submit a
     # call script with the disclosure removed.
-    task = runs.build_task(body.org, body.claims)
+    task = runs.build_task(str(record["org"]), body.claims)
     async with _submission_lock:
         run_id = await runs.start_verification_run(
             _get_service(), db.db_path(), task=task, phone=body.phone, record=record

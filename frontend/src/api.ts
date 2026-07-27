@@ -165,6 +165,7 @@ export async function startRun(input: {
   org: string;
   phone: string;
   claims: Record<string, string>;
+  consent: boolean;
 }): Promise<{ run_id: string }> {
   const response = await fetch(`${BASE}/internal/runs`, {
     method: "POST",
@@ -176,11 +177,22 @@ export async function startRun(input: {
       phone: input.phone,
       org: input.org,
       claims: input.claims,
+      consent: input.consent,
     }),
   });
   if (response.status === 403) throw new Error("That key was not accepted.");
   if (response.status === 503) throw new Error("Live calling is not enabled on this deployment.");
-  if (response.status === 422) throw new Error("Phone must be E.164, like +15550101234.");
+  if (response.status === 429) {
+    throw new Error(
+      (await response.json()).detail ?? "The live demo budget is spent.",
+    );
+  }
+  if (response.status === 422) {
+    const detail = (await response.json()).detail;
+    throw new Error(
+      typeof detail === "string" ? detail : "Phone must be E.164, like +15550101234.",
+    );
+  }
   if (!response.ok) throw new Error(`Run creation failed (${response.status}).`);
   return (await response.json()) as { run_id: string };
 }
