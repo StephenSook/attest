@@ -17,6 +17,8 @@ import sys
 import time
 from pathlib import Path
 
+from calle.errors import CalleConnectionError, CalleTimeoutError
+
 from app import runs
 from app.calle import CalleService
 
@@ -56,7 +58,12 @@ async def _one_call(service: CalleService, phone: str, n: int, seed: int) -> dic
     deadline = time.monotonic() + TIMEOUT_SECONDS
     while time.monotonic() < deadline and call.get("status") not in TERMINAL:
         await asyncio.sleep(POLL_SECONDS)
-        call = await service.get_call(call_id)
+        try:
+            call = await service.get_call(call_id)
+        except (CalleTimeoutError, CalleConnectionError):
+            # A transient poll blip must not kill a session mid-call; the
+            # idempotency key makes even a full restart double-dial-safe.
+            print(f"call {n}: poll blip, retrying...")
     if call.get("status") not in TERMINAL:
         raise RuntimeError(f"call {n}: timed out at status {call.get('status')}")
     return call
