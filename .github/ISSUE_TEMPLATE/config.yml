@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability (private)
+    url: https://github.com/StephenSook/attest/security/policy
+    about: Do not file security issues publicly.
+  - name: Honest status and known limits
+    url: https://github.com/StephenSook/attest#honest-status
+    about: Check the documented limitations first; your issue may be one of them.

@@ -1,0 +1,9 @@
+# Global fallback.
+*                               @StephenSook
+
+# Highest-risk surfaces: the outward dialer, the crypto, and the gate.
+/backend/app/main.py            @StephenSook
+/backend/app/calle/             @StephenSook
+/backend/app/security/          @StephenSook
+/eval/conformal.py              @StephenSook
+/.github/workflows/             @StephenSook
