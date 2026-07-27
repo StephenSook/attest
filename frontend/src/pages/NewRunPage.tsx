@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { startRun } from "../api";
 
 /* Operator-gated live call. Public visitors can read everything on this
-   site; placing a real phone call requires the operator key that judges
+   site; placing a real phone call requires the judge key that judges
    receive in the testing instructions. */
 export default function NewRunPage() {
   const navigate = useNavigate();
@@ -61,7 +61,7 @@ export default function NewRunPage() {
       <form onSubmit={submit} className="mt-8 space-y-5">
         <label className="block">
           <span className="font-evidence text-[11px] uppercase tracking-widest text-ink-faint">
-            operator key
+            judge key
           </span>
           <input
             type="password"

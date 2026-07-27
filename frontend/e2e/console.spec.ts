@@ -189,7 +189,7 @@ test("calibration page serves live metrics, never hardcoded", async ({ page }) =
 
 test("live-call gate refuses a wrong key", async ({ page }) => {
   await page.goto("/runs/new");
-  await page.getByLabel(/operator key/i).fill("wrong-key-entirely");
+  await page.getByLabel(/judge key/i).fill("wrong-key-entirely");
   await page.getByLabel(/organization/i).fill("Gate Test Practice");
   await page.getByLabel(/published phone line/i).fill("+15550101234");
   await page.getByRole("button", { name: /place the call/i }).click();
@@ -198,7 +198,7 @@ test("live-call gate refuses a wrong key", async ({ page }) => {
 
 test("the whole loop: a judge-key run travels to a verdict", async ({ page }) => {
   await page.goto("/runs/new");
-  await page.getByLabel(/operator key/i).fill("demo-mode-key");
+  await page.getByLabel(/judge key/i).fill("demo-mode-key");
   await page.getByLabel(/organization/i).fill("E2E Loop Practice");
   // A fresh fictional number per attempt: the sandbox dedupes per phone.
   const phone = `+1555010${String(Math.floor(Math.random() * 10000)).padStart(4, "0")}`;

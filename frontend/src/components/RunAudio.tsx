@@ -99,7 +99,7 @@ const RunAudio = forwardRef<
         <div ref={containerRef} className="min-w-0 flex-1" />
       </div>
       <p className="mt-2 font-evidence text-[11px] text-ink-faint">
-        {note ?? "audio captured on the receiving end of this consented call, builder line"}
+        {note ?? "provenance not recorded for this audio"}
         {" · "}click an evidence span to hear it in context
       </p>
     </div>
