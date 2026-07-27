@@ -72,7 +72,22 @@ Regeneration: `uv run python -m eval` reproduces every number and figure above o
 
 - Two probe calls and one webhook-delivery test call placed through the seam, all to the builder's own phone with consent. First probe: no spoken response; the system reported `task_completed: false` rather than inventing an answer. Second probe: answered; `task_completed: true`, platform confidence 0.92.
 - The scrubbed second-probe payload is the mock fixture (`mock_calle/fixtures/terminal_result.json`): phone and identifiers replaced with reserved fictional values, conversation verbatim.
-- Platform findings, all verified empirically: the live API rejects both `result_schema` and `recipient_result_schema`; `webhook_url` is accepted but no webhook was delivered for a completed call (tunnel capture, 20+ minutes); terminal payloads are snake_case `call_task` objects with `recipients[].attempts[].transcript_turns`, `completion_confidence`, and `evidence`; there is no KYC gate before dialing.
+- Platform findings, all verified empirically: the live API rejects both `result_schema` and `recipient_result_schema`; `webhook_url` is accepted but no webhook was delivered for a completed call (tunnel capture, 20+ minutes); terminal payloads are snake_case `call_task` objects with `recipients[].attempts[].transcript_turns`, `completion_confidence`, and `evidence`; and, **as of 2026-07-27, no KYC gate stood between an
+account and an outbound call**, established by placing 40 real calls rather than by reading docs.
+
+**That last one is time-bounded and is expected to change.** On 2026-07-27 the platform's PM
+stated in the CALL-E Discord that outbound calling does require KYC verification, that individual
+developers can generally clear it with a government-issued ID, and that the outbound KYC flow was
+"still being finalized" and expected roughly two weeks out. So the correct claim is that no gate
+was enforced during our build window, not that the platform has no KYC. Re-check before quoting
+this anywhere.
+
+**Operational risk that follows from it:** the judge sandbox dials a judge's own number, and
+judging runs Sep 30 to Oct 13, well after that flow is expected to land. If outbound KYC is
+enforced before then and this account has not cleared it, every judge who tries the sandbox gets a
+failure. Clearing KYC as soon as the flow exists is therefore a submission dependency, not an
+administrative chore. The sandbox kill switch (`ATTEST_SANDBOX_ENABLED=0`) is the fallback so
+judges meet an honest "temporarily unavailable" rather than a broken dial.
 
 ## Judge sandbox facts (audited 2026-07-27)
 
