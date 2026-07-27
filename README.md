@@ -21,7 +21,7 @@
 | API | <https://attest-api-o5gm.onrender.com/healthz> (free tier; first hit may take a moment to warm) |
 | Attestation public key | <https://attest-api-o5gm.onrender.com/api/attestation-key> (also committed at [`docs/attestation-public-key.pem`](docs/attestation-public-key.pem), which verifies certificates from the deployed API. The local `docker compose` path signs with a separate, deliberately public demo key served at its own `/api/attestation-key`, so verify local certificates against that one.) |
 | Android app (APK) | <https://github.com/StephenSook/attest/releases/latest> |
-| iOS app (TestFlight) | build approved by Apple; public link being enabled, and it lands here when it is |
+| iOS app (TestFlight) | <https://testflight.apple.com/join/XZDXt7jw> (open to anyone, no tester limit) |
 | Zero-credential local run | `docker compose up --build` |
 
 ## Why this matters
@@ -90,10 +90,11 @@ as the web console; nothing is baked into the app.
 
 | Platform | Install |
 | --- | --- |
-| Android | [Direct APK](https://github.com/StephenSook/attest/releases/download/pocket-v0.1.0/attest-pocket.apk) from the release, or scan: |
-| iOS | TestFlight build 1.0.0 (3) passed Apple's Beta App Review on 2026-07-27. The public install link is a separate switch on the tester group; it lands here, with a QR code, as soon as it is on. |
+| Android | [Direct APK](https://github.com/StephenSook/attest/releases/download/pocket-v0.1.0/attest-pocket.apk) from the release, or scan the left QR below |
+| iOS | [TestFlight](https://testflight.apple.com/join/XZDXt7jw), build 1.0.0 (3), approved by Apple Beta App Review on 2026-07-27. Open to anyone, no tester limit. Scan the right QR below |
 
 <img src="docs/mobile/android-apk-qr.png" width="140" alt="QR code for the Android APK" />
+<img src="docs/mobile/testflight-qr.png" width="140" alt="QR code for the iOS TestFlight beta" />
 
 <p>
   <img src="docs/mobile/pocket-ledger.png" width="240" alt="Attest Pocket runs ledger" />

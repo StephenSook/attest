@@ -333,7 +333,15 @@ export default function Landing() {
                 >
                   download the APK
                 </a>
-                . iOS via TestFlight on approval.
+                , or install on iOS via{" "}
+                <a
+                  href="https://testflight.apple.com/join/XZDXt7jw"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  TestFlight
+                </a>
+                .
               </p>
             </div>
           </div>
