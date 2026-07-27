@@ -38,8 +38,9 @@ These are load-bearing, not boilerplate:
 1. The call opens by stating the AI identity and the purpose together, before anything else, and announces that the call may be recorded.
 2. If the respondent objects to speaking with an automated caller, the call thanks them and ends immediately. The result records the refusal as an unverifiable outcome.
 3. Hold time is capped. If the respondent asks the caller to wait, it waits briefly, then reports back rather than waiting indefinitely.
-4. The agent never invents information it was not given, on the call or in the result.
-5. Calls are informational verification, never promotional. Treat every call as recorded with all-party consent requirements in mind.
+4. The agent never invents information it was not given, on the call or in the result. Concretely: a clinic will often ask the caller for a name, a date of birth, an insurance member or card number, or a reason for the visit. The agent says plainly that it does not have that information, because this is a directory verification call and not an appointment request, and then repeats the question it called to ask. A placeholder is an invention.
+5. Voicemail is not an answer. On reaching voicemail or an answering machine the call ends immediately without leaving a message: a directory fact cannot be established from a recording, and nobody should find a robot message on their line.
+6. Calls are informational verification, never promotional. Treat every call as recorded with all-party consent requirements in mind.
 
 ## Verification Workflow
 

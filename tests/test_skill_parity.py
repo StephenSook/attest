@@ -152,6 +152,39 @@ def test_calibrated_extraction_answers_a_clean_yes() -> None:
     assert result["gate"] == "conformal(qhat=0.500)"
 
 
+def test_call_conduct_is_identical() -> None:
+    """The third copy nobody was checking.
+
+    The task text is not just prose: it is the only thing standing between the
+    agent and inventing a date of birth when a receptionist asks for one. The
+    two builders had already drifted, the skill having no voicemail rule at all,
+    so the conduct block is pinned here the same way the cue lexicons are.
+    """
+    from app.runs import CALL_CONDUCT as product_conduct
+
+    place = _load_skill_module("place_verify_call")
+    assert product_conduct == place.CALL_CONDUCT, (
+        "The shipped skill's call conduct has drifted from the product's. "
+        "Mirror backend/app/runs.py CALL_CONDUCT into "
+        "skills/verify-by-phone/scripts/place_verify_call.py."
+    )
+
+
+def test_the_agent_is_told_to_refuse_identity_prompts() -> None:
+    """Behavioral intent, stated once so a future edit cannot quietly drop it.
+
+    A clinic asks the caller for a name, a date of birth, and often an insurance
+    card number. An agent that invents one to keep the conversation moving would
+    be actively harmful and would contradict the product's entire claim, so the
+    instruction not to is asserted rather than assumed.
+    """
+    from app.runs import CALL_CONDUCT
+
+    lowered = CALL_CONDUCT.lower()
+    for required in ("date of birth", "card number", "never invent"):
+        assert required in lowered, f"the call conduct no longer covers {required!r}"
+
+
 def test_cue_lexicons_are_identical() -> None:
     """Behavioral parity above, textual parity here: a cue added to the backend
     that changes no case in this file still has to be carried across."""
