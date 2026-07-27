@@ -22,7 +22,7 @@ to the deployed backend, so the app works on a fresh clone with no setup.
 ## Install the built app
 
 - Android: the APK on the [latest release](https://github.com/StephenSook/attest/releases/latest)
-- iOS: TestFlight, linked from the root README once Apple approves the build
+- iOS: TestFlight build 1.0.0 (3) is approved; the public install link is linked from the root README once it is enabled
 
 ## Layout
 
