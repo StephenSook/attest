@@ -5,6 +5,7 @@ able to find the load-bearing CALL-E call within one minute of opening this repo
 """
 
 import asyncio
+import base64
 import hashlib
 import hmac
 import json
@@ -13,10 +14,13 @@ import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import cast
 
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 
 from app import analysis, db, runs
@@ -97,6 +101,40 @@ async def api_runs() -> dict[str, list[dict[str, object]]]:
 
 
 _AUDIO_TYPES = {".m4a": "audio/mp4", ".mp3": "audio/mpeg", ".wav": "audio/wav"}
+
+
+def _jcs_numbers(value: object) -> object:
+    """Integral floats become ints, recursively, so Python's JSON and a
+    JavaScript re-serialization of the parsed document agree byte for byte
+    (Python writes 1.0 where JS writes 1). Applied to the document BEFORE
+    signing, so what is served is what was signed."""
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, dict):
+        return {k: _jcs_numbers(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_jcs_numbers(v) for v in value]
+    return value
+
+
+def _signing_key() -> Ed25519PrivateKey | None:
+    """The Ed25519 signing key from ATTEST_SIGNING_KEY_ED25519 (base64 raw
+    32 bytes), or None when unsigned operation is configured."""
+    raw = os.environ.get("ATTEST_SIGNING_KEY_ED25519", "")
+    if not raw:
+        return None
+    if raw == "demo":
+        # The zero-credential judge path signs with a DELIBERATELY PUBLIC
+        # deterministic key so certificates are still verifiable end to end;
+        # production sets a real secret instead.
+        return Ed25519PrivateKey.from_private_bytes(
+            hashlib.sha256(b"attest-demo-signing-key").digest()
+        )
+    try:
+        return Ed25519PrivateKey.from_private_bytes(base64.b64decode(raw))
+    except Exception:
+        logging.getLogger(__name__).warning("invalid ATTEST_SIGNING_KEY_ED25519; serving unsigned")
+        return None
 
 
 def _audio_file(run_id: str) -> Path | None:
@@ -221,21 +259,38 @@ async def api_run_attestation(run_id: str) -> dict[str, object]:
             "calibrated conformal decision; nothing here was hand-edited"
         ),
     }
-    canonical = json.dumps(doc, sort_keys=True, separators=(",", ":"))
-    signing_key = os.environ.get("ATTEST_SIGNING_KEY", "")
-    if signing_key:
+    doc = cast(dict[str, object], _jcs_numbers(doc))
+    canonical = json.dumps(doc, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    private_key = _signing_key()
+    if private_key is not None:
+        signature = private_key.sign(canonical.encode())
         doc["signature"] = {
-            "alg": "HMAC-SHA256",
+            "alg": "Ed25519",
             "signed": True,
-            "value": hmac.new(signing_key.encode(), canonical.encode(), "sha256").hexdigest(),
+            "value": base64.b64encode(signature).decode(),
+            "public_key": "GET /api/attestation-key (PEM), also committed in the repo",
             "covers": (
-                "canonical JSON (sorted keys, compact separators) "
-                "of this document without the signature field"
+                "canonical JSON (sorted keys, compact separators, "
+                "unescaped unicode) of this document without the "
+                "signature field"
             ),
         }
     else:
         doc["signature"] = {"alg": None, "signed": False, "value": None}
     return doc
+
+
+@app.get("/api/attestation-key")
+async def api_attestation_key() -> Response:
+    """The Ed25519 public key that verifies every attestation this
+    deployment signs. Anyone can check a certificate offline."""
+    private_key = _signing_key()
+    if private_key is None:
+        raise HTTPException(status_code=404, detail="no signing key configured")
+    pem = private_key.public_key().public_bytes(
+        serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+    return Response(content=pem, media_type="application/x-pem-file")
 
 
 @app.get("/api/metrics")

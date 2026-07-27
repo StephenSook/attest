@@ -11,6 +11,7 @@ const CalibrationPage = lazy(() => import("./pages/CalibrationPage"));
 const NewRunPage = lazy(() => import("./pages/NewRunPage"));
 const PromptPage = lazy(() => import("./pages/PromptPage"));
 const CertificatePage = lazy(() => import("./pages/CertificatePage"));
+const VerifyPage = lazy(() => import("./pages/VerifyPage"));
 import "./index.css";
 
 createRoot(document.getElementById("root")!).render(
@@ -28,6 +29,7 @@ createRoot(document.getElementById("root")!).render(
           <Route path="/runs/:runId" element={<RunDetailPage />} />
           <Route path="/runs/:runId/certificate" element={<CertificatePage />} />
           <Route path="/calibration" element={<CalibrationPage />} />
+          <Route path="/verify" element={<VerifyPage />} />
         </Route>
       </Routes>
       </Suspense>

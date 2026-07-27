@@ -27,6 +27,9 @@ export default function App() {
             <NavLink to="/calibration" className={navClass}>
               Calibration
             </NavLink>
+            <NavLink to="/verify" className={navClass}>
+              Verify
+            </NavLink>
           </nav>
         </div>
       </header>

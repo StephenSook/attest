@@ -13,7 +13,11 @@ services:
       ATTEST_JUDGE_KEY: "demo-mode-key"
       # Demo signing key so the zero-credential judge path serves SIGNED
       # attestations; production uses a real secret.
-      ATTEST_SIGNING_KEY: "demo-signing-key"
+      # "demo" selects a deliberately public deterministic signing key so
+      # the judge path serves verifiable certificates; production sets a
+      # real secret whose PUBLIC half is committed at
+      # docs/attestation-public-key.pem.
+      ATTEST_SIGNING_KEY_ED25519: "demo"
       ATTEST_AUDIO_DIR: "/app/data/audio"
       # Off by default: the judge path never fabricates call audio. CI's e2e
       # job sets 1 so the waveform gets exercised with an honestly labeled
