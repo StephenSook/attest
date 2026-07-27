@@ -107,3 +107,25 @@ def test_harness_and_served_gate_are_the_same_function() -> None:
     assert conformal.abstains(lonely_unknown, "unknown", 0.75) is True
     confident_yes = {"yes": 0.9, "no": 0.04, "unknown": 0.06}
     assert conformal.abstains(confident_yes, "yes", 0.75) is False
+
+
+def test_transcript_walker_survives_an_explicit_null_recipients() -> None:
+    """The API sends an explicit null for a list it has no value for, and a
+    dict default only covers the absent key. The served path raised TypeError
+    on "recipients": null while eval's since-removed copy returned cleanly,
+    which is how the divergence was found."""
+    from app.analysis import transcript_turns
+
+    assert transcript_turns({"recipients": None}) == []
+    assert transcript_turns({"recipients": [{"attempts": None}]}) == []
+    assert transcript_turns({}) == []
+
+
+def test_eval_scorecard_defines_no_second_walker() -> None:
+    """One walker, not two. The copies had already drifted on null handling,
+    so this asserts the structure rather than the behavior: a reintroduced
+    private copy would pass a behavioral test on the day it was written."""
+    source = (Path(__file__).parent.parent / "eval" / "scorecard.py").read_text()
+
+    assert "def _transcript_turns" not in source, "a private walker came back"
+    assert "from app.analysis import" in source and "transcript_turns" in source
