@@ -53,8 +53,38 @@ list has been lifted. No second vertical. No CRM/EHR integrations. The cinematic
 | G0 | Jul 31 | KYC cleared, one real call placed, fixture committed, validator conversation booked |
 | G1 | Aug 10 | Full loop e2e vs mock; kill-and-restart resumes; one real webhook delivery verified |
 | G2 | Aug 21 | One artifact produces a real figure from held-out data; eval command clean |
-| G3 | Aug 31 | Skill pull request opened upstream |
+| G3 | **Sep 11** | Skill pull request opened upstream (deliberately late; see below) |
 | G4 | Sep 7 | Feature freeze; demo-consent decision locks |
 | G5 | Sep 12 | Everything submitted, two days early |
 
 Slips trigger the descope ladder in BUILD_PLAN.md (in the planning workspace), never a slide.
+
+### Why G3 moved from Aug 31 to Sep 11 (amended 2026-07-27)
+
+G3 previously said Aug 31 while a separate standing instruction said hold until Sep 8. Two
+locked dates contradicting each other is worse than either one, so this is the deliberate
+amendment rather than a discovery at the gate.
+
+The rule, read from the source rather than from our notes. The Devpost submission form field
+`Project submission pull request URL` (id 27833) is `required: true`, and the host's instruction
+is to **open** a pull request and provide the URL. Nothing anywhere requires it to be **merged**.
+Submissions close 2026-09-14 15:45 UTC. Judging runs Sep 30 to Oct 13.
+
+So the only hard constraint is that the PR exists and has a URL when we submit at G5 on Sep 12.
+
+Opening it earlier buys nothing and costs something real: the skill is the one artifact that
+reveals the verification pattern, the repository is public, and every day it sits open before
+the deadline is a day a competitor can read it and copy the approach. Opening Aug 15 would have
+given rivals a month. Sep 11 gives them three days, which is not enough to rebuild a calibrated
+abstention system, and it still leaves us a three-day margin to the Sep 14 deadline if the
+upstream validator has changed again or a maintainer asks for edits.
+
+There is also an upside to the timing that is worth naming. Community pull requests there have
+been merging within days, so a PR opened Sep 11 will most likely be merged during the Sep 14 to
+Sep 30 gap. Judges opening it during judging see a merged contribution; rivals racing the
+deadline saw it for three days. Do not chase a merge before submission: merged pull requests get
+announced in their Discord, which is additional exposure we do not need on Sep 12.
+
+Standing rule: never open it earlier than this without Stephen saying so explicitly, and
+re-run the upstream validator against a fresh clone of upstream HEAD immediately before opening,
+because that validator has already changed under us once.
