@@ -18,7 +18,7 @@
 | Web console | <https://attest-web-phi.vercel.app> |
 | Verify a certificate | <https://attest-web-phi.vercel.app/verify> (paste any attestation; verifies in your browser) |
 | The measured guarantee | <https://attest-web-phi.vercel.app/calibration> |
-| API | <https://attest-api-o5gm.onrender.com/healthz> (free tier; first hit may take a moment to warm) |
+| API | <https://attest-api-o5gm.onrender.com/healthz> (free tier; first hit may take a moment to warm. Reports whether the poller is alive and whether this deployment dials the real platform or the mock, so a simulated deployment cannot pass for a real one) |
 | Attestation public key | <https://attest-api-o5gm.onrender.com/api/attestation-key> (also committed at [`docs/attestation-public-key.pem`](docs/attestation-public-key.pem), which verifies certificates from the deployed API. The local `docker compose` path signs with a separate, deliberately public demo key served at its own `/api/attestation-key`, so verify local certificates against that one.) |
 | Android app (APK) | <https://github.com/StephenSook/attest/releases/latest> |
 | iOS app (TestFlight) | <https://testflight.apple.com/join/XZDXt7jw> (open to anyone, no tester limit) |
