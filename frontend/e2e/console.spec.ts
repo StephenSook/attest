@@ -92,7 +92,7 @@ test("run detail shows the verdict stamp and the supporting span", async ({ page
   await page.goto("/runs/run_replay_probe_0001");
   await expect(page.getByText(/record-accurate posterior/)).toBeVisible();
   await expect(page.locator(".evidence-span")).toHaveText("Yep");
-  await expect(page.getByText("abstain")).toBeVisible();
+  await expect(page.getByText("abstain").first()).toBeVisible();
   await expect(page.getByText(/no supporting span/)).toBeVisible();
 });
 
