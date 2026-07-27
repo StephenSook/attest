@@ -118,8 +118,12 @@ export default function Landing() {
       );
 
       // Stat numbers roll up to their printed value as they scrub in. The
-      // printed JSX literal stays the source of truth (and stays test-pinned
-      // to metrics.json); this only animates toward it.
+      // printed JSX literal stays the source of truth; this only animates
+      // toward it. Those literals are pinned to eval/results/metrics.json by
+      // test_landing_stats_match_the_generated_metrics in
+      // tests/test_audit_regressions.py. Until 2026-07-27 this comment claimed
+      // that pin existed when it did not, so if you change a stat literal and
+      // nothing goes red, check that the test still finds it.
       gsap.utils.toArray<HTMLElement>(".stat-n").forEach((el) => {
         const final = el.textContent ?? "";
         const match = /^([~+]?)(\d+(?:\.\d+)?)(.*)$/.exec(final);
