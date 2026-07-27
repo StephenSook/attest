@@ -175,6 +175,39 @@ export default function CalibrationPage() {
         </div>
       </div>
 
+      {metrics.real_channel && (
+        <div className="mt-8 rounded-lg border-2 border-trust bg-white/60 p-5">
+          <h2 className="font-display text-lg font-semibold">
+            The guarantee survived the real telephone
+          </h2>
+          <p className="mt-1 max-w-2xl font-evidence text-xs text-ink-soft">
+            {metrics.real_channel.n_collected} real calls to a consented line,
+            answered from pre-registered scripted ground truth, scored with the
+            HARNESS-calibrated threshold (never fit on this data).{" "}
+            {metrics.real_channel.n_excluded_by_protocol} calls excluded by the
+            documented deviation protocol. {metrics.real_channel.provenance}.
+          </p>
+          <div className="mt-4 grid gap-4 sm:grid-cols-3">
+            <Stat
+              label={`real-channel coverage (n=${metrics.real_channel.n_collected})`}
+              value={`${(metrics.real_channel.empirical_coverage * 100).toFixed(1)}%`}
+            />
+            <Stat
+              label="Wilson 95% lower bound"
+              value={`${(metrics.real_channel.coverage_wilson_95[0] * 100).toFixed(1)}%`}
+            />
+            <Stat
+              label="accuracy when answering"
+              value={
+                metrics.real_channel.accuracy_when_answering === null
+                  ? "n/a"
+                  : `${(metrics.real_channel.accuracy_when_answering * 100).toFixed(1)}%`
+              }
+            />
+          </div>
+        </div>
+      )}
+
       {metrics.mondrian && (
         <div className="mt-8 rounded-lg border border-rule bg-white/60 p-5">
           <h2 className="font-display text-lg font-semibold">

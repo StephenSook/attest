@@ -125,6 +125,17 @@ export type Metrics = {
       mondrian_coverage: number;
     }[];
   };
+  real_channel?: {
+    provenance: string;
+    n_collected: number;
+    n_excluded_by_protocol: number;
+    n_manifest: number;
+    qhat: number;
+    empirical_coverage: number;
+    coverage_wilson_95: [number, number];
+    abstention_rate: number;
+    accuracy_when_answering: number | null;
+  };
   calibration_sensitivity?: {
     n_cal: number;
     qhat: number;
