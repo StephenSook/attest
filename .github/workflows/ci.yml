@@ -79,7 +79,21 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Start the compose stack
-        run: docker compose up -d --build api mock
+        # Retried because the base-image pull reaches Docker Hub over the
+        # public internet, and a registry timeout there once turned main red
+        # on a commit whose own branch run had been green. A merge gate
+        # should fail on our code, not on someone else's registry.
+        run: |
+          set -uo pipefail
+          for attempt in 1 2 3; do
+            if docker compose up -d --build api mock; then
+              exit 0
+            fi
+            echo "compose attempt $attempt failed, retrying in $((attempt * 15))s" >&2
+            sleep $((attempt * 15))
+          done
+          echo "compose stack never started after 3 attempts" >&2
+          exit 1
         env:
           # CI-only: seed an honestly labeled synthetic tone so the waveform
           # player gets exercised end to end. Never set on any deployed path.
