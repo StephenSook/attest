@@ -61,6 +61,13 @@ Regeneration: `uv run python -m eval` reproduces every number and figure above o
 - The scrubbed second-probe payload is the mock fixture (`mock_calle/fixtures/terminal_result.json`): phone and identifiers replaced with reserved fictional values, conversation verbatim.
 - Platform findings, all verified empirically: the live API rejects both `result_schema` and `recipient_result_schema`; `webhook_url` is accepted but no webhook was delivered for a completed call (tunnel capture, 20+ minutes); terminal payloads are snake_case `call_task` objects with `recipients[].attempts[].transcript_turns`, `completion_confidence`, and `evidence`; there is no KYC gate before dialing.
 
+## Mobile facts (audited 2026-07-27)
+
+- Attest Pocket: Expo SDK 57 app in mobile/, read-only against the production API, no secrets in the binary, phone numbers masked server-side. Runs ledger, run detail (verdict stamp, claim cards, span-marked transcript synced to an expo-audio player of the receiving-end recording), PDF attestation certificate via the native share sheet, calibration screen with the real-telephone panel.
+- Android: APK built on EAS with zero Apple involvement, hosted permanently as the GitHub release pocket-v0.1.0 asset (Expo artifact links expire in about 30 days and would die mid-judging). QR committed at docs/mobile/android-apk-qr.png.
+- iOS: ad-hoc build installed on the builder's registered iPhone; store build 1.0.0 (3) submitted to TestFlight 2026-07-27, external group "Public Testers", sign-in-not-required declared, Waiting for Beta App Review. Public link + QR to be added ON APPROVAL; never claim the public link exists before it does.
+- Watcher: a read-scoped ASC API key (attest-review-watch, .p8 in gitignored .secrets/) feeds a poller that checks betaReviewState every 30 minutes.
+
 ## Deployment facts
 
 - Frontend: https://attest-web-phi.vercel.app (Vercel project `attest-web`). Note: `attest-web.vercel.app` (no suffix) is an unrelated third-party product.
