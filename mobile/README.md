@@ -30,7 +30,7 @@ to the deployed backend, so the app works on a fresh clone with no setup.
 ## Install the built app
 
 - Android: the APK on the [latest release](https://github.com/StephenSook/attest/releases/latest)
-- iOS: TestFlight build 1.0.0 (3) is approved; the public install link is linked from the root README once it is enabled
+- iOS: [TestFlight](https://testflight.apple.com/join/XZDXt7jw), build 1.0.0 (3), approved by Apple Beta App Review and open to anyone
 
 ## Layout
 

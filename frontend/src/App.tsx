@@ -46,7 +46,16 @@ export default function App() {
             rel="noreferrer"
             className="text-trust hover:text-ink"
           >
-            Get Attest Pocket (Android APK; iOS on TestFlight)
+            Get Attest Pocket (Android APK)
+          </a>{" "}
+          or on{" "}
+          <a
+            href="https://testflight.apple.com/join/XZDXt7jw"
+            target="_blank"
+            rel="noreferrer"
+            className="text-trust hover:text-ink"
+          >
+            iOS via TestFlight
           </a>
           .
         </p>
