@@ -129,3 +129,37 @@ def test_eval_scorecard_defines_no_second_walker() -> None:
 
     assert "def _transcript_turns" not in source, "a private walker came back"
     assert "from app.analysis import" in source and "transcript_turns" in source
+
+
+def test_landing_stats_match_the_generated_metrics() -> None:
+    """The landing page's three headline numbers are hand-typed literals.
+
+    Landing.tsx carried a comment promising these "stay test-pinned to
+    metrics.json". No such test existed. That is the same sync-by-comment
+    promise that already failed for the extractor, the abstention gate, and
+    the call task, and it guards the most-viewed public surface: a reseed or
+    a gate change would silently leave three wrong numbers on the front page,
+    which is exactly what happened to the fact sheet after PR #51.
+
+    The console does not need this because it reads metrics from the API. The
+    landing page cannot, because it is a static scroll film with no fetch.
+    """
+    metrics = json.loads(
+        (Path(__file__).parent.parent / "eval" / "results" / "metrics.json").read_text()
+    )
+    head = metrics["headline"]
+    landing = (
+        Path(__file__).parent.parent / "frontend" / "src" / "experience" / "Landing.tsx"
+    ).read_text()
+
+    expected = {
+        "empirical_coverage": f"{head['empirical_coverage'] * 100:.1f}%",
+        "abstention_rate": f"{head['abstention_rate'] * 100:.1f}%",
+        "accuracy_when_answering": f"{head['accuracy_when_answering'] * 100:.1f}%",
+    }
+    for key, printed in expected.items():
+        assert f">{printed}<" in landing, (
+            f"Landing.tsx no longer prints {printed} for {key}. metrics.json moved and the "
+            f"front page did not. Update the stat literal in "
+            f"frontend/src/experience/Landing.tsx."
+        )
