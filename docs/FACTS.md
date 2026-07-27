@@ -97,7 +97,13 @@ Regeneration: `uv run python -m eval` reproduces every number and figure above o
 
 ## Engineering facts
 
-- 217 backend tests and 6 mobile tests; strict mypy; ruff lint + format in CI; gitleaks over full history in CI; 53 merged PRs as of this audit (re-count with `uv run pytest --collect-only -q | tail -1` and `gh pr list --state merged --limit 100 --json number --jq 'length'` before quoting).
+- Strict mypy; ruff lint + format in CI; gitleaks over full history in CI. Test and PR counts change on
+  every merge, so they are recorded here as a dated snapshot and must be re-read before being quoted
+  anywhere: **219 backend tests, 6 mobile tests, 55 merged PRs, as of 2026-07-27**. Regenerate with
+  `uv run pytest --collect-only -q | tail -1` and
+  `gh pr list --state merged --limit 100 --json number --jq 'length'`. Deliberately not repeated in the
+  README, because a count duplicated across surfaces is a count that goes stale on one of them: that
+  drift has now been caught three separate times on this repository.
 - The upstream skill `skills/verify-by-phone` passes `validate_repository.py` from CALLE-AI/awesome-phone-call-agents staged against a clean clone (verified 2026-07-25). Upstream PR not yet opened.
 - Second-model adversarial review found 7 verified issues in the loop/security wave (all fixed and regression-pinned); the harness twice caught confident-wrong extraction ("there's NO doctor's office here" parsing as a no; a plan claim stealing an unrelated span).
 
