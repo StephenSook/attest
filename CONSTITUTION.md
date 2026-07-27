@@ -39,7 +39,12 @@ Every real call gets logged in `docs/call-log.md` against this table. No automat
 
 ## Out of scope (the firewall)
 
-No auth/multi-tenancy (one judge-gated credential only). No batch-calling UI. No inbound, phone trees, transfers, DTMF, or mid-call tool use (platform cannot). No compliance dashboard. No mobile app, no own MCP server, no scheduler. No second vertical. No CRM/EHR integrations. The cinematic landing has a hard floor (static hero + one scroll chapter) it can collapse to on the Sep 3 trigger.
+No auth/multi-tenancy (one judge-gated credential only). No batch-calling UI. No inbound, phone trees, transfers, DTMF, or mid-call tool use (platform cannot). No compliance dashboard, no own MCP server, no scheduler.
+
+AMENDED 2026-07-27: the no-mobile-app line was lifted deliberately once the
+web loop was complete and deployed. Attest Pocket (`mobile/`) ships as a
+read-only companion on iOS and Android. Nothing else in the out-of-scope
+list has been lifted. No second vertical. No CRM/EHR integrations. The cinematic landing has a hard floor (static hero + one scroll chapter) it can collapse to on the Sep 3 trigger.
 
 ## Gates
 
