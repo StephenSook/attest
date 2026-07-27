@@ -7,6 +7,7 @@ Phone numbers are redacted before anything leaves the server.
 
 import copy
 import json
+import logging
 import os
 import sqlite3
 from pathlib import Path
@@ -15,7 +16,7 @@ from typing import Any
 from app.extract import extract_yes_no
 from app.models import Answer
 from app.reconcile import reconcile
-from eval.conformal import prediction_set
+from eval.conformal import abstains
 
 CLAIM_QUESTIONS = {
     "office_name_confirmed": (
@@ -63,7 +64,13 @@ def _calibrated_qhat() -> float | None:
     try:
         headline = json.loads(metrics_path.read_text())["headline"]
         return float(headline["qhat"])
-    except (OSError, KeyError, ValueError):
+    except (OSError, KeyError, ValueError, TypeError):
+        # Silence here would switch off the conformal guarantee, the whole
+        # differentiated claim, with nothing anywhere saying so.
+        logging.getLogger(__name__).error(
+            "no calibrated qhat at %s; serving UNCALIBRATED extraction decisions",
+            metrics_path.resolve(),
+        )
         return None
 
 
@@ -84,8 +91,7 @@ def analyze_run(row: sqlite3.Row) -> dict[str, Any]:
     for claim, pattern in CLAIM_QUESTIONS.items():
         extraction = extract_yes_no(turns, question_pattern=pattern)
         if qhat is not None:
-            pset = prediction_set(extraction.class_scores(), qhat)
-            abstain = len(pset) != 1 or extraction.answer is Answer.UNKNOWN
+            abstain = abstains(extraction.class_scores(), extraction.answer.value, qhat)
         else:
             abstain = extraction.answer is Answer.UNKNOWN
         effective = Answer.UNKNOWN if abstain else extraction.answer

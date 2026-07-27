@@ -82,7 +82,7 @@ def run_ablations(
             config="no_calibration",
             coverage=None,
             abstention_rate=1 - len(answered) / len(test_items),
-            accuracy_when_answering=(correct / len(answered)) if answered else 1.0,
+            accuracy_when_answering=(correct / len(answered)) if answered else float("nan"),
         )
     )
     return rows
