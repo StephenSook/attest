@@ -39,7 +39,16 @@ export default function App() {
       <footer className="mx-auto max-w-5xl px-6 pb-10">
         <p className="font-evidence text-[11px] text-ink-faint">
           Public view serves labeled replays of real recorded runs. Live calls
-          are operator-gated. Phone numbers are always masked.
+          are operator-gated. Phone numbers are always masked.{" "}
+          <a
+            href="https://github.com/StephenSook/attest/releases/latest"
+            target="_blank"
+            rel="noreferrer"
+            className="text-trust hover:text-ink"
+          >
+            Get Attest Pocket (Android APK; iOS on TestFlight)
+          </a>
+          .
         </p>
       </footer>
     </div>

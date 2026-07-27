@@ -314,6 +314,29 @@ export default function Landing() {
               See the method
             </Link>
           </div>
+          <div className="pocket-row ch-rise">
+            <img
+              src="/android-apk-qr.png"
+              width={96}
+              height={96}
+              alt="QR code to install Attest Pocket for Android"
+              className="pocket-qr"
+            />
+            <div>
+              <p className="pocket-title">Attest Pocket</p>
+              <p className="pocket-note">
+                The receipt in your pocket. Scan for the Android app, or{" "}
+                <a
+                  href="https://github.com/StephenSook/attest/releases/latest"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  download the APK
+                </a>
+                . iOS via TestFlight on approval.
+              </p>
+            </div>
+          </div>
           <div className="close-foot ch-rise">
             <Link to="/prompt">how this page was made</Link>
             <button
