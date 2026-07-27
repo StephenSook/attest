@@ -26,7 +26,7 @@ A verification tool that guesses is just another source of bad data. The design 
 
 ## What calibration buys
 
-`scripts/calibrate.py` implements split conformal prediction with the finite-sample correction. Given labeled scenarios split into disjoint calibration and test folds, it produces a threshold with a distribution-free guarantee: at miscoverage alpha, the true answer falls inside the prediction set at least (1 - alpha) of the time on held-out data. The system answers only when the set is a single value and abstains otherwise, which converts "how confident are we?" from a feeling into a measured coverage number an operator can set policy against.
+`scripts/calibrate.py` implements split conformal prediction with the finite-sample correction. Given labeled scenarios split into disjoint calibration and test folds, it produces a threshold with a distribution-free guarantee: at miscoverage alpha, the true answer falls inside the prediction set at least (1 - alpha) of the time on held-out data. The system answers only when that set is a single value and that value is not "unknown", and abstains otherwise. A singleton {unknown} is an abstention, not an answer: counting it as answered would report a lower abstention rate than an operator actually experiences. The same gate.py that computes this threshold decides every served answer, so the guarantee described here is the guarantee applied. This converts "how confident are we?" from a feeling into a measured coverage number an operator can set policy against.
 
 ## Reconciliation arithmetic
 

@@ -18,6 +18,8 @@ import json
 import re
 import sys
 
+from gate import abstains, class_scores
+
 YES_CUES = (
     r"\byes\b",
     # guard the same way for the other agreement cues
@@ -84,7 +86,6 @@ CLAIM_PATTERNS = {
 }
 DAMPEN = 0.55  # app.hedge.MAX_DAMPEN
 CONTRADICTION_SCORE = 0.25
-ABSTAIN_BELOW = 0.65
 
 
 def turns_from_payload(payload: dict) -> list[dict]:
@@ -111,6 +112,24 @@ def last_span(cues: tuple[str, ...], text: str) -> tuple[int, int] | None:
             if best is None or match.start() > best[0]:
                 best = (match.start(), match.end())
     return best
+
+
+def apply_gate(result: dict, qhat: float | None) -> dict:
+    """Attach the abstention decision to an extracted answer.
+
+    Fails closed on purpose. Without a calibrated threshold there is no
+    coverage guarantee to answer behind, so an uncalibrated run abstains on
+    everything and says so, rather than substituting a threshold that sounds
+    reasonable and guarantees nothing. Run calibrate.py and pass its qhat.
+    """
+    if qhat is None:
+        return {**result, "abstain": True, "gate": "uncalibrated"}
+    scores = class_scores(result["answer"], result["trust_score"])
+    return {
+        **result,
+        "abstain": abstains(scores, result["answer"], qhat),
+        "gate": f"conformal(qhat={qhat:.3f})",
+    }
 
 
 def extract(turns: list[dict], claim: str, question_pattern: str) -> dict:
@@ -153,7 +172,6 @@ def extract(turns: list[dict], claim: str, question_pattern: str) -> dict:
             "trust_score": score,
             "hedged": hedged,
             "span": None,
-            "abstain": True,
         }
 
     if dead_end and not yes_hits and not no_hits:
@@ -180,13 +198,19 @@ def extract(turns: list[dict], claim: str, question_pattern: str) -> dict:
         "trust_score": round(score, 3),
         "hedged": hedged,
         "span": {"turn": index, "text": text, "char_start": start, "char_end": end},
-        "abstain": score < ABSTAIN_BELOW,
     }
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--payload", required=True, help="JSON file from poll_result.py")
+    parser.add_argument(
+        "--qhat",
+        type=float,
+        default=None,
+        help="calibrated conformal threshold from calibrate.py. Without it every "
+        "claim abstains, because an uncalibrated gate guarantees nothing.",
+    )
     args = parser.parse_args()
     with open(args.payload, encoding="utf-8") as handle:
         payload = json.load(handle)
@@ -194,7 +218,7 @@ def main() -> None:
     if not turns:
         sys.exit("ERROR: no transcript turns found in payload.")
     for claim, pattern in CLAIM_PATTERNS.items():
-        print(json.dumps(extract(turns, claim, pattern)))
+        print(json.dumps(apply_gate(extract(turns, claim, pattern), args.qhat)))
 
 
 if __name__ == "__main__":

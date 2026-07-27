@@ -14,6 +14,7 @@ is not mirrored into the skill fails here, in CI, on the commit that causes it.
 """
 
 import importlib.util
+import sys
 from pathlib import Path
 from types import ModuleType
 
@@ -27,16 +28,27 @@ _SKILL_SCRIPT = (
 )
 
 
-def _load_skill_extractor() -> ModuleType:
-    """Import the skill script by path: it is deliberately not a package."""
-    spec = importlib.util.spec_from_file_location("skill_extract_answer", _SKILL_SCRIPT)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+def _load_skill_module(name: str) -> ModuleType:
+    """Import a skill script by path: they are deliberately not a package.
+
+    The scripts import their sibling gate.py the way Python resolves imports
+    for a directly executed script, so the scripts directory has to be on the
+    path here the way the interpreter would put it there.
+    """
+    path = _SKILL_SCRIPT.parent / f"{name}.py"
+    sys.path.insert(0, str(path.parent))
+    try:
+        spec = importlib.util.spec_from_file_location(f"skill_{name}", path)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+    finally:
+        sys.path.remove(str(path.parent))
 
 
-skill = _load_skill_extractor()
+skill = _load_skill_module("extract_answer")
+skill_gate = _load_skill_module("gate")
 
 QUESTION = "Is the practice currently accepting new patients?"
 CLAIM_PATTERN = r"accepting new patients"
@@ -102,6 +114,42 @@ def test_skill_cites_the_same_span(label: str, reply: str) -> None:
         f"{label}: skill highlights {reply[span['char_start'] : span['char_end']]!r}, "
         f"product highlights {reply[product.span_char_start : product.span_char_end]!r}"
     )
+
+
+@pytest.mark.parametrize("answer", ["yes", "no", "unknown"])
+@pytest.mark.parametrize("trust", [0.25, 0.6, 0.85, 0.9, 0.98])
+@pytest.mark.parametrize("qhat", [0.2, 0.5, 0.75, 0.9])
+def test_skill_gate_matches_the_product_gate(answer: str, trust: float, qhat: float) -> None:
+    """The gate drifted once already, between the harness and the served path.
+    The skill carries a third copy, so it gets pinned to the same rule here."""
+    from eval.conformal import abstains as product_abstains
+
+    skill_scores = skill_gate.class_scores(answer, trust)
+    assert skill_gate.abstains(skill_scores, answer, qhat) == product_abstains(
+        skill_scores, answer, qhat
+    )
+
+
+def test_uncalibrated_extraction_fails_closed() -> None:
+    """Without a calibrated threshold there is no guarantee to answer behind,
+    so the skill must abstain and say why rather than invent a threshold."""
+    result = skill.apply_gate(
+        {"claim": "c", "answer": "yes", "trust_score": 0.9, "hedged": False, "span": None},
+        None,
+    )
+    assert result["abstain"] is True
+    assert result["gate"] == "uncalibrated"
+
+
+def test_calibrated_extraction_answers_a_clean_yes() -> None:
+    """The counterpart: a confident answer under a calibrated gate is served.
+    Without this, 'fails closed' could be satisfied by never answering."""
+    result = skill.apply_gate(
+        {"claim": "c", "answer": "yes", "trust_score": 0.9, "hedged": False, "span": None},
+        0.5,
+    )
+    assert result["abstain"] is False
+    assert result["gate"] == "conformal(qhat=0.500)"
 
 
 def test_cue_lexicons_are_identical() -> None:
