@@ -163,3 +163,28 @@ def test_landing_stats_match_the_generated_metrics() -> None:
             f"front page did not. Update the stat literal in "
             f"frontend/src/experience/Landing.tsx."
         )
+
+
+async def test_healthz_reports_whether_it_can_actually_dial(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """A deployment missing one env var serves simulated results silently.
+
+    ATTEST_USE_MOCK defaults to true, so an instance that never set it dials
+    nothing and still answers every request. Run records carry the provider
+    stamp, but only after a call exists. Health has to say it up front, or the
+    only way to discover a mock deployment is to read a result that was never
+    a phone call.
+    """
+    transport = httpx.ASGITransport(app=app)
+
+    monkeypatch.setenv("ATTEST_USE_MOCK", "false")
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        assert (await client.get("/healthz")).json()["provider"] == "live"
+
+    monkeypatch.setenv("ATTEST_USE_MOCK", "true")
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        assert (await client.get("/healthz")).json()["provider"] == "mock"
+
+    # The dangerous case: unset. It must read as mock, never as live.
+    monkeypatch.delenv("ATTEST_USE_MOCK", raising=False)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        assert (await client.get("/healthz")).json()["provider"] == "mock"

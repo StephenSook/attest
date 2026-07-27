@@ -79,13 +79,23 @@ app.add_middleware(
 async def healthz() -> dict[str, object]:
     """Liveness that tells the truth about the background poller: a dead
     poller means no run can ever reach a terminal state, and a blanket ok
-    would hide that from every monitor."""
+    would hide that from every monitor.
+
+    It also reports whether this deployment dials the real platform or the
+    local mock. ATTEST_USE_MOCK defaults to true, so an instance that is
+    merely missing an env var will happily serve simulated results, and
+    nothing outside the process could tell. Every run record is already
+    stamped with its provider; this exposes the same fact before a call is
+    placed rather than after. No secret is involved: the value is one of two
+    words, and knowing which one is what makes the deployment auditable.
+    """
     task = getattr(app.state, "poller_task", None)
     poller_alive = task is not None and not task.done()
     body: dict[str, object] = {
         "status": "ok" if poller_alive else "degraded",
         "service": "attest",
         "poller": "running" if poller_alive else "stopped",
+        "provider": "mock" if calle_client.is_mock_mode() else "live",
     }
     return body
 
