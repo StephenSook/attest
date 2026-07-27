@@ -244,6 +244,12 @@ async def api_metrics() -> dict[str, object]:
     if not metrics_path.exists():
         raise HTTPException(status_code=404, detail="metrics not generated")
     data: dict[str, object] = json.loads(metrics_path.read_text())
+    real_path = Path(os.environ.get("ATTEST_REAL_CHANNEL_PATH", "eval/results/real_channel.json"))
+    if real_path.exists():
+        real = json.loads(real_path.read_text())
+        # The per-call rows stay in the repo; the console needs the summary.
+        real.pop("rows", None)
+        data["real_channel"] = real
     return data
 
 
