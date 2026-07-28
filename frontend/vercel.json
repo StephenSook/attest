@@ -1,4 +1,16 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "redirects": [
+    {
+      "source": "/get/ios",
+      "destination": "https://testflight.apple.com/join/XZDXt7jw",
+      "permanent": false
+    },
+    {
+      "source": "/get/android",
+      "destination": "https://github.com/StephenSook/attest/releases/download/pocket-v0.1.0/attest-pocket.apk",
+      "permanent": false
+    }
+  ],
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }
