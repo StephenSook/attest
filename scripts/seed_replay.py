@@ -60,6 +60,22 @@ REPLAYS = [
         },
         label="labeled replay of the consented builder-line call, with audio",
     ),
+    Replay(
+        run_id="run_replay_practice_0001",
+        fixture="replay_practice_voicemail.json",
+        record={
+            # The practice consented in writing to the call and to public use of
+            # the transcript, explicitly choosing to remain anonymous. The name,
+            # the practitioner, the number, and the website are redacted in the
+            # fixture with visible brackets rather than swapped for plausible
+            # fictional values, because a fake name can be mistaken for the real
+            # one and a bracket cannot.
+            "org": "a consenting Atlanta counseling practice",
+            "replay": True,
+            "claims": {},
+        },
+        label="labeled replay of a consented call to a real practice; reached voicemail",
+    ),
 ]
 
 
