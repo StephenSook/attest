@@ -34,8 +34,16 @@ def build_scorecard(manifest_path: Path) -> dict[str, Any]:
             raise SystemExit(f"run {entry.get('label', '?')} lacks consent_on_file=true; refusing")
         payload = json.loads((manifest_path.parent / entry["payload"]).read_text())
         turns = transcript_turns(payload)
+        # Same window bounding as the served path: these are real multi-question
+        # calls, so a later answer must not be credited to an earlier claim.
         call_answers = {
-            claim: extract_yes_no(turns, question_pattern=pattern).answer
+            claim: extract_yes_no(
+                turns,
+                question_pattern=pattern,
+                other_question_patterns=tuple(
+                    p for name, p in CLAIM_QUESTIONS.items() if name != claim
+                ),
+            ).answer
             for claim, pattern in CLAIM_QUESTIONS.items()
         }
         directory_claims = {

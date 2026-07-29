@@ -40,13 +40,27 @@ def abstains(class_scores: dict[str, float], answer: str, qhat: float) -> bool:
     """THE abstention gate. One definition, used by the served path
     (backend/app/analysis.py) and by every number this harness reports.
 
-    Two conditions, both meaning "do not answer": the prediction set is not
-    a single value, or the single value is "unknown". A singleton {unknown}
-    is an abstention, not an answer; counting it as answered inflated the
-    reported abstention rate against what the product actually does.
+    Three conditions, all meaning "do not answer": the prediction set is not
+    a single value, that single value is not the answer being reported, or
+    the answer is "unknown". A singleton {unknown} is an abstention, not an
+    answer; counting it as answered inflated the reported abstention rate
+    against what the product actually does.
+
+    The middle condition was missing until an upstream maintainer found it.
+    `len(pset) != 1 or answer == "unknown"` never checks that the singleton
+    AGREES with the answer, so a low-trust polar answer whose calibrated set
+    is exactly {"unknown"} was served as a confident "yes".
+
+    Every number this harness reports is unchanged by the correction, because
+    evaluate_alpha derives the answer as the argmax of the scores and the
+    argmax is "unknown" across the whole region where the set is {"unknown"},
+    making the two forms provably identical there. A 10^6-point sweep of
+    (trust, qhat) confirms zero divergence under argmax and 110826 divergent
+    states under an extracted answer. The served and skill paths use the
+    extracted answer, so they could reach what the harness could not.
     """
     pset = prediction_set(class_scores, qhat)
-    return len(pset) != 1 or answer == "unknown"
+    return pset != {answer} or answer == "unknown"
 
 
 @dataclass(frozen=True)

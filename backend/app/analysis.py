@@ -95,7 +95,11 @@ def analyze_run(row: sqlite3.Row) -> dict[str, Any]:
     claims: list[dict[str, Any]] = []
     call_answers: dict[str, Answer] = {}
     for claim, pattern in CLAIM_QUESTIONS.items():
-        extraction = extract_yes_no(turns, question_pattern=pattern)
+        # Every other tracked question bounds this claim's answer window. A run
+        # asks several questions in one call, so without this an answer given
+        # to a later question was also credited to an earlier claim.
+        others = tuple(p for name, p in CLAIM_QUESTIONS.items() if name != claim)
+        extraction = extract_yes_no(turns, question_pattern=pattern, other_question_patterns=others)
         if qhat is not None:
             abstain = abstains(extraction.class_scores(), extraction.answer.value, qhat)
         else:

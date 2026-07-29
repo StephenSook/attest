@@ -115,9 +115,23 @@ def extract_yes_no(
     turns: list[dict[str, object]],
     *,
     question_pattern: str = r"accepting new patients",
+    other_question_patterns: tuple[str, ...] = (),
     dead_end_guard: bool = True,
 ) -> ExtractionResult:
     """Extract a yes/no/unknown answer to the question from user turns.
+
+    The answer window OPENS when the agent asks this question and CLOSES when
+    it asks a different tracked one. Without the close it ran to the end of the
+    call, so on a multi-question call the reply to a later question was also
+    counted as the answer to an earlier one: a respondent who deflected on new
+    patients and later said "Yes, we take that plan" had the new-patients claim
+    reported as a confident yes, span-grounded to a sentence about insurance.
+    A wrong answer carrying a citation is worse than no answer, because the
+    citation is what invites belief.
+
+    Callers extracting several claims from one transcript must pass the other
+    claims' patterns. The default is empty so single-claim callers, including
+    the eval harness, keep their existing behaviour exactly.
 
     dead_end_guard exists only so the eval ablation can demonstrate what
     happens without it; production callers never disable it.
@@ -132,8 +146,16 @@ def extract_yes_no(
         speaker = str(turn.get("speaker", ""))
         text = str(turn.get("text", ""))
         if speaker == "bot":
-            if re.search(question_pattern, text.lower()):
+            lowered_bot = text.lower()
+            if re.search(question_pattern, lowered_bot):
+                # Re-asking this claim reopens rather than closes the window.
                 question_seen = True
+            elif question_seen and any(
+                re.search(other, lowered_bot) for other in other_question_patterns
+            ):
+                # The agent moved on. Everything after this answers that
+                # question, not this one.
+                break
             continue
         if not question_seen:
             continue
