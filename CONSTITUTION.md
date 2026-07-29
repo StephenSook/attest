@@ -53,13 +53,52 @@ list has been lifted. No second vertical. No CRM/EHR integrations. The cinematic
 | G0 | Jul 31 | KYC cleared, one real call placed, fixture committed, validator conversation booked |
 | G1 | Aug 10 | Full loop e2e vs mock; kill-and-restart resumes; one real webhook delivery verified |
 | G2 | Aug 21 | One artifact produces a real figure from held-out data; eval command clean |
-| G3 | **Sep 11** | Skill pull request opened upstream (deliberately late; see below) |
+| G3 | **DONE Jul 28** | Skill pull request opened upstream: [PR #39](https://github.com/CALLE-AI/awesome-phone-call-agents/pull/39) (moved twice; see below) |
 | G4 | Sep 7 | Feature freeze; demo-consent decision locks |
 | G5 | Sep 12 | Everything submitted, two days early |
 
 Slips trigger the descope ladder in BUILD_PLAN.md (in the planning workspace), never a slide.
 
-### Why G3 moved from Aug 31 to Sep 11 (amended 2026-07-27)
+### Why G3 moved twice, Aug 31 to Sep 11 to opened Jul 28
+
+This gate moved twice in two days, so the reasoning for both moves is recorded here. Neither
+move was drift. The first resolved a contradiction, the second retired a premise that turned out
+to be false. The full first-move reasoning is kept below rather than deleted, because a decision
+record that quietly overwrites its own history is not a record.
+
+**Second move, 2026-07-28: opened immediately, PR #39.**
+
+The Sep 11 decision rested on one premise: that the skill is the artifact revealing our approach,
+so every day it sits public before the deadline is a day a rival can copy it. That premise was
+checked and is false. The Attest repository is public, and both `skills/verify-by-phone/SKILL.md`
+and `eval/conformal.py` serve HTTP 200 over raw GitHub to anyone with the URL. The demo film is
+public on YouTube and the Devpost project page is live, both describing span grounding, graded
+hedging, and conformal abstention in detail. The upstream pull request therefore reveals nothing
+that is not already readable. We were holding a door closed on a building with no walls.
+
+Three measured facts then pointed the other way:
+
+1. **The upstream review queue is compounding.** Open pull requests there went from about two to
+   ten during the week the hackathon opened, nine of them filed since Jul 23. A PR opened Sep 11
+   joins the back of a queue that will have absorbed weeks more of submissions, three days before
+   our deadline.
+2. **Community pull requests do clear fast, when they are not behind that queue.** `estona815`
+   #28 merged in three days and `LiamLacey95` #33 in one. That is the basis for expecting a merge
+   before judging opens Sep 30, and it argues for entering the queue early, not late.
+3. **The validator has already changed under us once** (the CRLF fix in #33). Late discovery of a
+   break was the real schedule risk, and opening now retires it. Both the branch-name validator
+   and `scripts/validate_repository.py` were run against a fresh clone of upstream HEAD `df8c709`
+   before opening, and both passed.
+
+The cost paid is real and should be named rather than argued away: rivals can now read the skill
+for about seven weeks. Stephen accepted the equivalent exposure deliberately when he published
+the demo film, after the concern was raised. This is consistent with that call, not a reversal
+of it.
+
+The required Devpost field (id 27833) is now satisfiable at any time instead of sitting on the
+critical path at G5.
+
+**First move, Aug 31 to Sep 11, 2026-07-27.**
 
 G3 previously said Aug 31 while a separate standing instruction said hold until Sep 8. Two
 locked dates contradicting each other is worse than either one, so this is the deliberate
@@ -85,6 +124,18 @@ Sep 30 gap. Judges opening it during judging see a merged contribution; rivals r
 deadline saw it for three days. Do not chase a merge before submission: merged pull requests get
 announced in their Discord, which is additional exposure we do not need on Sep 12.
 
-Standing rule: never open it earlier than this without Stephen saying so explicitly, and
-re-run the upstream validator against a fresh clone of upstream HEAD immediately before opening,
-because that validator has already changed under us once.
+The standing rule while this gate was pending was to never open early without Stephen saying so
+explicitly, and to re-run the upstream validator against a fresh clone of upstream HEAD first.
+Stephen authorised the early open on 2026-07-28 and the fresh-clone validation was run, so both
+conditions were met. That rule is now spent.
+
+**What replaces it, while PR #39 is open:**
+
+- Do not chase or request a merge. Merged pull requests get announced in their Discord, and we do
+  not need the extra attention before Sep 14. If it merges on its own, that is the good outcome.
+- Their CI shows `action_required` on every fork pull request, ours included, pending maintainer
+  approval to run. That is normal here and not a defect in ours. Do not try to route around it.
+- If a maintainer requests changes, treat it as a hard-priority interrupt. An open pull request
+  with unaddressed review comments reads worse to a judge than no pull request at all.
+- Re-check before G5 that the PR is still open or merged and the URL still resolves, then paste
+  it into Devpost field 27833. A closed pull request would silently invalidate a required field.
