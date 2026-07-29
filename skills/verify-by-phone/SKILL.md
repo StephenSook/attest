@@ -92,8 +92,9 @@ python3 scripts/poll_result.py --call-id call_abc123 --out result.json
 # 5. Extract the span-grounded answer, gated by the calibrated threshold.
 python3 scripts/extract_answer.py --payload result.json --qhat 0.750
 
-# 6. Reconcile against the stored record.
-python3 scripts/reconcile_record.py --payload result.json \
+# 6. Reconcile against the stored record. The same --qhat as step 5: reconciliation
+#    runs extraction itself, and without a threshold every field abstains.
+python3 scripts/reconcile_record.py --payload result.json --qhat 0.750 \
   --claim-accepting-new-patients yes --claim-plan-accepted yes
 ```
 

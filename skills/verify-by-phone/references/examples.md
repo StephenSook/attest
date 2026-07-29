@@ -39,18 +39,22 @@ The second line is the design working as intended: the call never asked about th
 
 ## Example 3: reconciliation verdict with visible arithmetic
 
+`--qhat` is required. Reconciliation runs extraction itself, and an uncalibrated extractor abstains on every claim, so without a threshold this script could only ever print UNVERIFIABLE.
+
 ```bash
-python3 scripts/reconcile_record.py --payload result.json \
+python3 scripts/reconcile_record.py --payload result.json --qhat 0.750 \
   --claim-accepting-new-patients yes --claim-plan-accepted yes
 ```
 
 ```text
 prior: +0.00 bits (50/50 audit odds)
 accepting_new_patients: call=yes record=yes -> +1.36 bits
-accepts_plan: no evidence (answer='unknown' claim='yes')
+accepts_plan: no evidence, the call did not establish this (record says yes)
 posterior: +1.36 bits = 72% record-accurate
 verdict: UNVERIFIABLE
 ```
+
+Two fields, two different reasons, and the output distinguishes them. The first field carried real evidence and moved the posterior. The second was never established by the call, so it contributes exactly zero rather than being counted as a disagreement. The verdict stays UNVERIFIABLE because 72 percent does not clear the 85 percent bar, which is the intended behaviour: partial evidence is reported as partial, not rounded up.
 
 One agreeing field is not enough to clear the 85 percent verification bar, so the listing stays unverified rather than getting blessed on partial evidence.
 

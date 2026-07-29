@@ -16,6 +16,7 @@ is not mirrored into the skill fails here, in CI, on the commit that causes it.
 import contextlib
 import importlib.util
 import io
+import subprocess
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -300,6 +301,92 @@ def test_an_explicit_key_overrides_the_derived_one() -> None:
     with mock.patch.object(sys, "argv", argv), contextlib.redirect_stdout(buffer):
         place.main()
     assert "verify-supplied-by-the-operator" in buffer.getvalue()
+
+
+_SCRIPTS = _SKILL_SCRIPT.parent
+_REPO = _SKILL_SCRIPT.parent.parent.parent.parent
+_BUILDER_FIXTURE = _REPO / "mock_calle" / "fixtures" / "replay_builder_call.json"
+
+
+def _run_reconcile(*extra: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [
+            sys.executable,
+            str(_SCRIPTS / "reconcile_record.py"),
+            "--payload",
+            str(_BUILDER_FIXTURE),
+            *extra,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_reconciliation_uses_the_calibrated_answer_instead_of_discarding_it() -> None:
+    """The whole script was inert.
+
+    reconcile_record.py runs extract_answer.py itself and never passed --qhat,
+    so extraction fail-closed on every claim, every field arrived "unknown",
+    and the run printed a 50 percent posterior and UNVERIFIABLE no matter what
+    was said on the call. On this fixture the recipient plainly says they are
+    accepting new patients, with a transcript span behind it, and that was
+    reported as "no evidence". Reported by an upstream maintainer.
+    """
+    result = _run_reconcile("--qhat", "0.75", "--claim-accepting-new-patients", "yes")
+    assert result.returncode == 0, result.stderr
+    assert "call=yes record=yes" in result.stdout, (
+        "the established answer was dropped again:\n" + result.stdout
+    )
+    assert "+1.36 bits" in result.stdout
+    assert "= 50% record-accurate" not in result.stdout, (
+        "an untouched prior means the evidence never reached the arithmetic"
+    )
+
+
+def test_reconciliation_can_actually_contradict_a_record() -> None:
+    """The other half of the claim. A tool that can only ever say
+    UNVERIFIABLE is not reconciling anything."""
+    result = _run_reconcile("--qhat", "0.75", "--claim-accepting-new-patients", "no")
+    assert result.returncode == 0, result.stderr
+    assert "verdict: CONTRADICTED" in result.stdout, result.stdout
+
+
+def test_reconciliation_refuses_without_a_threshold_rather_than_faking_a_verdict() -> None:
+    """Failing closed is right for extraction and wrong here.
+
+    An uncalibrated reconciliation cannot distinguish "the call established
+    nothing" from "nobody looked", and printing UNVERIFIABLE with a tidy 50
+    percent posterior presents the second as the first. Refusing is the only
+    honest option for a script whose sole output is a verdict.
+    """
+    result = _run_reconcile("--claim-accepting-new-patients", "yes")
+    assert result.returncode != 0
+    assert "--qhat" in result.stderr
+    assert "UNVERIFIABLE" not in result.stdout
+
+
+def test_the_documented_reconciliation_example_is_the_real_output() -> None:
+    """Run the command the docs print and diff against the output the docs
+    claim. Hand-typed example output is how a number drifts from the code that
+    produces it, which already happened once in this skill's calibration
+    example."""
+    doc = (_SCRIPTS.parent / "references" / "examples.md").read_text()
+    block = doc.split("## Example 3")[1]
+    documented = block.split("```text")[1].split("```")[0].strip()
+    result = _run_reconcile(
+        "--qhat",
+        "0.750",
+        "--claim-accepting-new-patients",
+        "yes",
+        "--claim-plan-accepted",
+        "yes",
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == documented, (
+        "examples.md no longer matches what the command prints.\n"
+        f"documented:\n{documented}\n\nactual:\n{result.stdout.strip()}"
+    )
 
 
 def test_the_agent_is_told_to_refuse_identity_prompts() -> None:
