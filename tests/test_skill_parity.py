@@ -130,6 +130,41 @@ def test_skill_gate_matches_the_product_gate(answer: str, trust: float, qhat: fl
     )
 
 
+def test_the_gate_never_answers_when_the_calibrated_set_says_unknown() -> None:
+    """A singleton {unknown} set must abstain even when extraction reported a
+    polar answer. The original gate tested `len(pset) != 1 or answer ==
+    "unknown"`, which never checks that the singleton AGREES with the answer,
+    so a low-trust "yes" whose calibrated set was exactly {"unknown"} was
+    served as a confident yes. Found by an upstream maintainer, not by us.
+
+    The reference harness could not reach this because it derives the answer
+    as the argmax, and the argmax is "unknown" throughout this region. This
+    test therefore uses an EXTRACTED answer, the way the skill and the served
+    path do, which is the only way the bug is observable.
+    """
+    from eval.conformal import abstains as product_abstains
+
+    hits = 0
+    for i in range(1, 1000):
+        trust = i / 1000
+        for j in range(1, 1000):
+            qhat = j / 1000
+            for answer in ("yes", "no"):
+                scores = skill_gate.class_scores(answer, trust)
+                if skill_gate.prediction_set(scores, qhat) != {"unknown"}:
+                    continue
+                hits += 1
+                assert skill_gate.abstains(scores, answer, qhat) is True, (
+                    f"skill gate answered {answer!r} at trust={trust} qhat={qhat} "
+                    "while the calibrated set was exactly {'unknown'}"
+                )
+                assert product_abstains(scores, answer, qhat) is True, (
+                    f"product gate answered {answer!r} at trust={trust} qhat={qhat} "
+                    "while the calibrated set was exactly {'unknown'}"
+                )
+    assert hits > 0, "the {unknown}-singleton region was never reached, so this proves nothing"
+
+
 def test_uncalibrated_extraction_fails_closed() -> None:
     """Without a calibrated threshold there is no guarantee to answer behind,
     so the skill must abstain and say why rather than invent a threshold."""
