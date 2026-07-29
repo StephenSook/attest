@@ -1,9 +1,28 @@
 name: Keepalive
 
 # Keeps the free-tier backend warm through the judging window (Sep 30 to Oct 13).
-# Offset minute list on purpose: contended schedules (*/N, :00) get throttled by
-# GitHub's scheduler. Verify this monitor by the NEWEST RUN'S AGE, not green runs.
-# Enabled 2026-07-25 against the live Render backend.
+#
+# Each run is a LONG-LIVED pinger, not a single ping, and that is the whole
+# design. Render's free tier sleeps after about 15 minutes idle, so the ping
+# interval has to be under that. GitHub's scheduler cannot deliver it: this
+# workflow asks for every 10 minutes on an offset minute list (the documented
+# mitigation for contended schedules) and still measured a MEDIAN GAP OF 112
+# MINUTES over 15 consecutive runs, range 67 to 204. Every one of those runs
+# reported success while the service was asleep, and a judge hitting the console
+# cold waited 32 seconds for the first byte.
+#
+# So the schedule is treated as a "start a pinger" trigger rather than as the
+# ping itself. One run pings every 5 minutes for about 5.5 hours, inside the
+# 6 hour job limit. Since runs start every 1 to 3.4 hours, a pinger is always
+# alive and overlapping runs are harmless. Actions minutes are free on public
+# repositories, which this is.
+#
+# Do NOT add a concurrency group: cancelling the in-flight pinger when the next
+# run starts would reintroduce exactly the gap this exists to close.
+#
+# Verify this monitor by whether the SERVICE IS WARM, not by green runs and not
+# by the newest run's age. Green runs were the misleading signal that hid this
+# for three days.
 
 on:
   workflow_dispatch:
@@ -13,20 +32,59 @@ on:
 jobs:
   ping:
     runs-on: ubuntu-latest
+    timeout-minutes: 350
     steps:
-      - name: Ping backend healthz
+      - name: Keep the backend warm for this run's lifetime
+        env:
+          BACKEND_URL: ${{ vars.BACKEND_URL }}
+          # 5 minutes, comfortably under Render's ~15 minute idle timeout.
+          INTERVAL_SECONDS: "300"
+          # 5h40m of pinging, leaving margin under timeout-minutes.
+          DURATION_SECONDS: "20400"
         run: |
-          set -euo pipefail
+          set -uo pipefail
           if [ -z "${BACKEND_URL:-}" ]; then
             echo "BACKEND_URL repository variable not set yet; nothing to ping."
             exit 0
           fi
-          # Cold starts are this workflow's whole reason to exist: when a
-          # throttled schedule gap lets the free tier spin down, the first
-          # request can take 30 to 60 seconds. Retry with patience instead
-          # of emailing a failure for successfully waking the service.
-          curl --fail --silent --show-error --max-time 75 \
-            --retry 4 --retry-delay 20 --retry-all-errors \
-            "${BACKEND_URL}/healthz"
-        env:
-          BACKEND_URL: ${{ vars.BACKEND_URL }}
+
+          deadline=$(( SECONDS + DURATION_SECONDS ))
+          attempts=0
+          failures=0
+          consecutive=0
+          worst_ttfb=0
+
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            attempts=$(( attempts + 1 ))
+            # --fail so a 5xx counts as a failure. Patience on the first hit of
+            # a cold service: waking it is a success, not an incident.
+            ttfb=$(curl --fail --silent --show-error --output /dev/null \
+                     --max-time 90 --retry 3 --retry-delay 15 --retry-all-errors \
+                     --write-out '%{time_starttransfer}' \
+                     "${BACKEND_URL}/healthz" 2>/dev/null) || ttfb=""
+            if [ -z "$ttfb" ]; then
+              failures=$(( failures + 1 ))
+              consecutive=$(( consecutive + 1 ))
+              echo "$(date -u +%H:%M:%SZ) ping $attempts FAILED (consecutive: $consecutive)"
+              # Only give up if the service is durably gone, so one blip does
+              # not kill a pinger that is otherwise doing its job.
+              if [ "$consecutive" -ge 5 ]; then
+                echo "::error::backend unreachable on 5 consecutive pings; giving up"
+                exit 1
+              fi
+            else
+              consecutive=0
+              slow=$(awk -v t="$ttfb" 'BEGIN{print (t+0 > 5) ? 1 : 0}')
+              worst_ttfb=$(awk -v a="$worst_ttfb" -v b="$ttfb" 'BEGIN{print (b+0>a+0)?b:a}')
+              if [ "$slow" = "1" ]; then
+                # >5s means it had gone to sleep: the previous pinger died or a
+                # gap opened. Worth seeing in the log rather than passing silently.
+                echo "$(date -u +%H:%M:%SZ) ping $attempts ok but COLD (${ttfb}s)"
+              else
+                echo "$(date -u +%H:%M:%SZ) ping $attempts ok (${ttfb}s)"
+              fi
+            fi
+            sleep "$INTERVAL_SECONDS"
+          done
+
+          echo "pinged ${attempts} times over $(( DURATION_SECONDS / 60 ))m; ${failures} failed; worst first-byte ${worst_ttfb}s"
