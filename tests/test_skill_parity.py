@@ -536,6 +536,37 @@ def test_the_documented_python_floor_is_stated() -> None:
     assert "Python 3.9 or newer" in skill_md
 
 
+def test_the_saved_payload_is_not_world_readable(tmp_path: Path) -> None:
+    """The payload holds a real person's phone number and verbatim words.
+
+    It was written at the default 0644, world-readable on any shared machine,
+    by a tool whose whole job is dialing strangers. Both cases are checked
+    because O_CREAT only honours its mode when it actually creates the file, so
+    re-running over an existing 0644 path would otherwise keep it loose.
+    """
+    poll = _load_skill_module("poll_result")
+    fresh = tmp_path / "fresh.json"
+    poll.write_payload({"status": "completed"}, str(fresh))
+    assert fresh.stat().st_mode & 0o777 == 0o600, oct(fresh.stat().st_mode & 0o777)
+
+    stale = tmp_path / "stale.json"
+    stale.write_text("{}")
+    stale.chmod(0o644)
+    poll.write_payload({"status": "completed"}, str(stale))
+    assert stale.stat().st_mode & 0o777 == 0o600, (
+        "re-running over an existing world-readable payload left it world-readable"
+    )
+
+
+def test_retention_and_the_payload_sensitivity_are_documented() -> None:
+    """A 0600 file the operator leaves on disk forever is still a liability.
+    The skill cannot set a retention policy it has no standing to choose, so it
+    must at least say what the file is and when to delete it."""
+    safety = (_SKILL_SCRIPT.parent.parent / "references" / "safety.md").read_text().lower()
+    for required in ("0600", "retention", "delete"):
+        assert required in safety, f"safety.md no longer documents {required!r}"
+
+
 def test_the_agent_is_told_to_refuse_identity_prompts() -> None:
     """Behavioral intent, stated once so a future edit cannot quietly drop it.
 
