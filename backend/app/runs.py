@@ -59,7 +59,8 @@ def build_task(org: str, claims: dict[str, str]) -> str:
         f"You are placing a short verification call to {org} on behalf of a records "
         "verification service. Open with: 'Hi, this is an automated assistant calling "
         f"to verify directory information for {org}. This call may be recorded.' "
-        f"Then politely ask: {asks}. " + CALL_CONDUCT
+        f"Then ask ONE question at a time, waiting for an answer before asking "
+        f"the next: {asks}. " + CALL_CONDUCT
     )
 
 
