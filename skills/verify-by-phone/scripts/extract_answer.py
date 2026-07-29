@@ -78,6 +78,20 @@ DEAD_ENDS = (
     r"\bcan'?t answer\b",
     r"\bdon'?t know\b",
 )
+# Identity is tracked separately from DEAD_ENDS on purpose. A dead end makes one
+# claim unanswerable; a denied identity invalidates the whole call as evidence
+# about THIS listing, however cleanly the questions were answered. Numbers get
+# reassigned, so a confident "yes, we're accepting patients" from whoever holds
+# the number now says nothing about the practice in the directory.
+IDENTITY_DENIALS = (
+    r"\bwrong number\b",
+    r"\bthis is a residence\b",
+    r"\bno such (?:business|office|practice|clinic)\b",
+    r"\bthere'?s no\b.*\bhere\b",
+    r"\b(?:different|another) (?:office|business|practice|clinic|company)\b",
+    r"\byou'?ve reached\b.*\b(?:instead|not)\b",
+    r"\bwe'?re not\b.*\b(?:that|them)\b",
+)
 CLAIM_PATTERNS = {
     "accepting_new_patients": r"accepting new patients",
     # Word-bounded on purpose: "accepting" must NOT trigger this claim, or a
@@ -95,6 +109,24 @@ def turns_from_payload(payload: dict) -> list[dict]:
             if turns:
                 return list(turns)
     return []
+
+
+def organization_denied(turns: list[dict]) -> bool:
+    """Did the respondent say we reached somewhere other than the listing?
+
+    Answering this is a precondition for treating anything said on the call as
+    directory evidence, not a detail. If the number now belongs to someone
+    else, a clean "yes, we are accepting new patients" is a true statement
+    about the wrong organization, and recording it against the listing would
+    manufacture exactly the false confirmation this tool exists to prevent.
+    """
+    for turn in turns:
+        if turn.get("speaker") == "bot":
+            continue
+        lowered = str(turn.get("text", "")).lower()
+        if any(re.search(cue, lowered) for cue in IDENTITY_DENIALS):
+            return True
+    return False
 
 
 def last_span(cues: tuple[str, ...], text: str) -> tuple[int, int] | None:
@@ -245,9 +277,18 @@ def main() -> None:
     turns = turns_from_payload(payload)
     if not turns:
         sys.exit("ERROR: no transcript turns found in payload.")
+    # Computed once for the call, not per claim: identity is a property of who
+    # answered the phone, not of any one question.
+    denied = organization_denied(turns)
     for claim, pattern in CLAIM_PATTERNS.items():
         others = tuple(p for name, p in CLAIM_PATTERNS.items() if name != claim)
-        print(json.dumps(apply_gate(extract(turns, claim, pattern, others), args.qhat)))
+        record = apply_gate(extract(turns, claim, pattern, others), args.qhat)
+        record["organization_denied"] = denied
+        if denied:
+            # Whatever was said, it was not said by this listing. Abstain and
+            # drop the span so nothing can be quoted as directory evidence.
+            record.update(answer="unknown", span=None, abstain=True, gate="identity-unconfirmed")
+        print(json.dumps(record))
 
 
 if __name__ == "__main__":

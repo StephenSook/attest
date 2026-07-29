@@ -69,9 +69,20 @@ def main() -> None:
     if extractor.returncode != 0:
         raise SystemExit(f"extract_answer failed: {extractor.stderr.strip()}")
     answers = {}
+    identity_denied = False
     for line in extractor.stdout.strip().splitlines():
         item = json.loads(line)
+        identity_denied = identity_denied or bool(item.get("organization_denied"))
         answers[item["claim"]] = item["answer"] if not item["abstain"] else "unknown"
+
+    if identity_denied:
+        # Stop before the arithmetic. Reaching a different party is not weak
+        # evidence to be weighed down, it is no evidence about this listing at
+        # all, and running the match weights anyway would put a number on it.
+        print("identity: the respondent indicated this is not the listed organization")
+        print("no reconciliation performed: answers from another party are not evidence")
+        print("verdict: UNVERIFIABLE")
+        return
 
     claims = {
         "accepting_new_patients": args.claim_accepting_new_patients,

@@ -458,6 +458,55 @@ def test_an_acknowledgement_between_question_and_answer_keeps_the_window_open() 
     assert result["answer"] == "yes", repr(result)
 
 
+_REASSIGNED_NUMBER = [
+    {
+        "speaker": "bot",
+        "text": (
+            "Hi, this is an automated assistant verifying directory information "
+            "for Example Family Medicine. Are you currently accepting new patients?"
+        ),
+    },
+    {"speaker": "user", "text": "You've reached Riverside Auto Body, not a doctor. "},
+    {"speaker": "user", "text": "But yes, we are open and taking new customers."},
+]
+
+
+def test_a_reassigned_number_is_not_evidence_about_the_listing() -> None:
+    """Phone numbers get reassigned, and the new holder can answer clearly.
+
+    "Yes, we are open and taking new customers" is a true sentence from a body
+    shop. Recording it against a medical listing would manufacture precisely the
+    false confirmation this tool exists to prevent, so identity has to be
+    settled before any answer counts.
+    """
+    assert skill.organization_denied(_REASSIGNED_NUMBER) is True
+    assert skill.organization_denied(_TWO_QUESTION_CALL) is False
+
+
+def test_identity_is_tracked_separately_from_a_dead_end() -> None:
+    """A dead end makes one claim unanswerable. A denied identity invalidates
+    the entire call as evidence about this listing, however cleanly the
+    questions were answered, so it cannot just be another dead-end cue."""
+    turns = [
+        {"speaker": "bot", "text": "Are you currently accepting new patients?"},
+        {"speaker": "user", "text": "This is a residence, you have the wrong number."},
+    ]
+    assert skill.organization_denied(turns) is True
+
+
+def test_the_call_script_tells_the_agent_to_confirm_the_organization_first() -> None:
+    """The detector only catches a denial the respondent volunteers. The agent
+    has to actually establish identity before asking, so the instruction is
+    pinned here in both copies of the conduct block."""
+    from app.runs import CALL_CONDUCT
+
+    place = _load_skill_module("place_verify_call")
+    for text in (CALL_CONDUCT, place.CALL_CONDUCT):
+        lowered = text.lower()
+        assert "first establish that you have reached the organization" in lowered
+        assert "not evidence about this listing" in lowered
+
+
 def test_the_agent_is_told_to_refuse_identity_prompts() -> None:
     """Behavioral intent, stated once so a future edit cannot quietly drop it.
 
