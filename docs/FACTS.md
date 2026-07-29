@@ -127,12 +127,18 @@ judges meet an honest "temporarily unavailable" rather than a broken dial.
 
 - Strict mypy; ruff lint + format in CI; gitleaks over full history in CI. Test and PR counts change on
   every merge, so they are recorded here as a dated snapshot and must be re-read before being quoted
-  anywhere: **219 backend tests, 6 mobile tests, 55 merged PRs, as of 2026-07-27**. Regenerate with
-  `uv run pytest --collect-only -q | tail -1` and
-  `gh pr list --state merged --limit 100 --json number --jq 'length'`. Deliberately not repeated in the
+  anywhere: **243 backend tests, 6 mobile tests, 68 merged PRs, as of 2026-07-29**. Regenerate with
+  `uv run pytest --collect-only -q | tail -1`,
+  `cd mobile && node --experimental-strip-types --test "src/**/*.test.ts"` (the mobile count comes
+  from the node test runner, not jest: an ad-hoc `npx jest` reports 0 because it is not the runner
+  CI uses), and
+  `gh pr list --state merged --limit 200 --json number --jq 'length'` (the limit must exceed the
+  count or the number silently caps). Deliberately not repeated in the
   README, because a count duplicated across surfaces is a count that goes stale on one of them: that
-  drift has now been caught three separate times on this repository.
-- The upstream skill `skills/verify-by-phone` passes `validate_repository.py` from CALLE-AI/awesome-phone-call-agents staged against a clean clone. Re-verified 2026-07-27 against a fresh clone at upstream HEAD `df8c709`, carrying the current SKILL.md. Upstream PR not yet opened. Re-run this on every change to the skill, because the validator itself changes upstream (it gained a CRLF fix after our first pass).
+  drift has now been caught four separate times on this repository, most recently when the upstream
+  review wave took the backend suite from 221 to 243 while the Devpost writeup still said 221.
+- The upstream skill `skills/verify-by-phone` passes `validate_repository.py` from CALLE-AI/awesome-phone-call-agents staged against a clean clone. **Upstream PR is OPEN: [#39](https://github.com/CALLE-AI/awesome-phone-call-agents/pull/39)**, carrying the post-review skill. Re-validated 2026-07-29 against the branch after the seven-blocker fix wave. Re-run this on every change to the skill, because the validator itself changes upstream (it gained a CRLF fix after our first pass) and upstream HEAD has already moved past the commit we forked from.
+- A maintainer review of PR #39 on 2026-07-29 found seven blockers, all real, all fixed: the abstention gate could answer when the calibrated set was `{unknown}`; a later answer was credited to an earlier question, span-grounded to the wrong sentence; reconciliation never passed `--qhat` and so could only print UNVERIFIABLE; the idempotency key was random and printed only after success; nothing established that the respondent represented the listing; the quick start died on Python 3.9 at import; and the saved payload was world-readable. No reported number moved: `metrics.json` and `real_channel.json` regenerate byte-identical after all seven. Both worked examples in the skill are now diffed against real command output in CI, because one of the seven was a documented figure that contradicted the program.
 - Second-model adversarial review found 7 verified issues in the loop/security wave (all fixed and regression-pinned); the harness twice caught confident-wrong extraction ("there's NO doctor's office here" parsing as a no; a plan claim stealing an unrelated span).
 
 ## Saying this out loud (the plain-language version)
