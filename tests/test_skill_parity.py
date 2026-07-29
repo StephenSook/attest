@@ -294,6 +294,8 @@ def test_an_explicit_key_overrides_the_derived_one() -> None:
         "Example Family Medicine",
         "--phone",
         "+15550101234",
+        "--claim-accepting-new-patients",
+        "yes",
         "--idempotency-key",
         "verify-supplied-by-the-operator",
     ]
@@ -306,6 +308,7 @@ def test_an_explicit_key_overrides_the_derived_one() -> None:
 _SCRIPTS = _SKILL_SCRIPT.parent
 _REPO = _SKILL_SCRIPT.parent.parent.parent.parent
 _BUILDER_FIXTURE = _REPO / "mock_calle" / "fixtures" / "replay_builder_call.json"
+_SAMPLE_CALL = _SKILL_SCRIPT.parent.parent / "references" / "sample-call.json"
 
 
 def _run_reconcile(*extra: str) -> subprocess.CompletedProcess[str]:
@@ -314,7 +317,9 @@ def _run_reconcile(*extra: str) -> subprocess.CompletedProcess[str]:
             sys.executable,
             str(_SCRIPTS / "reconcile_record.py"),
             "--payload",
-            str(_BUILDER_FIXTURE),
+            str(_SAMPLE_CALL),
+            "--org",
+            "Example Family Medicine",
             *extra,
         ],
         capture_output=True,
@@ -533,7 +538,9 @@ def test_the_documented_python_floor_is_stated() -> None:
     """A version requirement nobody wrote down is a version requirement nobody
     can rely on."""
     skill_md = (_SKILL_SCRIPT.parent.parent / "SKILL.md").read_text()
-    assert "Python 3.9 or newer" in skill_md
+    assert "**3.9**" in skill_md and "**3.11**" in skill_md, (
+        "SKILL.md must state BOTH floors: 3.9 for the stdlib scripts and 3.11 for calle-ai"
+    )
 
 
 def test_the_saved_payload_is_not_world_readable(tmp_path: Path) -> None:
@@ -608,6 +615,162 @@ def test_the_documented_verdict_thresholds_match_the_code() -> None:
     doc = (_SKILL_SCRIPT.parent.parent / "references" / "examples.md").read_text()
     assert f"{recon.VERIFIED_AT:.0%}".replace("%", " percent") in doc
     assert f"{recon.CONTRADICTED_AT:.0%}".replace("%", " percent") in doc
+
+
+def _extract(payload: Path, *extra: str) -> list[dict[str, object]]:
+    result = subprocess.run(
+        [sys.executable, str(_SCRIPTS / "extract_answer.py"), "--payload", str(payload), *extra],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    return [__import__("json").loads(line) for line in result.stdout.strip().splitlines()]
+
+
+def _write(tmp_path: Path, turns: list[dict[str, str]]) -> Path:
+    p = tmp_path / "payload.json"
+    p.write_text(
+        __import__("json").dumps({"recipients": [{"attempts": [{"transcript_turns": turns}]}]})
+    )
+    return p
+
+
+def test_identity_fails_closed_rather_than_open(tmp_path: Path) -> None:
+    """Absence of a denial is not confirmation.
+
+    Detecting an explicit "wrong number" was only half the job. Wrong numbers,
+    answering services, shared reception desks and reassigned lines all produce
+    cooperative respondents who answer clearly and are not the listing.
+    Accepting those answers is how a verification tool manufactures a false
+    confirmation. Found by an upstream maintainer on the second review pass.
+    """
+    turns = [
+        {
+            "speaker": "bot",
+            "text": "Verifying directory information for Northside Family Medicine.",
+        },
+        {"speaker": "user", "text": "Sure, go ahead."},
+        {"speaker": "bot", "text": "Are you currently accepting new patients?"},
+        {"speaker": "user", "text": "Yes, we are."},
+    ]
+    records = _extract(
+        _write(tmp_path, turns), "--qhat", "0.75", "--org", "Northside Family Medicine"
+    )
+    for r in records:
+        assert r["abstain"] is True, f"answered without confirmed identity: {r}"
+        assert r["gate"] == "identity-unconfirmed"
+        assert r["span"] is None
+        assert r["organization_confirmed"] is False
+
+
+def test_a_named_confirmation_unlocks_the_answer(tmp_path: Path) -> None:
+    """The gate must not be impossible to pass, or the skill is useless. Saying
+    the practice name is the ordinary way a real front desk answers."""
+    turns = [
+        {
+            "speaker": "bot",
+            "text": "Verifying directory information for Northside Family Medicine.",
+        },
+        {"speaker": "user", "text": "Northside, this is the front desk."},
+        {"speaker": "bot", "text": "Are you currently accepting new patients?"},
+        {"speaker": "user", "text": "Yes, we are."},
+    ]
+    records = _extract(
+        _write(tmp_path, turns), "--qhat", "0.75", "--org", "Northside Family Medicine"
+    )
+    answered = [r for r in records if not r["abstain"]]
+    assert answered, "a named confirmation must let a clearly answered claim through"
+    assert answered[0]["organization_confirmed"] is True
+
+
+def test_both_questions_in_one_turn_abstains_on_both(tmp_path: Path) -> None:
+    """A single "Yes." cannot be split between two claims after the fact.
+
+    The old code handed that one reply to BOTH claims, each non-abstaining and
+    each citing the same span. At least one of those is wrong and both look
+    identically confident, which is the exact failure mode this project exists
+    to prevent.
+    """
+    turns = [
+        {
+            "speaker": "bot",
+            "text": "Verifying directory information for Northside Family Medicine.",
+        },
+        {"speaker": "user", "text": "Yes, this is Northside."},
+        {
+            "speaker": "bot",
+            "text": "Are you accepting new patients, and does the practice accept Example PPO?",
+        },
+        {"speaker": "user", "text": "Yes."},
+    ]
+    records = _extract(
+        _write(tmp_path, turns), "--qhat", "0.75", "--org", "Northside Family Medicine"
+    )
+    assert len(records) == 2
+    for r in records:
+        assert r["abstain"] is True, f"combined question served an answer: {r}"
+        assert r["gate"] == "combined-question"
+        assert r["span"] is None
+
+
+def test_a_call_with_no_transcript_emits_abstentions_not_an_error(tmp_path: Path) -> None:
+    """Nobody answering is the most common real outcome, and it is exactly when
+    the promised explicit abstention matters most. This used to exit 1 with an
+    error, which broke every downstream caller on the ordinary case and emitted
+    no record at all."""
+    records = _extract(_write(tmp_path, []), "--qhat", "0.75", "--org", "Example Family Medicine")
+    assert len(records) == 2, "every tracked claim needs an explicit abstention record"
+    for r in records:
+        assert r["answer"] == "unknown"
+        assert r["abstain"] is True
+        assert r["gate"] == "no-transcript"
+
+
+def test_a_run_with_no_claim_is_refused_before_dialing() -> None:
+    """The claimless task asked "whether the published listing information is
+    current", which no claim pattern matches, so the call could never produce a
+    recordable answer. Spending a real call and a real person's time on that is
+    worse than a crash."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(_SCRIPTS / "place_verify_call.py"),
+            "--org",
+            "Example Family Medicine",
+            "--phone",
+            "+15550101234",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert "nothing to verify" in result.stderr.lower()
+
+    place = _load_skill_module("place_verify_call")
+    with pytest.raises(ValueError):
+        place.build_task("Example Family Medicine", None, None)
+
+
+def test_the_call_script_asks_identity_first_and_one_question_at_a_time() -> None:
+    """Both agent-side halves of the two findings above. Extraction fails
+    closed without a confirmation and abstains on a combined turn, so a script
+    that never asks, or asks both at once, guarantees an abstention."""
+    place = _load_skill_module("place_verify_call")
+    task = place.build_task("Example Family Medicine", "yes", "Example PPO")
+    assert "confirm you have reached the right place" in task
+    assert "ONE question at a time" in task
+    assert task.index("confirm you have reached") < task.index("accepting new patients")
+
+
+def test_the_required_care_boundaries_are_documented() -> None:
+    """The upstream repository requires boundaries for medical, legal,
+    financial and emergency content. This skill calls healthcare
+    organizations, so they are load-bearing rather than boilerplate."""
+    safety = (_SKILL_SCRIPT.parent.parent / "references" / "safety.md").read_text().lower()
+    for required in ("medical", "legal", "financial", "emergency", "988", "diagnosis"):
+        assert required in safety, f"safety.md does not cover {required!r}"
 
 
 def test_the_agent_is_told_to_refuse_identity_prompts() -> None:
