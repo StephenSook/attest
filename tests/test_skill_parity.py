@@ -567,6 +567,49 @@ def test_retention_and_the_payload_sensitivity_are_documented() -> None:
         assert required in safety, f"safety.md no longer documents {required!r}"
 
 
+def test_the_documented_calibration_example_is_the_real_output() -> None:
+    """The number that was wrong.
+
+    examples.md documented a 43.3 percent abstention rate while the command
+    printed 60.0 percent. Verified to be stale independently of any change in
+    this branch: the old gate prints 60.0 percent too. For a project whose
+    entire claim is that its published numbers regenerate from the code, a
+    hand-typed figure drifting from the program is the most damaging possible
+    kind of error, so the example is now diffed against the real output rather
+    than trusted.
+    """
+    scripts = _SKILL_SCRIPT.parent
+    doc = (scripts.parent / "references" / "examples.md").read_text()
+    documented = doc.split("## Example 4")[1].split("```text")[1].split("```")[0].strip()
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(scripts / "calibrate.py"),
+            "--data",
+            str(scripts.parent / "references" / "sample-scenarios.jsonl"),
+            "--alpha",
+            "0.1",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == documented, (
+        "examples.md no longer matches what calibrate.py prints.\n"
+        f"documented:\n{documented}\n\nactual:\n{result.stdout.strip()}"
+    )
+
+
+def test_the_documented_verdict_thresholds_match_the_code() -> None:
+    """The remaining hand-typed numbers in the docs are the verdict bars.
+    They are prose, so nothing regenerates them; pin them to the constants."""
+    recon = _load_skill_module("reconcile_record")
+    doc = (_SKILL_SCRIPT.parent.parent / "references" / "examples.md").read_text()
+    assert f"{recon.VERIFIED_AT:.0%}".replace("%", " percent") in doc
+    assert f"{recon.CONTRADICTED_AT:.0%}".replace("%", " percent") in doc
+
+
 def test_the_agent_is_told_to_refuse_identity_prompts() -> None:
     """Behavioral intent, stated once so a future edit cannot quietly drop it.
 

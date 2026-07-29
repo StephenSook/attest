@@ -54,9 +54,7 @@ posterior: +1.36 bits = 72% record-accurate
 verdict: UNVERIFIABLE
 ```
 
-Two fields, two different reasons, and the output distinguishes them. The first field carried real evidence and moved the posterior. The second was never established by the call, so it contributes exactly zero rather than being counted as a disagreement. The verdict stays UNVERIFIABLE because 72 percent does not clear the 85 percent bar, which is the intended behaviour: partial evidence is reported as partial, not rounded up.
-
-One agreeing field is not enough to clear the 85 percent verification bar, so the listing stays unverified rather than getting blessed on partial evidence.
+Two fields, two different reasons, and the output distinguishes them. The first carried real evidence and moved the posterior. The second was never established by the call, so it contributes exactly zero rather than being counted as a disagreement. The verdict stays UNVERIFIABLE because 72 percent does not clear the 85 percent bar (`VERIFIED_AT` in `reconcile_record.py`, with `CONTRADICTED_AT` at 30 percent). One agreeing field is not enough to bless a listing, and partial evidence is reported as partial rather than rounded up.
 
 ## Example 4: calibrating the abstention threshold, no credentials
 
@@ -68,8 +66,12 @@ python3 scripts/calibrate.py --data references/sample-scenarios.jsonl --alpha 0.
 calibration n=30, held-out test n=30 (disjoint)
 alpha=0.1: qhat=0.750
 empirical coverage: 90.0% (target 90%)
-abstention rate: 43.3%
+abstention rate: 60.0%
 accuracy when answering: 100.0%
+
+Apply it:  extract_answer.py --payload result.json --qhat 0.750
 ```
 
-Replace the bundled fictional scenarios with labeled outcomes from your own domain before relying on the threshold in production.
+Read the two middle numbers together. Coverage lands on the 90 percent target, and the price of that guarantee is abstaining on 60 percent of the bundled scenarios. That is the trade the threshold exists to make: the scenario set is deliberately full of hedges, contradictions, and dead ends, so a high abstention rate on it is the system working rather than failing. Accuracy is 100 percent on the answers it does give.
+
+Replace the bundled fictional scenarios with labeled outcomes from your own domain before relying on the threshold in production. Expect a different abstention rate: it is a property of your calls, not of the method.
