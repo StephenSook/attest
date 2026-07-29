@@ -13,10 +13,13 @@ must produce the same answer. A behavior change to backend/app/extract.py that
 is not mirrored into the skill fails here, in CI, on the commit that causes it.
 """
 
+import contextlib
 import importlib.util
+import io
 import sys
 from pathlib import Path
 from types import ModuleType
+from unittest import mock
 
 import pytest
 
@@ -203,6 +206,100 @@ def test_call_conduct_is_identical() -> None:
         "Mirror backend/app/runs.py CALL_CONDUCT into "
         "skills/verify-by-phone/scripts/place_verify_call.py."
     )
+
+
+def test_an_identical_reverification_reuses_one_idempotency_key_that_day() -> None:
+    """The obvious recovery from a lost response must be the safe one.
+
+    The key used to be a fresh uuid4 per invocation, so an operator whose create
+    request timed out and who re-ran the same command dialed a real office a
+    second time. Deriving the key from the request makes the identical re-run
+    collide with the original instead.
+    """
+    place = _load_skill_module("place_verify_call")
+    args = ("Example Family Medicine", "+15550101234", "yes", "Example PPO")
+    first = place.default_idempotency_key(*args, "2026-07-29")
+    again = place.default_idempotency_key(*args, "2026-07-29")
+    assert first == again
+
+
+def test_a_different_listing_or_question_never_shares_a_key() -> None:
+    """Collisions here would suppress a real call, which is the opposite
+    failure and a silent one: the operator would be handed another listing's
+    answer. Each field that changes the verification must change the key."""
+    place = _load_skill_module("place_verify_call")
+    day = "2026-07-29"
+    base = place.default_idempotency_key("Org A", "+15550101234", "yes", "PPO", day)
+    variants = {
+        "org": place.default_idempotency_key("Org B", "+15550101234", "yes", "PPO", day),
+        "phone": place.default_idempotency_key("Org A", "+15550101299", "yes", "PPO", day),
+        "accepting": place.default_idempotency_key("Org A", "+15550101234", "no", "PPO", day),
+        "plan": place.default_idempotency_key("Org A", "+15550101234", "yes", "HMO", day),
+        "day": place.default_idempotency_key("Org A", "+15550101234", "yes", "PPO", "2026-07-30"),
+    }
+    for field, key in variants.items():
+        assert key != base, f"changing {field} must change the idempotency key"
+    assert len(set(variants.values())) == len(variants), "variants collided with each other"
+
+
+def test_reverifying_the_same_listing_later_is_not_served_a_stale_answer() -> None:
+    """The day scope is the point, not an accident.
+
+    A key derived from the parameters alone would be permanent, so a monthly
+    re-audit would collide with the first call forever and the platform would
+    return the original answer without dialing. For a tool that exists to
+    refuse unestablished answers, silently serving a stale one is worse than
+    placing a duplicate call.
+    """
+    place = _load_skill_module("place_verify_call")
+    args = ("Example Family Medicine", "+15550101234", "yes", None)
+    assert place.default_idempotency_key(*args, "2026-07-29") != place.default_idempotency_key(
+        *args, "2026-08-29"
+    )
+
+
+def test_the_key_is_printed_before_anything_is_dialed() -> None:
+    """A key first disclosed in the success response is useless in the exact
+    case it exists for, a lost response. The dry run must therefore already
+    show the key the live run would use."""
+    place = _load_skill_module("place_verify_call")
+    argv = [
+        "place_verify_call.py",
+        "--org",
+        "Example Family Medicine",
+        "--phone",
+        "+15550101234",
+        "--claim-accepting-new-patients",
+        "yes",
+    ]
+    buffer = io.StringIO()
+    with mock.patch.object(sys, "argv", argv), contextlib.redirect_stdout(buffer):
+        place.main()
+    out = buffer.getvalue()
+    expected = place.default_idempotency_key(
+        "Example Family Medicine", "+15550101234", "yes", None, place.utc_day()
+    )
+    assert "DRY RUN" in out
+    assert expected in out, "the dry run must disclose the key the live run would use"
+
+
+def test_an_explicit_key_overrides_the_derived_one() -> None:
+    """The escape hatch for the UTC-midnight edge, where a retry would
+    otherwise derive a different key than the call it is retrying."""
+    place = _load_skill_module("place_verify_call")
+    argv = [
+        "place_verify_call.py",
+        "--org",
+        "Example Family Medicine",
+        "--phone",
+        "+15550101234",
+        "--idempotency-key",
+        "verify-supplied-by-the-operator",
+    ]
+    buffer = io.StringIO()
+    with mock.patch.object(sys, "argv", argv), contextlib.redirect_stdout(buffer):
+        place.main()
+    assert "verify-supplied-by-the-operator" in buffer.getvalue()
 
 
 def test_the_agent_is_told_to_refuse_identity_prompts() -> None:
