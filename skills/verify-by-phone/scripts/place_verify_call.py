@@ -98,9 +98,7 @@ def default_idempotency_key(
     different key. That is why the key is printed BEFORE the request and why
     --idempotency-key exists, so a retry can always reuse the exact key.
     """
-    material = "\x00".join(
-        [org.strip().lower(), phone.strip(), accepting or "", plan or "", day]
-    )
+    material = "\x00".join([org.strip().lower(), phone.strip(), accepting or "", plan or "", day])
     return "verify-" + hashlib.sha256(material.encode("utf-8")).hexdigest()[:24]
 
 
