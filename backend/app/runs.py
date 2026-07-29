@@ -21,6 +21,11 @@ logger = logging.getLogger(__name__)
 # the same sync-by-comment failure that let the extractor and the abstention
 # gate diverge. tests/test_skill_parity.py pins them to the same string.
 CALL_CONDUCT = (
+    "First establish that you have reached the organization named above. If the "
+    "person says you have reached a different business, a private residence, or a "
+    "wrong number, do NOT ask the verification questions: thank them and end the "
+    "call, because an answer from somewhere else is not evidence about this "
+    "listing. "
     "Record the answers exactly as given. If the person "
     "hedges, capture their exact wording. If they decline to speak with an automated "
     "caller, thank them and end the call immediately. If asked to hold, wait briefly, "
