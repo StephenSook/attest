@@ -13,6 +13,8 @@ runs both extractors over the same transcripts and fails if they disagree on
 the answer, the span, or the cue lexicons.
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import re

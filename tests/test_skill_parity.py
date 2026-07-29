@@ -507,6 +507,35 @@ def test_the_call_script_tells_the_agent_to_confirm_the_organization_first() -> 
         assert "not evidence about this listing" in lowered
 
 
+def test_every_skill_script_runs_on_the_python_version_the_docs_promise() -> None:
+    """The skill ships into repositories we do not control.
+
+    `def f(x: str | None)` evaluates its annotation at definition time, so on
+    Python 3.9 importing these scripts died with "unsupported operand type(s)
+    for |: 'type' and 'NoneType'" before argparse ever ran. The documented
+    quick start simply did not work on the interpreter many repositories still
+    default to, and nothing declared a minimum version.
+
+    `from __future__ import annotations` makes annotations lazy and is what
+    holds the 3.9 floor, so its presence is asserted per file rather than
+    trusted to survive the next edit.
+    """
+    scripts = sorted((_SKILL_SCRIPT.parent).glob("*.py"))
+    assert scripts, "no skill scripts found"
+    for path in scripts:
+        assert "from __future__ import annotations" in path.read_text(), (
+            f"{path.name} drops the future-annotations import, which breaks the "
+            "documented Python 3.9 floor at import time"
+        )
+
+
+def test_the_documented_python_floor_is_stated() -> None:
+    """A version requirement nobody wrote down is a version requirement nobody
+    can rely on."""
+    skill_md = (_SKILL_SCRIPT.parent.parent / "SKILL.md").read_text()
+    assert "Python 3.9 or newer" in skill_md
+
+
 def test_the_agent_is_told_to_refuse_identity_prompts() -> None:
     """Behavioral intent, stated once so a future edit cannot quietly drop it.
 

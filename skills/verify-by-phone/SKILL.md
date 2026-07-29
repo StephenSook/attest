@@ -68,6 +68,15 @@ learned to trust the last cue in a turn and to read "no problem" as agreement
 while this script still trusted the first, so a plain "No, we are not" abstained
 here and answered there.
 
+## Requirements
+
+**Python 3.9 or newer.** Verified by running this entire quick start on 3.9.6, not inferred from the syntax used. The scripts are standard library only, so nothing below needs `pip install` except step 3, which dials.
+
+Two exceptions worth stating rather than leaving to be discovered:
+
+- Step 3 needs `calle-ai` and a `CALLE_API_KEY`. Every other step runs with no credentials and places no call.
+- `scripts/verify_attestation.py` needs `cryptography`. It is the only script with a third-party import, and it is optional: it checks an attestation signature and is not part of the verification workflow.
+
 ## Quick Start
 
 ```bash

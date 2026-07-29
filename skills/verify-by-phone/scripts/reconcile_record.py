@@ -8,6 +8,8 @@ no evidence. Prints per-field arithmetic and a verdict, so the operator can
 see exactly why a listing was believed or doubted.
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import math

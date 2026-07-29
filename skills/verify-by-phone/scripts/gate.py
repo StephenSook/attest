@@ -14,6 +14,8 @@ hardcoded 0.65, so the abstention the skill advertised was not the abstention it
 performed. Two copies of a rule are two rules.
 """
 
+from __future__ import annotations
+
 import math
 
 CLASSES = ("yes", "no", "unknown")

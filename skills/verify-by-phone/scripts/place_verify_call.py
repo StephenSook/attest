@@ -6,6 +6,8 @@ needs no credentials. Pass --live (with CALLE_API_KEY set) to actually dial.
 Exactly one call per live invocation; there is no batch mode on purpose.
 """
 
+from __future__ import annotations
+
 import argparse
 import hashlib
 import os

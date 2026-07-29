@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Poll a CALL-E call to its terminal state and save the full payload locally."""
 
+from __future__ import annotations
+
 import argparse
 import json
 import os
