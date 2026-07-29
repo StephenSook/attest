@@ -389,6 +389,75 @@ def test_the_documented_reconciliation_example_is_the_real_output() -> None:
     )
 
 
+_TWO_QUESTION_CALL = [
+    {
+        "speaker": "bot",
+        "text": (
+            "Hi, this is an automated assistant verifying directory information. "
+            "Are you currently accepting new patients?"
+        ),
+    },
+    {"speaker": "user", "text": "Hmm, I'd have to look into that one."},
+    {"speaker": "bot", "text": "Understood. And does the practice accept the Example PPO plan?"},
+    {"speaker": "user", "text": "Yes, we take that plan."},
+]
+
+
+def test_a_later_answer_is_not_credited_to_an_earlier_question() -> None:
+    """The worst bug in this skill: a wrong answer carrying a citation.
+
+    The answer window opened when the agent asked a claim's question and never
+    closed, so on a two-question call the reply to the second question was also
+    read as the answer to the first. Here the respondent never answers the
+    new-patients question, and the old code reported it as a confident yes,
+    trust 0.9, not abstaining, span-grounded to "Yes, we take that plan.", a
+    sentence plainly about insurance. Span grounding is the integrity
+    mechanism, so pointing it at the wrong sentence is worse than abstaining.
+    """
+    others = tuple(
+        p for name, p in skill.CLAIM_PATTERNS.items() if name != "accepting_new_patients"
+    )
+    result = skill.extract(
+        _TWO_QUESTION_CALL,
+        "accepting_new_patients",
+        skill.CLAIM_PATTERNS["accepting_new_patients"],
+        others,
+    )
+    assert result["answer"] == "unknown", (
+        "the insurance answer was credited to the new-patients claim again: " + repr(result)
+    )
+    assert result["span"] is None, "an unanswered claim must not carry a span"
+
+
+def test_closing_one_window_does_not_break_the_question_that_was_answered() -> None:
+    """The boundary must cut in one direction only. The second question was
+    genuinely answered and must still be extracted, with its own span."""
+    others = tuple(p for name, p in skill.CLAIM_PATTERNS.items() if name != "accepts_plan")
+    result = skill.extract(
+        _TWO_QUESTION_CALL, "accepts_plan", skill.CLAIM_PATTERNS["accepts_plan"], others
+    )
+    assert result["answer"] == "yes"
+    assert result["span"]["text"] == "Yes, we take that plan."
+
+
+def test_an_acknowledgement_between_question_and_answer_keeps_the_window_open() -> None:
+    """Only another tracked question closes the window. A bot turn that asks
+    nothing, an acknowledgement or a hold request, must not orphan an answer
+    that has not been given yet."""
+    turns = [
+        {"speaker": "bot", "text": "Are you currently accepting new patients?"},
+        {"speaker": "bot", "text": "Take your time, I can hold."},
+        {"speaker": "user", "text": "Yes, we are."},
+    ]
+    others = tuple(
+        p for name, p in skill.CLAIM_PATTERNS.items() if name != "accepting_new_patients"
+    )
+    result = skill.extract(
+        turns, "accepting_new_patients", skill.CLAIM_PATTERNS["accepting_new_patients"], others
+    )
+    assert result["answer"] == "yes", repr(result)
+
+
 def test_the_agent_is_told_to_refuse_identity_prompts() -> None:
     """Behavioral intent, stated once so a future edit cannot quietly drop it.
 
