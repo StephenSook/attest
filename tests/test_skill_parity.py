@@ -773,6 +773,87 @@ def test_the_required_care_boundaries_are_documented() -> None:
         assert required in safety, f"safety.md does not cover {required!r}"
 
 
+def test_a_negated_organization_name_denies_rather_than_confirms() -> None:
+    """The inverted case, reported on the third review pass.
+
+    "No, this is not Example Family Medicine" matched no IDENTITY_DENIALS cue,
+    and the name tokens inside the sentence then made organization_confirmed()
+    return True. An explicit denial read as a confirmation is worse than
+    fail-open: the call would continue and later answers would be attributed to
+    a party that had just said it is not the listing.
+    """
+    org = "Example Family Medicine"
+    denial = [
+        {"speaker": "bot", "text": "Is this Example Family Medicine?"},
+        {"speaker": "user", "text": "No, this is not Example Family Medicine."},
+    ]
+    assert skill.organization_denied(denial, org) is True
+    assert skill.organization_confirmed(denial, org) is False
+
+
+def test_a_denial_survives_a_cooperative_answer_afterwards() -> None:
+    """Denial is a property of the call, not of one turn. Whoever holds the
+    number now may answer helpfully; that is not evidence about the listing."""
+    org = "Example Family Medicine"
+    turns = [
+        {"speaker": "bot", "text": "Is this Example Family Medicine?"},
+        {
+            "speaker": "user",
+            "text": "No, this isn't Example Family Medicine, this is Riverside Auto.",
+        },
+        {"speaker": "bot", "text": "Are you currently accepting new patients?"},
+        {"speaker": "user", "text": "Yes, we take walk-ins."},
+    ]
+    assert skill.organization_denied(turns, org) is True
+    assert skill.organization_confirmed(turns, org) is False
+
+
+def test_a_negation_elsewhere_in_a_confirming_turn_still_confirms() -> None:
+    """The negation window is scoped to just before the name on purpose.
+    "Yes, this is Example Family Medicine, not the Buckhead office" contains a
+    negation and is a confirmation, so a whole-turn negation check would break
+    the ordinary case while fixing the inverted one."""
+    org = "Example Family Medicine"
+    turns = [
+        {"speaker": "bot", "text": "Is this Example Family Medicine?"},
+        {
+            "speaker": "user",
+            "text": "Yes, this is Example Family Medicine, not the Buckhead office.",
+        },
+    ]
+    assert skill.organization_denied(turns, org) is False
+    assert skill.organization_confirmed(turns, org) is True
+
+
+def test_every_operator_facing_command_carries_the_required_flags() -> None:
+    """Printed and documented commands are operator-facing and must be runnable
+    exactly as shown. calibrate.py and poll_result.py both printed a next-step
+    command without --org, so following them produced identity-unconfirmed
+    abstentions rather than the result the surrounding output implied. Same
+    class of drift as the documented-number bug from the first review."""
+    import re as _re
+
+    scripts_dir = _SKILL_SCRIPT.parent
+    for name in ("calibrate.py", "poll_result.py"):
+        src = (scripts_dir / name).read_text()
+        joined = " ".join(src.splitlines())
+        if "extract_answer.py --payload" in joined or "extract_answer.py " in joined:
+            assert "--org" in joined, f"{name} prints an extract command without --org"
+
+    for doc in ("SKILL.md", "references/examples.md"):
+        src = (scripts_dir.parent / doc).read_text()
+        joined = _re.sub(r"\\\n\s*", " ", src)
+        for line in joined.splitlines():
+            if "extract_answer.py" in line and "--payload" in line:
+                assert "--org" in line, (
+                    f"{doc} documents an extract command without --org: {line[:80]}"
+                )
+            if "reconcile_record.py" in line and "--payload" in line:
+                assert "--org" in line, (
+                    f"{doc} documents a reconcile command without --org: {line[:80]}"
+                )
+
+
 def test_the_agent_is_told_to_refuse_identity_prompts() -> None:
     """Behavioral intent, stated once so a future edit cannot quietly drop it.
 
