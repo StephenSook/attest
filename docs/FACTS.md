@@ -82,8 +82,17 @@ deliveries are UNSIGNED: no webhook secret, no `CALL-E-Timestamp`, no `CALL-E-Si
 0.6.0 deprecates its `verify`/`unwrap` helpers ("current CALL-E webhooks are unsigned"). The docs
 recommend re-fetching `GET /v1/calls/{call_id}` before any sensitive side effect, which is the
 poller-authoritative design this repo shipped from the start. Verified 2026-08-05 by reading
-docs.heycall-e.com/changelog.md, webhooks.md, and the calle-ai 0.6.0 wheel from PyPI. Delivery has
-not been re-tested end to end here; the next live call carries a `webhook_url` to measure it.
+docs.heycall-e.com/changelog.md, webhooks.md, and the calle-ai 0.6.0 wheel from PyPI.
+
+**Delivery MEASURED 2026-08-05, same day:** one canary call to CALL-E's own published inbound
+testing hotline (budget line webhook-live-test, `--hotline` on scripts/probe_call.py) went terminal
+`failed` (the hotline's test agent hung up during the greeting: `DECLINED (Hangup by: user)`), and
+about a minute later the platform POSTed the terminal event to our deployed receiver, which
+accepted it 202 in hint mode (Render request log 17:16:58Z, source 47.237.20.72, an Alibaba Cloud
+address consistent with their infrastructure). So terminal webhook delivery is real, measured on
+our own receiver, including for failed calls. The same canary also established that outbound
+dialing still works after the platform's v0.6.0 changes with no KYC gate enforced on this account,
+and that terminal payloads now carry a top-level `structured_result` key.
 
 **That last one is time-bounded and is expected to change.** On 2026-07-27 the platform's PM
 stated in the CALL-E Discord that outbound calling does require KYC verification, that individual
