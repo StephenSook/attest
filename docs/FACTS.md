@@ -72,8 +72,18 @@ Regeneration: `uv run python -m eval` reproduces every number and figure above o
 
 - Two probe calls and one webhook-delivery test call placed through the seam, all to the builder's own phone with consent. First probe: no spoken response; the system reported `task_completed: false` rather than inventing an answer. Second probe: answered; `task_completed: true`, platform confidence 0.92.
 - The scrubbed second-probe payload is the mock fixture (`mock_calle/fixtures/terminal_result.json`): phone and identifiers replaced with reserved fictional values, conversation verbatim.
-- Platform findings, all verified empirically: the live API rejects both `result_schema` and `recipient_result_schema`; `webhook_url` is accepted but no webhook was delivered for a completed call (tunnel capture, 20+ minutes); terminal payloads are snake_case `call_task` objects with `recipients[].attempts[].transcript_turns`, `completion_confidence`, and `evidence`; and, **as of 2026-07-27, no KYC gate stood between an
+- Platform findings, all verified empirically: the live API rejects both `result_schema` and `recipient_result_schema`; `webhook_url` was accepted but no webhook was delivered for a completed call (tunnel capture, 20+ minutes; time-scoped finding, see below); terminal payloads are snake_case `call_task` objects with `recipients[].attempts[].transcript_turns`, `completion_confidence`, and `evidence`; and, **as of 2026-07-27, no KYC gate stood between an
 account and an outbound call**, established by placing 40 real calls rather than by reading docs.
+
+**The webhook finding is time-scoped and the platform has since moved twice.** The changelog dated
+2026-07-29 ("Terminal webhook delivery") states call tasks with `webhook_url` "now send terminal
+event notifications", retried on non-2xx, deduplicated by a `CALL-E-Event-Id` header. Those
+deliveries are UNSIGNED: no webhook secret, no `CALL-E-Timestamp`, no `CALL-E-Signature`, and SDK
+0.6.0 deprecates its `verify`/`unwrap` helpers ("current CALL-E webhooks are unsigned"). The docs
+recommend re-fetching `GET /v1/calls/{call_id}` before any sensitive side effect, which is the
+poller-authoritative design this repo shipped from the start. Verified 2026-08-05 by reading
+docs.heycall-e.com/changelog.md, webhooks.md, and the calle-ai 0.6.0 wheel from PyPI. Delivery has
+not been re-tested end to end here; the next live call carries a `webhook_url` to measure it.
 
 **That last one is time-bounded and is expected to change.** On 2026-07-27 the platform's PM
 stated in the CALL-E Discord that outbound calling does require KYC verification, that individual
