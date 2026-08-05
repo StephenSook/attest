@@ -1,0 +1,63 @@
+name: upstream-review-watch
+
+# Watches the upstream skill PR (CALLE-AI/awesome-phone-call-agents#39) for
+# maintainer activity that has not been answered.
+#
+# Why this exists: the machine crashed minutes before the maintainer's fourth
+# review landed, and the blocker sat unanswered for six days because nothing
+# was watching. GitHub emails the PR author on every comment, but an email can
+# land in a gap between working sessions; this run FAILS while the last word
+# on the PR is not ours, and a failed scheduled run triggers GitHub's own
+# failure email, which repeats daily until the reply is posted. Self-healing:
+# once we reply, the last comment is ours again and the run goes green.
+#
+# Daily is enough for a review cadence. Offset minute per the scheduler
+# contention guidance. The default GITHUB_TOKEN can read public repositories,
+# which is all this needs.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "43 12 * * *"
+
+permissions: {}
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fail while upstream PR 39 has an unanswered last word
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPSTREAM: CALLE-AI/awesome-phone-call-agents
+          PR: "39"
+          OURS: StephenSook
+        run: |
+          set -euo pipefail
+          state="$(gh pr view "$PR" --repo "$UPSTREAM" --json state --jq .state)"
+          echo "PR $PR state: $state"
+          if [ "$state" = "MERGED" ]; then
+            echo "Merged. Nothing left to watch; disable this workflow."
+            exit 0
+          fi
+          if [ "$state" != "OPEN" ]; then
+            echo "::error::PR $PR is $state without a merge. Investigate: https://github.com/$UPSTREAM/pull/$PR"
+            exit 1
+          fi
+          last_comment="$(gh api "repos/$UPSTREAM/issues/$PR/comments" --paginate \
+            --jq 'last | if . == null then "" else "\(.created_at)\t\(.user.login)\t\(.html_url)" end')"
+          last_review="$(gh api "repos/$UPSTREAM/pulls/$PR/reviews" --paginate \
+            --jq 'last | if . == null then "" else "\(.submitted_at)\t\(.user.login)\t\(.html_url)" end')"
+          latest="$(printf '%s\n%s\n' "$last_comment" "$last_review" | sed '/^$/d' | sort | tail -n 1)"
+          if [ -z "$latest" ]; then
+            echo "No comments or reviews found at all; treating as unanswered."
+            exit 1
+          fi
+          echo "Latest activity: $latest"
+          actor="$(printf '%s' "$latest" | cut -f2)"
+          if [ "$actor" != "$OURS" ]; then
+            echo "::error::Unanswered activity by $actor on https://github.com/$UPSTREAM/pull/$PR. Reply, then this goes green."
+            exit 1
+          fi
+          echo "Last word is ours. Nothing unanswered."
