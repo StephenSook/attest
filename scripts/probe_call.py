@@ -10,8 +10,13 @@ Usage:
     uv run python scripts/probe_call.py [--webhook-url https://...]
 
 --webhook-url passes a terminal-result callback so webhook delivery can be
-retested without editing this script (delivery was observed NOT to fire on
-2026-07-25; see backend/app/calle/webhook.py).
+measured without editing this script. Delivery did not fire during the
+integration window (observed 2026-07-25); the platform changelog dated
+2026-07-29 says it is now live and unsigned (see backend/app/calle/webhook.py).
+
+--hotline dials CALL-E's published inbound testing hotline instead of the
+operator's phone, with a task written honestly for that line, so the whole
+pipeline can be canaried without involving any third party.
 """
 
 import argparse
@@ -41,12 +46,34 @@ TASK = (
     "stated gets recorded as unknown. Keep the whole call under two minutes."
 )
 
+# CALL-E's own inbound testing hotline, published by the platform team in
+# their public Discord on 2026-08-04 precisely so integrators can place test
+# calls without involving a third party. The task is honest about what the
+# call is; the answerer is the platform's test agent, not a person.
+HOTLINE_PHONE = "+12763229632"
+HOTLINE_TASK = (
+    "You are placing a consented integration test call to CALL-E's own inbound "
+    "testing hotline, a line the platform team published for exactly this "
+    "purpose. The answerer is the platform's test agent, not a person. Open "
+    "with: 'Hi, this is an automated assistant making a consented integration "
+    "test call.' Then ask one question: 'For the test, are you currently "
+    "accepting new patients?' Record whatever is answered faithfully. If asked "
+    "to end the call, thank them and hang up immediately. Never guess: anything "
+    "not stated gets recorded as unknown. Keep the whole call under two minutes."
+)
+
 
 async def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--webhook-url", default=None, help="optional terminal-result callback")
+    parser.add_argument(
+        "--hotline",
+        action="store_true",
+        help="dial CALL-E's published inbound testing hotline instead of ATTEST_PROBE_PHONE",
+    )
     args = parser.parse_args()
-    phone = os.environ.get("ATTEST_PROBE_PHONE", "")
+    phone = HOTLINE_PHONE if args.hotline else os.environ.get("ATTEST_PROBE_PHONE", "")
+    task = HOTLINE_TASK if args.hotline else TASK
     api_key = os.environ.get("CALLE_API_KEY", "")
     if not phone or not api_key:
         sys.exit("Set CALLE_API_KEY and ATTEST_PROBE_PHONE in the environment first.")
@@ -56,10 +83,13 @@ async def main() -> None:
     # No result_schema: the live API rejects both schema params today (see the
     # seam comment). The default summary/transcript payload is what we probe.
     created = await service.place_call(
-        task=TASK,
+        task=task,
         phone=phone,
         idempotency_key=f"attest-probe-{stamp}",
-        metadata={"purpose": "probe", "budget_line": "probe"},
+        metadata={
+            "purpose": "hotline-canary" if args.hotline else "probe",
+            "budget_line": "webhook-live-test" if args.hotline else "probe",
+        },
         webhook_url=args.webhook_url,
     )
     call_id = str(created.get("id", ""))
