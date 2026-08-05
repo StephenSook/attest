@@ -53,7 +53,7 @@ Real-channel transfer: 36 pre-registered scripted calls to a consented line (28 
 
 ## Where the load-bearing CALL-E call lives
 
-One module, on purpose: [`backend/app/calle/client.py`](backend/app/calle/client.py) wraps the official `calle-ai` SDK for every REST call, and [`backend/app/calle/webhook.py`](backend/app/calle/webhook.py) verifies webhook signatures over raw bytes with the five-minute replay window the SDK omits. Empirical note: the live API currently accepts `webhook_url` but does not deliver webhooks (verified with a tunnel capture on a completed call), so the resumable poller in [`backend/app/calle/poller.py`](backend/app/calle/poller.py) is the authoritative terminal path and the receiver fails closed.
+One module, on purpose: [`backend/app/calle/client.py`](backend/app/calle/client.py) wraps the official `calle-ai` SDK for every REST call, and [`backend/app/calle/webhook.py`](backend/app/calle/webhook.py) receives terminal webhooks. Empirical note, dated: when we integrated (2026-07-25) the live API accepted `webhook_url` and delivered nothing (verified with a tunnel capture on a completed call); the platform changelog dated 2026-07-29 turned delivery on, unsigned. The receiver therefore treats an unsigned delivery as an untrusted hint whose only possible effect is an authenticated `GET /v1/calls/{id}` re-fetch, the resumable poller in [`backend/app/calle/poller.py`](backend/app/calle/poller.py) remains the authoritative terminal path, and when a signing secret is configured (the mock server, or any compatible signing layer) the receiver still verifies HMAC over the exact raw bytes with the five-minute replay window the SDK omits.
 
 ## Run it yourself, zero credentials
 
@@ -105,7 +105,7 @@ as the web console; nothing is baked into the app.
 
 ## Security posture
 
-Server-authoritative state (the browser never submits verdicts), phone numbers redacted in every API response by test-enforced policy, SSRF resolve-then-pin validation with the full metadata blocklist for any future server-side fetch, raw-byte HMAC webhook verification with replay windows, fail-closed 503s when secrets are unconfigured, keyed run creation with constant-time comparison, gitleaks in CI over full history, and no secret ever reaching the client.
+Server-authoritative state (the browser never submits verdicts), phone numbers redacted in every API response by test-enforced policy, SSRF resolve-then-pin validation with the full metadata blocklist for any future server-side fetch, raw-byte HMAC webhook verification with replay windows when a signing secret exists, unsigned platform deliveries treated as untrusted hints that can only trigger an authenticated re-fetch and never a write, keyed run creation with constant-time comparison, gitleaks in CI over full history, and no secret ever reaching the client.
 
 ## Architecture
 
@@ -138,7 +138,7 @@ frontend/           the console and the landing experience
 
 ## Honest status
 
-Working end to end today: real calls through the seam, the full extraction, reconciliation, and calibration pipeline, the seeded evaluation, the live console and landing. Known limitations: platform webhooks do not deliver yet (poller is authoritative), the free-tier database is ephemeral (reseeded on boot), and disclosed verification cannot measure how disclosure itself changes answers, because no undisclosed baseline exists inside this protocol.
+Working end to end today: real calls through the seam, the full extraction, reconciliation, and calibration pipeline, the seeded evaluation, the live console and landing. Known limitations: platform webhook delivery is young (live only since 2026-07-29 and unsigned, so deliveries act as untrusted hints and the poller stays authoritative), the free-tier database is ephemeral (reseeded on boot), and disclosed verification cannot measure how disclosure itself changes answers, because no undisclosed baseline exists inside this protocol.
 
 ## License
 
