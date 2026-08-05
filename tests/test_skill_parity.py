@@ -825,6 +825,71 @@ def test_a_negation_elsewhere_in_a_confirming_turn_still_confirms() -> None:
     assert skill.organization_confirmed(turns, org) is True
 
 
+def test_a_correction_after_the_name_denies_regardless_of_position() -> None:
+    """The exact case from the fourth review pass.
+
+    "Example Family Medicine? No, this is Buckhead Clinic" opens with the
+    name, so a negation window that only looks BEFORE the mention sees nothing
+    and read the echo as an affirmative mention. The correction names somebody
+    else, and that must win wherever the listing's name sits in the turn.
+    """
+    org = "Example Family Medicine"
+    turns = [
+        {"speaker": "bot", "text": "Is this Example Family Medicine?"},
+        {"speaker": "user", "text": "Example Family Medicine? No, this is Buckhead Clinic"},
+    ]
+    assert skill.organization_denied(turns, org) is True
+    assert skill.organization_confirmed(turns, org) is False
+
+
+def test_an_echoed_name_as_a_question_confirms_nothing() -> None:
+    """ "Example Family Medicine?" is the respondent asking, not identifying.
+
+    Without a correction the call is not denied either. It is simply
+    unconfirmed, and every claim abstains with the identity-unconfirmed gate.
+    """
+    org = "Example Family Medicine"
+    turns = [
+        {"speaker": "bot", "text": "Is this Example Family Medicine?"},
+        {"speaker": "user", "text": "Example Family Medicine?"},
+        {"speaker": "bot", "text": "Are you currently accepting new patients?"},
+        {"speaker": "user", "text": "Yes, we are."},
+    ]
+    assert skill.organization_denied(turns, org) is False
+    assert skill.organization_confirmed(turns, org) is False
+
+
+def test_a_correction_to_the_listing_itself_confirms() -> None:
+    """Correcting TO the listing is the mirror image. "No, this is Example
+    Family Medicine" after a mispronounced name asserts the name, and the old
+    negation window swallowed it, denying a genuine confirmation."""
+    org = "Example Family Medicine"
+    turns = [
+        {"speaker": "bot", "text": "Is this the Example Family Medicine office on Peachtree?"},
+        {"speaker": "user", "text": "No, this is Example Family Medicine."},
+    ]
+    assert skill.organization_denied(turns, org) is False
+    assert skill.organization_confirmed(turns, org) is True
+
+
+def test_a_front_desk_greeting_question_still_confirms() -> None:
+    """The echo-question rule must not swallow the ordinary greeting.
+
+    "Northside, how can I help you?" ends in a question mark and is still how
+    a staffed front desk identifies itself: the question is the offer of help,
+    not the name."""
+    org = "Northside Family Medicine"
+    turns = [
+        {
+            "speaker": "bot",
+            "text": "Verifying directory information for Northside Family Medicine.",
+        },
+        {"speaker": "user", "text": "Northside, how can I help you?"},
+    ]
+    assert skill.organization_denied(turns, org) is False
+    assert skill.organization_confirmed(turns, org) is True
+
+
 def test_every_operator_facing_command_carries_the_required_flags() -> None:
     """Printed and documented commands are operator-facing and must be runnable
     exactly as shown. calibrate.py and poll_result.py both printed a next-step
