@@ -146,7 +146,7 @@ judges meet an honest "temporarily unavailable" rather than a broken dial.
 
 - Strict mypy; ruff lint + format in CI; gitleaks over full history in CI. Test and PR counts change on
   every merge, so they are recorded here as a dated snapshot and must be re-read before being quoted
-  anywhere: **243 backend tests, 6 mobile tests, 68 merged PRs, as of 2026-07-29**. Regenerate with
+  anywhere: **264 backend tests, 6 mobile tests, 77 merged PRs, as of 2026-08-05**. Regenerate with
   `uv run pytest --collect-only -q | tail -1`,
   `cd mobile && node --experimental-strip-types --test "src/**/*.test.ts"` (the mobile count comes
   from the node test runner, not jest: an ad-hoc `npx jest` reports 0 because it is not the runner
@@ -159,6 +159,7 @@ judges meet an honest "temporarily unavailable" rather than a broken dial.
 - The upstream skill `skills/verify-by-phone` passes `validate_repository.py` from CALLE-AI/awesome-phone-call-agents staged against a clean clone. **Upstream PR is OPEN: [#39](https://github.com/CALLE-AI/awesome-phone-call-agents/pull/39)**, carrying the post-review skill. Re-validated 2026-07-29 against the branch after the seven-blocker fix wave. Re-run this on every change to the skill, because the validator itself changes upstream (it gained a CRLF fix after our first pass) and upstream HEAD has already moved past the commit we forked from.
 - A maintainer review of PR #39 on 2026-07-29 found seven blockers, all real, all fixed: the abstention gate could answer when the calibrated set was `{unknown}`; a later answer was credited to an earlier question, span-grounded to the wrong sentence; reconciliation never passed `--qhat` and so could only print UNVERIFIABLE; the idempotency key was random and printed only after success; nothing established that the respondent represented the listing; the quick start died on Python 3.9 at import; and the saved payload was world-readable. No reported number moved: `metrics.json` and `real_channel.json` regenerate byte-identical after all seven. Both worked examples in the skill are now diffed against real command output in CI, because one of the seven was a documented figure that contradicted the program.
 - Second-model adversarial review found 7 verified issues in the loop/security wave (all fixed and regression-pinned); the harness twice caught confident-wrong extraction ("there's NO doctor's office here" parsing as a no; a plan claim stealing an unrelated span).
+- Lighthouse, measured 2026-08-05 against the deployed landing (mobile emulation, lighthouse latest via npx): **performance 81, accessibility 100, best practices 100, SEO 100**; CLS 0, TBT 80ms, FCP 3.3s, LCP 3.8s under mobile throttling. The FCP cost is the cinematic landing's script weight and is a deliberate trade: per-route code splitting already ships, and the scroll engine is not being refactored for a Lighthouse point because a traversal regression on the judge-facing landing outweighs one (the scroll-scrub freeze was exactly that class of bug). Mobile-viewport traversal and horizontal-overflow assertions are pinned in frontend/e2e/console.spec.ts. Do not claim "performance 90+" anywhere; 81 is the measured number.
 
 ## Saying this out loud (the plain-language version)
 
