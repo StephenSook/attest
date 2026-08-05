@@ -92,9 +92,15 @@ async def test_bad_signature_rejected(tmp_path: Path, monkeypatch: pytest.Monkey
 
 
 def _hint_fetcher(monkeypatch: pytest.MonkeyPatch, snapshot: dict[str, object]) -> list[str]:
-    """Replace the authoritative re-fetch with a recorder returning snapshot."""
+    """Replace the authoritative re-fetch with a recorder returning snapshot.
+
+    Also clears the module's per-call-id cooldown map, which is process state
+    and would otherwise let one test's hint suppress the next test's fetch,
+    making a guard assertion pass for the wrong reason.
+    """
     from app.calle import webhook as webhook_module
 
+    webhook_module._recent_hints.clear()
     fetched: list[str] = []
 
     async def fake_fetch(call_id: str) -> dict[str, object]:
@@ -213,4 +219,51 @@ async def test_unsigned_hint_with_malformed_body_rejected(
             headers={"CALL-E-Event-Id": "evt_5"},
         )
     assert not_json.status_code == 400
-    assert oversized.status_code == 400
+    assert oversized.status_code == 413
+
+
+async def test_unsigned_hint_cooldown_bounds_refetches(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Replaying one captured delivery must not multiply outbound fetches.
+
+    The fake fetch returns a NON-terminal snapshot so the run stays in
+    flight; the second hint is then blocked by the cooldown alone, which is
+    the property under test."""
+    database = tmp_path / "wh9.db"
+    monkeypatch.setenv("ATTEST_DB_PATH", str(database))
+    monkeypatch.delenv("CALLE_WEBHOOK_SECRET", raising=False)
+    _seed_run(database)
+    fetched = _hint_fetcher(monkeypatch, {**FIXTURE, "status": "in_progress"})
+
+    hint = json.dumps({"type": "call.completed", "data": {"id": str(FIXTURE["id"])}}).encode()
+    async with _client() as client:
+        first = await client.post(
+            "/calle/webhook", content=hint, headers={"CALL-E-Event-Id": "evt_6"}
+        )
+        second = await client.post(
+            "/calle/webhook", content=hint, headers={"CALL-E-Event-Id": "evt_7"}
+        )
+    assert first.status_code == 202
+    assert second.status_code == 202, "a rate-limited hint must not be distinguishable"
+    assert fetched == [str(FIXTURE["id"])], "the cooldown must hold the second fetch"
+
+
+async def test_empty_string_secret_means_hint_mode(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CALLE_WEBHOOK_SECRET="" must select hint mode, not an HMAC check
+    against an empty key that nothing could ever legitimately sign with."""
+    database = tmp_path / "wh10.db"
+    monkeypatch.setenv("ATTEST_DB_PATH", str(database))
+    monkeypatch.setenv("CALLE_WEBHOOK_SECRET", "")
+    _seed_run(database)
+    fetched = _hint_fetcher(monkeypatch, FIXTURE)
+
+    hint = json.dumps({"type": "call.completed", "data": {"id": str(FIXTURE["id"])}}).encode()
+    async with _client() as client:
+        response = await client.post(
+            "/calle/webhook", content=hint, headers={"CALL-E-Event-Id": "evt_8"}
+        )
+    assert response.status_code == 202
+    assert fetched == [str(FIXTURE["id"])]

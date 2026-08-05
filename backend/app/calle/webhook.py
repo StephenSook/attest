@@ -30,6 +30,7 @@ flight, which requires knowing an unguessable live call id. The poller remains
 authoritative either way; a lost or dropped hint delays nothing forever.
 """
 
+import asyncio
 import json
 import logging
 import math
@@ -50,9 +51,16 @@ from app.calle.client import CalleService
 
 TIMESTAMP_WINDOW_SECONDS = 300
 # Terminal snapshots carry full transcripts; tens of kilobytes in practice.
-# Anything past this is not a plausible delivery and is dropped unread.
-MAX_HINT_BODY_BYTES = 256 * 1024
+# Anything past this is not a plausible delivery and is rejected while
+# streaming, before the body is ever fully buffered.
+MAX_BODY_BYTES = 256 * 1024
 _CALL_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
+# One authenticated re-fetch per call id per cooldown, however many hints
+# arrive. Bounds the outbound amplification an attacker gets from replaying a
+# captured delivery. The poller covers anything the cooldown drops.
+HINT_COOLDOWN_SECONDS = 5.0
+_recent_hints: dict[str, float] = {}
+_RECENT_HINTS_MAX = 1024
 
 _webhooks = CalleWebhooks()
 logger = logging.getLogger(__name__)
@@ -74,7 +82,9 @@ async def calle_webhook(request: Request, background: BackgroundTasks) -> dict[s
     both modes, at the database layer.
     """
     secret = os.environ.get("CALLE_WEBHOOK_SECRET", "")
-    raw = await request.body()
+    raw = await _read_body_capped(request)
+    if raw is None:
+        raise HTTPException(status_code=413, detail="body too large")
 
     if secret:
         try:
@@ -89,15 +99,13 @@ async def calle_webhook(request: Request, background: BackgroundTasks) -> dict[s
     # absence marks traffic that is not a delivery at all.
     if _header(request.headers, "CALL-E-Event-Id") is None:
         raise HTTPException(status_code=400, detail="missing CALL-E-Event-Id")
-    if len(raw) > MAX_HINT_BODY_BYTES:
-        raise HTTPException(status_code=400, detail="body too large")
     try:
         payload = json.loads(raw)
     except (ValueError, UnicodeDecodeError):
         raise HTTPException(status_code=400, detail="body is not JSON") from None
 
     call_id = _call_id_from_hint(payload)
-    if call_id is not None:
+    if call_id is not None and _hint_allowed(call_id):
         background.add_task(_follow_hint, app_db.db_path(), call_id)
     return {"received": True}
 
@@ -155,6 +163,52 @@ def _call_id_from_hint(payload: object) -> str | None:
     return None
 
 
+async def _read_body_capped(request: Request) -> bytes | None:
+    """Read the body without ever buffering more than the cap.
+
+    A declared Content-Length over the cap is rejected before reading a byte;
+    a chunked or lying request is cut off mid-stream the moment it crosses
+    the cap. Returns None on oversize, which the route turns into a 413.
+    """
+    declared = _header(request.headers, "Content-Length")
+    if declared is not None:
+        try:
+            if int(declared) > MAX_BODY_BYTES:
+                return None
+        except ValueError:
+            return None
+    received = bytearray()
+    async for chunk in request.stream():
+        received.extend(chunk)
+        if len(received) > MAX_BODY_BYTES:
+            return None
+    return bytes(received)
+
+
+def _hint_allowed(call_id: str) -> bool:
+    """At most one scheduled re-fetch per call id per cooldown window.
+
+    The handler runs on one event loop with no await between check and
+    record, so this is race-free without a lock. The map is pruned when it
+    grows past its bound, so a sweep of fabricated ids cannot balloon it.
+    A dropped hint costs nothing: the poller reaches the same terminal state
+    on its own schedule.
+    """
+    now = time.monotonic()
+    last = _recent_hints.get(call_id)
+    if last is not None and now - last < HINT_COOLDOWN_SECONDS:
+        return False
+    if len(_recent_hints) >= _RECENT_HINTS_MAX:
+        cutoff = now - HINT_COOLDOWN_SECONDS
+        stale = [key for key, seen in _recent_hints.items() if seen < cutoff]
+        for key in stale:
+            del _recent_hints[key]
+        if len(_recent_hints) >= _RECENT_HINTS_MAX:
+            _recent_hints.clear()
+    _recent_hints[call_id] = now
+    return True
+
+
 async def _fetch_authoritative(call_id: str) -> dict[str, Any]:
     """One authenticated GET /v1/calls/{call_id}. Module-level so tests can
     replace it without a network."""
@@ -172,12 +226,8 @@ async def _follow_hint(database: Path, calle_call_id: str) -> None:
     snapshot with our API key and apply that. The hint body itself is never
     written, so a forged delivery cannot plant a result.
     """
-    conn = app_db.connect(database)
-    try:
-        row = app_db.get_run_by_calle_call_id(conn, calle_call_id)
-    finally:
-        conn.close()
-    if row is None or str(row["state"]) in fsm.TERMINAL_STATES:
+    state = await asyncio.to_thread(_run_state_for_call, database, calle_call_id)
+    if state is None or state in fsm.TERMINAL_STATES:
         return
     try:
         snapshot = await _fetch_authoritative(calle_call_id)
@@ -185,7 +235,17 @@ async def _follow_hint(database: Path, calle_call_id: str) -> None:
         # The poller retries on its own schedule; a failed hint costs nothing.
         logger.warning("hint re-fetch failed for call %s", calle_call_id, exc_info=True)
         return
-    runs.apply_terminal_payload(database, snapshot)
+    await asyncio.to_thread(runs.apply_terminal_payload, database, snapshot)
+
+
+def _run_state_for_call(database: Path, calle_call_id: str) -> str | None:
+    """Synchronous SQLite lookup, kept off the event loop via to_thread."""
+    conn = app_db.connect(database)
+    try:
+        row = app_db.get_run_by_calle_call_id(conn, calle_call_id)
+        return None if row is None else str(row["state"])
+    finally:
+        conn.close()
 
 
 def _header(headers: Mapping[str, str], name: str) -> str | None:
