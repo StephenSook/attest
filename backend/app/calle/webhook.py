@@ -179,9 +179,11 @@ async def _read_body_capped(request: Request) -> bytes | None:
             return None
     received = bytearray()
     async for chunk in request.stream():
-        received.extend(chunk)
-        if len(received) > MAX_BODY_BYTES:
+        # Checked BEFORE extending: a single oversized chunk must not be
+        # buffered on its way to rejection.
+        if len(received) + len(chunk) > MAX_BODY_BYTES:
             return None
+        received.extend(chunk)
     return bytes(received)
 
 
@@ -204,7 +206,10 @@ def _hint_allowed(call_id: str) -> bool:
         for key in stale:
             del _recent_hints[key]
         if len(_recent_hints) >= _RECENT_HINTS_MAX:
-            _recent_hints.clear()
+            # Every tracked id is inside its cooldown. Clearing here would
+            # let a flood of fabricated ids reset a real id's cooldown, so
+            # the new hint is dropped instead. The poller covers it.
+            return False
     _recent_hints[call_id] = now
     return True
 
