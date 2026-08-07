@@ -872,12 +872,117 @@ def test_a_correction_to_the_listing_itself_confirms() -> None:
     assert skill.organization_confirmed(turns, org) is True
 
 
-def test_a_front_desk_greeting_question_still_confirms() -> None:
-    """The echo-question rule must not swallow the ordinary greeting.
+def _greeting(text: str) -> list[dict[str, str]]:
+    return [
+        {
+            "speaker": "bot",
+            "text": "Verifying directory information for Northside Family Medicine.",
+        },
+        {"speaker": "user", "text": text},
+    ]
 
-    "Northside, how can I help you?" ends in a question mark and is still how
-    a staffed front desk identifies itself: the question is the offer of help,
-    not the name."""
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Northside Family Medicine, right?",
+        "Northside Family Medicine, is that who I reached?",
+        "Northside Family Medicine, what do you want?",
+        "Northside Family Medicine?",
+        "This is Northside Family Medicine?",
+        "Northside Family Medicine, correct",
+        "Is this Northside Family Medicine",
+    ],
+)
+def test_a_question_that_names_the_listing_confirms_nothing(text: str) -> None:
+    """The exact blocker from the fifth review pass, and its neighbours.
+
+    A comma was doing the work of telling a greeting apart from a question, so
+    every one of these established identity: the tag question, the identity
+    question echoed back, and the brusque greeting-shaped question all carry a
+    comma. A question or an echo must never identify anybody, or a later answer
+    is attributed to a listing nobody confirmed. The last two rows drop the
+    question mark on purpose: punctuation is a transcription artifact, and a
+    rule that depends on it fails on the first ASR transcript without one.
+    """
+    org = "Northside Family Medicine"
+    turns = _greeting(text)
+    assert skill.organization_denied(turns, org) is False
+    assert skill.organization_confirmed(turns, org) is False, (
+        f"a question established identity: {text!r}"
+    )
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Thanks for calling Northside Family Medicine, how can I help you?",
+        "Thank you for calling Northside Family Medicine, this is Dana.",
+        "You've reached Northside Family Medicine, how can I help?",
+        "Yes, this is Northside Family Medicine, how can I help you?",
+        "Northside Family Medicine, this is the front desk.",
+        "Northside Family Medicine. How can I help you?",
+    ],
+)
+def test_an_actual_self_identification_still_confirms(text: str) -> None:
+    """The gate must stay passable, or the skill is decorative in the other
+    direction. These are the two forms the reviewer asked for: an unambiguous
+    self-identifying greeting, which cannot itself be a question, and an actual
+    affirmative that states the name. A bare "Northside, how can I help you?"
+    is deliberately NOT on this list: it is the same shape as "Northside, what
+    do you want?", so it now abstains rather than confirming."""
+    org = "Northside Family Medicine"
+    turns = _greeting(text)
+    assert skill.organization_denied(turns, org) is False
+    assert skill.organization_confirmed(turns, org) is True, (
+        f"a real self-identification was rejected: {text!r}"
+    )
+
+
+def test_a_question_can_never_swallow_a_denial() -> None:
+    """Found by a second-model pass over my own fix for the blocker above.
+
+    Gating the whole name check on "is this clause a question" cost a denial
+    that the previous version caught: "We're not Northside Family Medicine,
+    right?" reported neither denial nor confirmation, and one greeting could
+    then outvote an explicit denial later in the same breath, which confirms a
+    listing the respondent just disclaimed. Negation is now decided before the
+    question test, because the fail-closed direction never needs a punctuation
+    argument."""
+    org = "Northside Family Medicine"
+    for text in (
+        "We're not Northside Family Medicine, right?",
+        "This isn't Northside Family Medicine, correct?",
+        "Thanks for calling Northside Family Medicine, we're not Northside Family Medicine, right?",
+    ):
+        turns = _greeting(text)
+        assert skill.organization_denied(turns, org) is True, f"denial lost: {text!r}"
+        assert skill.organization_confirmed(turns, org) is False, f"denial outvoted: {text!r}"
+
+
+def test_a_quoted_greeting_is_not_a_greeting() -> None:
+    """Also from the second-model pass. The self-identifying phrase has to be
+    what the respondent is SAYING, not something quoted or asked about inside
+    the turn, or the new rule repeats the comma's mistake one layer up: a
+    surface feature standing in for the speech act."""
+    org = "Northside Family Medicine"
+    for text in (
+        "Did you say 'Thanks for calling Northside Family Medicine'?",
+        "Yes, did you say 'this is Northside Family Medicine'?",
+        "Yeah, Northside Family Medicine?",
+    ):
+        turns = _greeting(text)
+        assert skill.organization_confirmed(turns, org) is False, f"quoted text confirmed: {text!r}"
+
+
+def test_a_bare_name_greeting_abstains_rather_than_confirming(tmp_path: Path) -> None:
+    """The cost of the rule above, stated out loud and pinned.
+
+    "Northside, how can I help you?" reads to a human as a front desk naming
+    itself, and it is indistinguishable by construction from "Northside, what
+    do you want?", which is a question. The call is not denied, it is
+    unconfirmed, so every claim abstains at the identity gate and nothing is
+    attributed to the listing."""
     org = "Northside Family Medicine"
     turns = [
         {
@@ -885,9 +990,40 @@ def test_a_front_desk_greeting_question_still_confirms() -> None:
             "text": "Verifying directory information for Northside Family Medicine.",
         },
         {"speaker": "user", "text": "Northside, how can I help you?"},
+        {"speaker": "bot", "text": "Are you currently accepting new patients?"},
+        {"speaker": "user", "text": "Yes, we are."},
     ]
     assert skill.organization_denied(turns, org) is False
-    assert skill.organization_confirmed(turns, org) is True
+    assert skill.organization_confirmed(turns, org) is False
+    for r in _extract(_write(tmp_path, turns), "--qhat", "0.75", "--org", org):
+        assert r["abstain"] is True
+        assert r["gate"] == "identity-unconfirmed"
+
+
+def test_an_affirmative_only_confirms_after_a_real_identity_question() -> None:
+    """The other half of the same rule, tightened in the same pass.
+
+    A bare "confirm" in the agent's turn used to arm the affirmative path, so
+    "Can you confirm you are accepting new patients?" followed by "Yes" was
+    read as identity confirmation. That is the decorative check from the second
+    review pass with extra steps: the question that arms it must actually ask
+    who answered, and must name this listing."""
+    org = "Northside Family Medicine"
+    not_identity = [
+        {"speaker": "bot", "text": "Can you confirm you are accepting new patients?"},
+        {"speaker": "user", "text": "Yes, we are."},
+    ]
+    assert skill.organization_confirmed(not_identity, org) is False
+    unnamed = [
+        {"speaker": "bot", "text": "Is this the right number?"},
+        {"speaker": "user", "text": "Yes."},
+    ]
+    assert skill.organization_confirmed(unnamed, org) is False
+    identity = [
+        {"speaker": "bot", "text": "Is this the office of Northside Family Medicine?"},
+        {"speaker": "user", "text": "Yes."},
+    ]
+    assert skill.organization_confirmed(identity, org) is True
 
 
 def test_every_operator_facing_command_carries_the_required_flags() -> None:
