@@ -975,6 +975,25 @@ def test_a_quoted_greeting_is_not_a_greeting() -> None:
         assert skill.organization_confirmed(turns, org) is False, f"quoted text confirmed: {text!r}"
 
 
+def test_an_answering_service_is_not_the_practice() -> None:
+    """A respondent who says what they are must be taken at their word.
+
+    "I'm the answering service for Northside Family Medicine" states the name
+    in a plain declarative sentence, so the name rule confirmed it. Answering
+    services are named in this gate's own docstring as one of the parties it
+    exists to exclude: they answer cooperatively, they are not the listing, and
+    a plan question answered by one is not directory evidence."""
+    org = "Northside Family Medicine"
+    for text in (
+        "I'm the answering service for Northside Family Medicine, they're closed today.",
+        "This is the answering service for Northside Family Medicine.",
+        "You've reached the after-hours answering service for Northside Family Medicine.",
+    ):
+        turns = _greeting(text)
+        assert skill.organization_denied(turns, org) is True, f"not denied: {text!r}"
+        assert skill.organization_confirmed(turns, org) is False, f"confirmed: {text!r}"
+
+
 def test_a_bare_name_greeting_abstains_rather_than_confirming(tmp_path: Path) -> None:
     """The cost of the rule above, stated out loud and pinned.
 
