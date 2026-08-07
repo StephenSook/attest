@@ -9,6 +9,8 @@ carries its verbatim span with exact character offsets.
 import re
 from dataclasses import dataclass
 
+from app.textnorm import normalize
+
 # strength: 1.0 = strong hedge (speaker flags real uncertainty),
 #           0.8 = belief-verb (belief, not knowledge), 0.4 = mild softener.
 _LEXICON: tuple[tuple[str, float], ...] = (
@@ -55,7 +57,7 @@ class HedgeAnalysis:
 
 
 def analyze(text: str) -> HedgeAnalysis:
-    lowered = text.lower()
+    lowered = normalize(text)
     cues: list[HedgeCue] = []
     for pattern, strength in _LEXICON:
         for match in re.finditer(pattern, lowered):
