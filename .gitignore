@@ -22,6 +22,11 @@ node_modules/
 .turbo/
 *.tsbuildinfo
 frontend/dist/
+# A bare `tsc` used to emit JavaScript beside every source file. Vite resolves
+# .js before .tsx, so a stale sibling silently shadows the source it was
+# compiled from, and an untracked file is one `git add -A` away from the repo.
+frontend/src/**/*.js
+frontend/src/**/*.js.map
 
 # Databases (local runtime state; seeded fixtures live elsewhere)
 data/
