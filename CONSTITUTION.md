@@ -53,7 +53,7 @@ list has been lifted. No second vertical. No CRM/EHR integrations. The cinematic
 | G0 | Jul 31 | KYC cleared, one real call placed, fixture committed, validator conversation booked |
 | G1 | Aug 10 | Full loop e2e vs mock; kill-and-restart resumes; one real webhook delivery verified |
 | G2 | Aug 21 | One artifact produces a real figure from held-out data; eval command clean |
-| G3 | **DONE Jul 28** | Skill pull request opened upstream: [PR #39](https://github.com/CALLE-AI/awesome-phone-call-agents/pull/39) (moved twice; see below) |
+| G3 | **DONE Jul 28, MERGED Aug 7** | Skill pull request opened upstream: [PR #39](https://github.com/CALLE-AI/awesome-phone-call-agents/pull/39) (moved twice; see below). Merged into CALLE-AI/awesome-phone-call-agents `main` on 2026-08-07 after five review rounds |
 | G4 | Sep 7 | Feature freeze; demo-consent decision locks |
 | G5 | Sep 12 | Everything submitted, two days early |
 
