@@ -61,9 +61,13 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v7
+      # No version pin here on purpose: frontend/package.json's
+      # packageManager field is the single source of truth, so a local
+      # corepack and this runner cannot drift onto different majors.
+      # That drift is what made `pnpm typecheck` fail locally while CI
+      # stayed green: pnpm 11 gates dependency build scripts, pnpm 10
+      # does not.
       - uses: pnpm/action-setup@v6
-        with:
-          version: 10
       - uses: actions/setup-node@v7
         with:
           node-version: 22
@@ -98,9 +102,13 @@ jobs:
           # CI-only: seed an honestly labeled synthetic tone so the waveform
           # player gets exercised end to end. Never set on any deployed path.
           ATTEST_SEED_TEST_TONE: '1'
+      # No version pin here on purpose: frontend/package.json's
+      # packageManager field is the single source of truth, so a local
+      # corepack and this runner cannot drift onto different majors.
+      # That drift is what made `pnpm typecheck` fail locally while CI
+      # stayed green: pnpm 11 gates dependency build scripts, pnpm 10
+      # does not.
       - uses: pnpm/action-setup@v6
-        with:
-          version: 10
       - uses: actions/setup-node@v7
         with:
           node-version: 22
