@@ -1,7 +1,8 @@
 name: upstream-review-watch
 
-# Watches the upstream skill PR (CALLE-AI/awesome-phone-call-agents#39) for
-# maintainer activity that has not been answered.
+# Watches the upstream skill PR (CALLE-AI/awesome-phone-call-agents#39), which
+# was MERGED on 2026-08-07, for maintainer activity that has not been answered,
+# and for any open upstream issue that names the skill.
 #
 # Why this exists: the machine crashed minutes before the maintainer's fourth
 # review landed, and the blocker sat unanswered for six days because nothing
@@ -37,11 +38,14 @@ jobs:
           set -euo pipefail
           state="$(gh pr view "$PR" --repo "$UPSTREAM" --json state --jq .state)"
           echo "PR $PR state: $state"
-          if [ "$state" = "MERGED" ]; then
-            echo "Merged. Nothing left to watch; disable this workflow."
-            exit 0
-          fi
-          if [ "$state" != "OPEN" ]; then
+          # Merged on 2026-08-07. The watch continues rather than retiring,
+          # because the thing it guards against did not end at the merge: the
+          # skill now lives in the maintainer's own repository, judging runs
+          # from September 30 to October 13, and a maintainer comment or an
+          # issue filed against the skill in that window has exactly the
+          # unanswered-for-six-days failure mode this was built after. Only
+          # the closed-without-merge branch is terminal.
+          if [ "$state" != "OPEN" ] && [ "$state" != "MERGED" ]; then
             echo "::error::PR $PR is $state without a merge. Investigate: https://github.com/$UPSTREAM/pull/$PR"
             exit 1
           fi
@@ -60,4 +64,17 @@ jobs:
             echo "::error::Unanswered activity by $actor on https://github.com/$UPSTREAM/pull/$PR. Reply, then this goes green."
             exit 1
           fi
-          echo "Last word is ours. Nothing unanswered."
+          echo "Last word is ours. Nothing unanswered on the pull request."
+          # Post-merge the skill lives in the maintainer's repository, so an
+          # issue filed against it is the new version of the same risk. Search
+          # rather than list, because it has to catch an issue that names the
+          # skill without touching our pull request.
+          issues="$(gh api -X GET search/issues \
+            -f q="repo:$UPSTREAM is:issue is:open verify-by-phone" \
+            --jq '.items[] | "\(.number)\t\(.title)\t\(.html_url)"')"
+          if [ -n "$issues" ]; then
+            echo "$issues"
+            echo "::error::Open upstream issue mentions the skill. Answer it, then this goes green."
+            exit 1
+          fi
+          echo "No open upstream issue names the skill."
