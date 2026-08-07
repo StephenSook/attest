@@ -74,6 +74,12 @@ CASES = [
     ("waitlist refusal", "We have a waitlist right now."),
     ("dead end", "You have the wrong number, this is a residence."),
     ("non-responsive", "It's been a busy morning here."),
+    # Real transcription emits typographic apostrophes, and every contraction
+    # in both cue lexicons is written with the ASCII quote, so these differ
+    # from the rows above by a single codepoint and used to extract the
+    # opposite answer. Both extractors now fold the character first.
+    ("refusal with a typographic apostrophe", "No, we aren\u2019t taking new patients."),
+    ("hedge with a typographic apostrophe", "I\u2019d say so, but I\u2019m not certain."),
 ]
 
 
@@ -992,6 +998,175 @@ def test_an_answering_service_is_not_the_practice() -> None:
         turns = _greeting(text)
         assert skill.organization_denied(turns, org) is True, f"not denied: {text!r}"
         assert skill.organization_confirmed(turns, org) is False, f"confirmed: {text!r}"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "northside family medicine is that who i reached",
+        "sorry did you say northside family medicine",
+        "northside family medicine what do you want",
+        "is this northside family medicine",
+    ],
+)
+def test_a_question_without_a_question_mark_confirms_nothing(text: str) -> None:
+    """The maintainer's own rejected sentences with the punctuation removed.
+
+    Found by an adversarial pass, and the sharpest possible version of the
+    lesson from the round before: the rule was punctuation-independent only for
+    the two shapes its first tests happened to cover. Transcription decides
+    whether a question mark exists, and the respondent does not.
+    """
+    org = "Northside Family Medicine"
+    assert skill.organization_confirmed(_greeting(text), org) is False
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Who? Northside Family Medicine. Never heard of them.",
+        "You said Northside Family Medicine but that's not us.",
+    ],
+)
+def test_a_repudiation_in_another_clause_still_denies(text: str) -> None:
+    """The negation window is scoped to one clause and cannot reach a
+    disclaimer in the next sentence, so a bare name clause confirmed while the
+    sentence after it disowned the listing."""
+    org = "Northside Family Medicine"
+    assert skill.organization_denied(_greeting(text), org) is True
+    assert skill.organization_confirmed(_greeting(text), org) is False
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Let me transfer you to Northside Family Medicine.",
+        "Northside Family Medicine is upstairs, this is the pharmacy.",
+        "You have reached Buckhead Clinic. For Northside Family Medicine, press two.",
+        "Northside Family Medicine is at 555-0102.",
+    ],
+)
+def test_the_name_as_a_destination_or_a_subject_confirms_nothing(text: str) -> None:
+    """Naming the listing is not being it. Offering to transfer a caller to it,
+    saying where it is, and listing it as a menu option all state the opposite,
+    and all three confirmed until an adversarial pass ran them."""
+    org = "Northside Family Medicine"
+    assert skill.organization_confirmed(_greeting(text), org) is False
+
+
+def test_a_correction_stops_at_the_comma() -> None:
+    """ "No, this is Buckhead Clinic, Northside Family Medicine is next door"
+    denies. Reading the corrected-to name past the comma swallowed the next
+    sentence, found the listing's name inside it, and inverted the verdict."""
+    org = "Northside Family Medicine"
+    turns = _greeting("No, this is Buckhead Clinic, Northside Family Medicine is next door.")
+    assert skill.organization_denied(turns, org) is True
+    assert skill.organization_confirmed(turns, org) is False
+
+
+def test_a_refusal_is_not_a_correction_of_identity() -> None:
+    """ "No, we are not accepting new patients" matched the correction shape
+    ("no ... we are ...") and denied the whole call on an ordinary NO answer.
+    A real correction of identity still denies."""
+    org = "Northside Family Medicine"
+    assert skill.organization_denied(_greeting("No, we are not accepting new patients."), org) is (
+        False
+    )
+    assert skill.organization_denied(
+        _greeting("No, we are not Northside Family Medicine."), org
+    ) is (True)
+
+
+def test_a_bare_no_to_the_identity_question_denies() -> None:
+    """The plainest denial there is, and it was missing entirely.
+
+    The agent's first question is "Is this the office of X?". A respondent who
+    answers "No." has said the one thing the identity gate exists to hear, and
+    the call merely continued as unconfirmed. A correction that opens with the
+    same word but names the listing must still confirm."""
+    org = "Northside Family Medicine"
+    denial = [
+        {"speaker": "bot", "text": "Is this the office of Northside Family Medicine?"},
+        {"speaker": "user", "text": "No."},
+    ]
+    assert skill.organization_denied(denial, org) is True
+    assert skill.organization_confirmed(denial, org) is False
+    correction = [
+        {"speaker": "bot", "text": "Is this the office of Northside Family Medicine?"},
+        {"speaker": "user", "text": "No, this is Northside Family Medicine."},
+    ]
+    assert skill.organization_denied(correction, org) is False
+    assert skill.organization_confirmed(correction, org) is True
+    claim_answer = [
+        {"speaker": "bot", "text": "Are you currently accepting new patients?"},
+        {"speaker": "user", "text": "No, we are full."},
+    ]
+    assert skill.organization_denied(claim_answer, org) is False
+
+
+def test_a_typographic_apostrophe_cannot_flip_a_verdict() -> None:
+    """One codepoint used to produce opposite verdicts.
+
+    Every contraction pattern in this file is written with the ASCII quote, so
+    "No, it's Northside" confirmed and "No, it\u2019s Northside" denied: the
+    correction matched on one and not the other, and the unmatched one fell
+    through to the negation window. The fold preserves length, so cited span
+    offsets are unaffected."""
+    org = "Northside Family Medicine"
+    for text in ("No, it's Northside Family Medicine.", "No, it\u2019s Northside Family Medicine."):
+        assert skill.organization_confirmed(_greeting(text), org) is True, repr(text)
+        assert skill.organization_denied(_greeting(text), org) is False, repr(text)
+    assert skill.normalize("We AREN\u2019T Taking") == "we aren't taking"
+    folded = skill.normalize("it\u2019s")
+    assert len(folded) == len("it\u2019s"), "the fold must preserve span offsets"
+
+
+def test_every_distinctive_word_of_the_name_must_appear() -> None:
+    """ "New Life Health Center" reduces to two distinctive words, and one of
+    them is "new". Matching on any single word meant "we are not accepting new
+    patients" both matched the name and negated it, so an ordinary refusal
+    denied the call, and "yes, we are accepting new patients" confirmed an
+    identity nobody had claimed."""
+    org = "New Life Health Center"
+    ask = {"speaker": "bot", "text": "Hello, is this the office of New Life Health Center?"}
+    claim = {"speaker": "bot", "text": "Are you currently accepting new patients?"}
+    unidentified = [
+        ask,
+        {"speaker": "user", "text": "Uh, hold on a second."},
+        claim,
+        {"speaker": "user", "text": "Yes, we are accepting new patients."},
+    ]
+    assert skill.organization_confirmed(unidentified, org) is False
+    identified = [
+        ask,
+        {"speaker": "user", "text": "Thanks for calling New Life Health Center, how can I help?"},
+        claim,
+        {"speaker": "user", "text": "No, we are not accepting new patients."},
+    ]
+    assert skill.organization_denied(identified, org) is False
+    assert skill.organization_confirmed(identified, org) is True
+
+
+def test_a_greeting_after_a_pleasantry_still_confirms() -> None:
+    """ "No worries at all, thanks for calling Northside Family Medicine" is a
+    greeting. The negation word inside the pleasantry denied it, which the cue
+    lexicon has guarded against since the first review and this copy had
+    not."""
+    org = "Northside Family Medicine"
+    turns = _greeting(
+        "No worries at all, thanks for calling Northside Family Medicine, how can I help?"
+    )
+    assert skill.organization_denied(turns, org) is False
+    assert skill.organization_confirmed(turns, org) is True
+
+
+def test_a_tag_question_is_never_rescued_by_a_greeting() -> None:
+    """ "You've reached Northside Family Medicine, right?" is the rejected shape
+    with a greeting phrase bolted on the front. The greeting escape exists for
+    a real greeting, and a tag question is still the respondent asking."""
+    org = "Northside Family Medicine"
+    turns = _greeting("You've reached Northside Family Medicine, right?")
+    assert skill.organization_confirmed(turns, org) is False
 
 
 def test_a_bare_name_greeting_abstains_rather_than_confirming(tmp_path: Path) -> None:
