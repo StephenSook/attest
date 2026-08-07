@@ -8,8 +8,15 @@
 [![React](https://img.shields.io/badge/React-19-61dafb.svg?logo=react&logoColor=black)](./frontend)
 [![Expo](https://img.shields.io/badge/Expo-SDK_57-000020.svg?logo=expo&logoColor=white)](./mobile)
 [![CALL-E](https://img.shields.io/badge/CALL--E-outbound_voice-2456d6.svg)](https://github.com/CALLE-AI/call-e-integrations)
+[![Skill merged upstream](https://img.shields.io/badge/agent_skill-merged_upstream-8957e5.svg)](https://github.com/CALLE-AI/awesome-phone-call-agents/pull/39)
 
 **The phone agent that refuses to guess.**
+
+The Agent Skill in [`skills/verify-by-phone`](skills/verify-by-phone) was **merged into CALL-E's own
+repository** on 2026-08-07 ([PR #39](https://github.com/CALLE-AI/awesome-phone-call-agents/pull/39)),
+after five maintainer review rounds. Those rounds found real defects in the abstention mechanism and
+every one is fixed with a regression test that was run against the old code first. The review thread
+is public, so the claims on this page can be checked against somebody else's reading of the code.
 
 ## Live demo
 
