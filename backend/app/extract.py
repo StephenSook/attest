@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from app.hedge import MAX_DAMPEN
 from app.hedge import analyze as analyze_hedges
 from app.models import Answer
+from app.textnorm import normalize
 
 _YES_CUES = (
     r"\byes\b",
@@ -82,7 +83,7 @@ class ExtractionResult:
 
 
 def _find(cues: tuple[str, ...], text: str) -> bool:
-    lowered = text.lower()
+    lowered = normalize(text)
     return any(re.search(cue, lowered) for cue in cues)
 
 
@@ -94,7 +95,7 @@ def _last_span(cues: tuple[str, ...], text: str) -> tuple[int, int] | None:
     "Unfortunately no, we are full" lose the tie-break to the "we are" that
     appears later, and be served as a confident yes.
     """
-    lowered = text.lower()
+    lowered = normalize(text)
     best: tuple[int, int] | None = None
     for cue in cues:
         for match in re.finditer(cue, lowered):
@@ -146,7 +147,7 @@ def extract_yes_no(
         speaker = str(turn.get("speaker", ""))
         text = str(turn.get("text", ""))
         if speaker == "bot":
-            lowered_bot = text.lower()
+            lowered_bot = normalize(text)
             if re.search(question_pattern, lowered_bot):
                 # Re-asking this claim reopens rather than closes the window.
                 question_seen = True
