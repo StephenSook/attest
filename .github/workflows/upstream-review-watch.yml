@@ -69,8 +69,13 @@ jobs:
           # issue filed against it is the new version of the same risk. Search
           # rather than list, because it has to catch an issue that names the
           # skill without touching our pull request.
+          # The phrase is QUOTED. Unquoted, GitHub search splits it on the
+          # hyphens and matches any open issue containing "phone", which in a
+          # repository of phone agents is most of them: the first run of this
+          # check failed on an unrelated TTS credentials request. A monitor
+          # that cries wolf gets ignored, which is worse than not having one.
           issues="$(gh api -X GET search/issues \
-            -f q="repo:$UPSTREAM is:issue is:open verify-by-phone" \
+            -f q="repo:$UPSTREAM is:issue is:open \"verify-by-phone\" in:title,body" \
             --jq '.items[] | "\(.number)\t\(.title)\t\(.html_url)"')"
           if [ -n "$issues" ]; then
             echo "$issues"
