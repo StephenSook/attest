@@ -9,7 +9,7 @@ const navClass = ({ isActive }: { isActive: boolean }) =>
 
 export default function App() {
   return (
-    <div className="min-h-screen overflow-x-hidden">
+    <div className="min-h-screen">
       <header className="border-b border-rule bg-paper/90 backdrop-blur sticky top-0 z-20">
         <div className="mx-auto flex max-w-5xl flex-col gap-3 px-6 py-4 sm:flex-row sm:items-baseline sm:justify-between">
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
