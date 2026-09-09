@@ -83,13 +83,48 @@ test("mobile viewport: full traversal, no horizontal overflow, 720p film", async
 
 test("console header and certificate stay inside a phone viewport", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
-  for (const path of ["/runs", "/calibration", "/verify", "/runs/run_replay_builder_0001/certificate"]) {
+  const routes = [
+    { path: "/runs", ready: page.getByRole("heading", { name: "Verification runs" }) },
+    {
+      path: "/calibration",
+      ready: page.getByRole("heading", { name: "The guarantee, measured" }),
+    },
+    {
+      path: "/verify",
+      ready: page.getByRole("heading", { name: "Verify a certificate" }),
+    },
+    { path: "/runs/new", ready: page.getByLabel(/judge key/i) },
+    {
+      path: "/runs/run_replay_builder_0001/certificate",
+      ready: page.getByRole("button", { name: /download json/i }),
+    },
+  ];
+  for (const { path, ready } of routes) {
     await page.goto(path);
-    await expect(page.locator("main")).toBeVisible();
+    await expect(ready).toBeVisible();
+    // The certificate stamp enters with a spring. Measure the final layout,
+    // not an intentional transform between its first and settled frames.
+    await page.waitForTimeout(800);
     const width = await page.evaluate(() => ({
       client: document.documentElement.clientWidth,
       scroll: document.documentElement.scrollWidth,
+      offenders: Array.from(document.body.querySelectorAll<HTMLElement>("*"))
+        .map((element) => {
+          const rect = element.getBoundingClientRect();
+          return {
+            tag: element.tagName.toLowerCase(),
+            className: element.className.toString().slice(0, 120),
+            left: Math.round(rect.left),
+            right: Math.round(rect.right),
+          };
+        })
+        .filter(
+          ({ left, right }) =>
+            right - left > 1 && (left < -1 || right > window.innerWidth + 1),
+        )
+        .slice(0, 8),
     }));
+    expect(width.offenders, `${path} clips responsive content`).toEqual([]);
     expect(width.scroll, `${path} overflows by ${width.scroll - width.client}px`).toBeLessThanOrEqual(
       width.client + 1,
     );
