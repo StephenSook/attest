@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 import uuid
 from pathlib import Path
 
@@ -88,7 +89,14 @@ async def start_verification_run(
             record_json=json.dumps(record) if record else None,
         )
         try:
-            created = await service.place_call(task=task, phone=phone, idempotency_key=run_id)
+            public_base = os.environ.get("ATTEST_PUBLIC_BASE_URL", "").rstrip("/")
+            webhook_url = f"{public_base}/calle/webhook" if public_base else None
+            created = await service.place_call(
+                task=task,
+                phone=phone,
+                idempotency_key=run_id,
+                webhook_url=webhook_url,
+            )
         except (CalleTimeoutError, CalleConnectionError) as exc:
             # Ambiguous: CALL-E may have ACCEPTED the call even though our
             # request died, so a real phone may still ring. The run_id is the
