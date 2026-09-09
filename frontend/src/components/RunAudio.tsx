@@ -82,7 +82,7 @@ const RunAudio = forwardRef<
               console.warn("audio playback was refused", err);
             });
           }}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-rule bg-paper text-ink transition-colors hover:border-trust hover:text-trust focus-visible:outline-2 focus-visible:outline-trust"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-rule bg-paper text-ink transition-colors hover:border-trust hover:text-trust focus-visible:outline-2 focus-visible:outline-trust"
           aria-label={playing ? "Pause the call audio" : "Play the call audio"}
         >
           {playing ? (

@@ -1,7 +1,7 @@
 import { NavLink, Outlet } from "react-router-dom";
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
-  `px-3 py-1.5 text-sm rounded-md transition-colors ${
+  `flex min-h-11 items-center rounded-md px-3 py-1.5 text-sm transition-colors ${
     isActive
       ? "bg-ink text-paper"
       : "text-ink-soft hover:text-ink hover:bg-paper-deep"
@@ -9,10 +9,10 @@ const navClass = ({ isActive }: { isActive: boolean }) =>
 
 export default function App() {
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen overflow-x-hidden">
       <header className="border-b border-rule bg-paper/90 backdrop-blur sticky top-0 z-20">
-        <div className="mx-auto flex max-w-5xl items-baseline justify-between px-6 py-4">
-          <div className="flex items-baseline gap-3">
+        <div className="mx-auto flex max-w-5xl flex-col gap-3 px-6 py-4 sm:flex-row sm:items-baseline sm:justify-between">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <span className="font-display text-2xl font-bold tracking-tight">
               Attest
             </span>
@@ -20,7 +20,7 @@ export default function App() {
               the phone agent that refuses to guess
             </span>
           </div>
-          <nav aria-label="Console" className="flex gap-1">
+          <nav aria-label="Console" className="flex flex-wrap gap-1">
             <NavLink to="/runs" className={navClass}>
               Verification runs
             </NavLink>
@@ -38,8 +38,8 @@ export default function App() {
       </main>
       <footer className="mx-auto max-w-5xl px-6 pb-10">
         <p className="font-evidence text-[11px] text-ink-faint">
-          Public view serves labeled replays of real recorded runs. Live calls
-          are operator-gated. Phone numbers are always masked.{" "}
+          Public view serves labeled replays of real recorded runs. Public live
+          call creation is paused. Phone numbers are always masked.{" "}
           <a
             href="https://github.com/StephenSook/attest/releases/latest"
             target="_blank"

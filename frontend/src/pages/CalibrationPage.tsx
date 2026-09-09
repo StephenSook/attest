@@ -51,13 +51,14 @@ export default function CalibrationPage() {
     return <p className="font-evidence text-sm text-ink-faint">Loading the evidence...</p>;
 
   const head = metrics.headline;
+  const targetOptions = [...metrics.per_alpha].sort((a, b) => a.target - b.target);
   const reliability = metrics.per_alpha.map((row) => ({
     target: row.target,
     empirical: row.empirical_coverage,
   }));
-  const headlineIndex = metrics.per_alpha.findIndex((row) => row.alpha === head.alpha);
+  const headlineIndex = targetOptions.findIndex((row) => row.alpha === head.alpha);
   const selected =
-    metrics.per_alpha[alphaIndex ?? (headlineIndex >= 0 ? headlineIndex : 0)];
+    targetOptions[alphaIndex ?? (headlineIndex >= 0 ? headlineIndex : 0)];
 
   return (
     <section aria-labelledby="calibration-heading">
@@ -96,12 +97,13 @@ export default function CalibrationPage() {
         <input
           type="range"
           min={0}
-          max={metrics.per_alpha.length - 1}
+          max={targetOptions.length - 1}
           step={1}
           value={alphaIndex ?? headlineIndex}
           onChange={(event) => setAlphaIndex(Number(event.target.value))}
           className="explorer-slider mt-4 w-full"
           aria-label="Target coverage selector, snaps to evaluated targets"
+          aria-valuetext={`${Math.round(selected.target * 100)} percent target coverage, ${(selected.empirical_coverage * 100).toFixed(1)} percent measured coverage`}
         />
         <div className="mt-4 grid gap-4 sm:grid-cols-4">
           <Stat label="target coverage" value={`${Math.round(selected.target * 100)}%`} />

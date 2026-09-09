@@ -68,9 +68,9 @@ export default function RunsPage() {
         </div>
         <Link
           to="/runs/new"
-          className="rounded-md border border-rule px-4 py-2 font-evidence text-xs uppercase tracking-widest text-ink transition-colors hover:border-trust hover:text-trust focus-visible:outline-2 focus-visible:outline-trust"
+          className="flex min-h-11 items-center rounded-md border border-rule px-4 py-2 font-evidence text-xs uppercase tracking-widest text-ink transition-colors hover:border-trust hover:text-trust focus-visible:outline-2 focus-visible:outline-trust"
         >
-          + live verification
+          live call status
         </Link>
       </div>
       <ul className="ledger mt-8 border-t border-rule">

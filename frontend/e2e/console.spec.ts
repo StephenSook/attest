@@ -81,6 +81,21 @@ test("mobile viewport: full traversal, no horizontal overflow, 720p film", async
   expect(result.poster).toContain("hero-poster.jpg");
 });
 
+test("console header and certificate stay inside a phone viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  for (const path of ["/runs", "/calibration", "/verify", "/runs/run_replay_builder_0001/certificate"]) {
+    await page.goto(path);
+    await expect(page.locator("main")).toBeVisible();
+    const width = await page.evaluate(() => ({
+      client: document.documentElement.clientWidth,
+      scroll: document.documentElement.scrollWidth,
+    }));
+    expect(width.scroll, `${path} overflows by ${width.scroll - width.client}px`).toBeLessThanOrEqual(
+      width.client + 1,
+    );
+  }
+});
+
 test("runs ledger lists the seeded replay with its verdict badge", async ({ page }) => {
   await page.goto("/runs");
   const row = page.getByRole("link", { name: /Example Counseling Center/ });
@@ -155,15 +170,39 @@ test("risk-coverage explorer snaps to measured targets only", async ({ page }) =
   await page.goto("/calibration");
   const slider = page.getByLabel(/target coverage selector/i);
   await expect(slider).toBeVisible();
-  // Move to the strictest evaluated target (index 0 = smallest alpha).
-  await slider.fill("0");
-  const strictest = metrics.per_alpha[0];
+  const targets = [...metrics.per_alpha].sort((a, b) => a.target - b.target);
+  // Move to the strictest evaluated target. Slider values increase with the
+  // visible target, so ArrowRight has the direction users expect.
+  await slider.fill(String(targets.length - 1));
+  const strictest = targets.at(-1)!;
   await expect(
     page.getByText(`${Math.round(strictest.target * 100)}%`).first(),
   ).toBeVisible();
   await expect(
     page.getByText(`${(strictest.abstention_rate * 100).toFixed(1)}%`).first(),
   ).toBeVisible();
+  await expect(slider).toHaveAttribute(
+    "aria-valuetext",
+    new RegExp(`^${Math.round(strictest.target * 100)} percent target coverage`),
+  );
+});
+
+test("disabled live sandbox explains the safe replay path", async ({ page }) => {
+  await page.route("**/healthz", async (route) => {
+    await route.fulfill({
+      json: {
+        status: "ok",
+        service: "attest",
+        poller: "running",
+        provider: "live",
+        sandbox: "disabled",
+      },
+    });
+  });
+  await page.goto("/runs/new");
+  await expect(page.getByText(/live call sandbox paused/i)).toBeVisible();
+  await expect(page.getByLabel(/judge key/i)).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /recorded calls/i })).toBeVisible();
 });
 
 test("a real certificate verifies in the browser; a tampered one fails", async ({ page }) => {

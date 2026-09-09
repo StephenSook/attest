@@ -1,12 +1,13 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { startRun } from "../api";
+import { fetchHealth, startRun } from "../api";
 
 /* Operator-gated live call. Public visitors can read everything on this
    site; placing a real phone call requires the judge key that judges
    receive in the testing instructions. */
 export default function NewRunPage() {
   const navigate = useNavigate();
+  const [sandbox, setSandbox] = useState<"loading" | "enabled" | "disabled">("loading");
   const [judgeKey, setJudgeKey] = useState("");
   const [org, setOrg] = useState("");
   const [phone, setPhone] = useState("");
@@ -15,6 +16,12 @@ export default function NewRunPage() {
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchHealth()
+      .then((health) => setSandbox(health.sandbox))
+      .catch(() => setSandbox("disabled"));
+  }, []);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -42,7 +49,7 @@ export default function NewRunPage() {
   };
 
   const field =
-    "mt-1 w-full rounded-md border border-rule bg-white/70 px-3 py-2 " +
+    "mt-1 min-h-11 w-full rounded-md border border-rule bg-white/70 px-3 py-2 " +
     "font-evidence text-sm focus:outline-2 focus:outline-trust";
 
   return (
@@ -58,6 +65,31 @@ export default function NewRunPage() {
         announces itself as automated and may be recorded. Operator key
         required; judges receive it in the testing instructions.
       </p>
+      {sandbox !== "enabled" && (
+        <div className="mt-8 rounded-lg border border-doubt bg-white/70 p-5" role="status">
+          <h2 className="font-display text-xl font-semibold">
+            {sandbox === "loading" ? "Checking live call status" : "Live call sandbox paused"}
+          </h2>
+          <p className="mt-2 text-sm text-ink-soft">
+            {sandbox === "loading"
+              ? "Confirming whether this deployment can place a safe live call."
+              : "CALL-E identity verification and durable call-budget controls must be complete before this public dialing surface reopens. The recorded runs and zero-credential local stack remain available."}
+          </p>
+          {sandbox === "disabled" && (
+            <p className="mt-3 font-evidence text-xs">
+              <Link to="/runs" className="text-trust hover:text-ink">
+                Inspect the recorded calls
+              </Link>{" "}
+              or{" "}
+              <Link to="/calibration" className="text-trust hover:text-ink">
+                inspect the held-out evidence
+              </Link>
+              .
+            </p>
+          )}
+        </div>
+      )}
+      {sandbox === "enabled" && (
       <form onSubmit={submit} className="mt-8 space-y-5">
         <label className="block">
           <span className="font-evidence text-[11px] uppercase tracking-widest text-ink-faint">
@@ -128,7 +160,7 @@ export default function NewRunPage() {
             value={plan}
             onChange={(event) => setPlan(event.target.value)}
             placeholder="e.g. Aetna PPO"
-            className="mt-1 w-full rounded-md border border-rule bg-white/70 px-3 py-2 font-evidence text-sm focus:border-trust focus:outline-none"
+            className="mt-1 min-h-11 w-full rounded-md border border-rule bg-white/70 px-3 py-2 font-evidence text-sm focus:border-trust focus:outline-none"
           />
           <span className="mt-1 block font-evidence text-[10px] text-ink-faint">
             when set, the call also verifies plan acceptance; the record claims
@@ -153,11 +185,12 @@ export default function NewRunPage() {
         <button
           type="submit"
           disabled={busy}
-          className="rounded-md bg-ink px-6 py-3 font-evidence text-sm uppercase tracking-widest text-paper transition-colors hover:bg-trust focus-visible:outline-2 focus-visible:outline-trust disabled:opacity-50"
+          className="min-h-11 rounded-md bg-ink px-6 py-3 font-evidence text-sm uppercase tracking-widest text-paper transition-colors hover:bg-trust focus-visible:outline-2 focus-visible:outline-trust disabled:opacity-50"
         >
           {busy ? "placing the call..." : "place the call"}
         </button>
       </form>
+      )}
     </section>
   );
 }
