@@ -152,6 +152,47 @@ async def test_unpublished_runs_never_enter_public_endpoints(
     assert audio.status_code == 404
 
 
+@respx.mock
+async def test_private_run_capability_reveals_only_its_redacted_detail() -> None:
+    """A fresh call stays off the public API but remains usable by the
+    browser that created it. The raw capability must never be persisted."""
+    respx.post("http://mock.invalid/v1/calls").mock(
+        return_value=Response(201, json={"id": "call_private_1", "status": "queued"})
+    )
+    async with _client() as client:
+        created = await client.post("/internal/runs", json=BODY, headers=HEADERS_JUDGE)
+        run_id = created.json()["run_id"]
+        access_token = created.json()["access_token"]
+
+        public = await client.get(f"/api/runs/{run_id}")
+        missing = await client.get(f"/internal/runs/{run_id}")
+        wrong = await client.get(
+            f"/internal/runs/{run_id}", headers={"X-Attest-Run-Token": "wrong"}
+        )
+        granted = await client.get(
+            f"/internal/runs/{run_id}",
+            headers={"X-Attest-Run-Token": access_token},
+        )
+
+    assert public.status_code == 404
+    assert missing.status_code == 404
+    assert wrong.status_code == 404
+    assert granted.status_code == 200
+    assert granted.headers["cache-control"] == "private, no-store"
+    assert granted.json()["run_id"] == run_id
+    assert granted.json()["published"] is False
+
+    conn = db.connect(db.db_path())
+    try:
+        row = db.get_run(conn, run_id)
+        assert row is not None
+        record = json.loads(str(row["record_json"]))
+    finally:
+        conn.close()
+    assert access_token not in json.dumps(record)
+    assert len(record["access_token_sha256"]) == 64
+
+
 async def test_global_cap_closes_the_sandbox(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ATTEST_SANDBOX_CAP", "0")
     # Cap is read at import time by default; enforce via a fresh read.
