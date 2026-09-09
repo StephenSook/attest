@@ -40,15 +40,15 @@ export default function CertificatePage() {
   };
 
   return (
-    <article className="certificate mx-auto max-w-3xl">
-      <div className="cert-actions flex items-center justify-between print:hidden">
+    <article className="certificate mx-auto min-w-0 max-w-full sm:max-w-3xl">
+      <div className="cert-actions flex flex-wrap items-center justify-between gap-3 print:hidden">
         <Link
           to={`/runs/${doc.run_id}`}
           className="font-evidence text-xs text-ink-faint hover:text-ink"
         >
           &larr; back to the run
         </Link>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={download}
@@ -66,9 +66,9 @@ export default function CertificatePage() {
         </div>
       </div>
 
-      <div className="mt-6 rounded-lg border-2 border-ink bg-white/70 p-8">
-        <header className="flex items-start justify-between border-b border-rule pb-6">
-          <div>
+      <div className="mt-6 rounded-lg border-2 border-ink bg-white/70 p-5 sm:p-8">
+        <header className="flex flex-col gap-4 border-b border-rule pb-6 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
             <p className="font-evidence text-[11px] uppercase tracking-[0.25em] text-ink-faint">
               certificate of verification
             </p>
@@ -89,7 +89,7 @@ export default function CertificatePage() {
         <section className="mt-6" aria-label="Attested claims">
           {doc.claims.map((claim) => (
             <div key={claim.claim} className="border-b border-rule py-3">
-              <div className="flex items-baseline justify-between gap-4">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
                 <span className="font-evidence text-[11px] uppercase tracking-widest text-ink-faint">
                   {claim.claim.replaceAll("_", " ")}
                 </span>
@@ -97,7 +97,7 @@ export default function CertificatePage() {
                   {claim.abstain ? "abstained" : claim.answer}
                 </span>
               </div>
-              <p className="mt-1 font-evidence text-xs text-ink-soft">
+              <p className="mt-1 break-words font-evidence text-xs text-ink-soft">
                 {claim.span
                   ? `supporting span: "${claim.span.text}" (turn ${claim.span.turn}, chars ${claim.span.char_start}-${claim.span.char_end})`
                   : "no supporting span: the system did not answer"}
