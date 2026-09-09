@@ -12,6 +12,9 @@ services:
       ATTEST_DB_PATH: "/app/data/attest.db"
       # Judge sandbox credential: self-dial only, consent-checked, capped.
       ATTEST_JUDGE_KEY: "demo-mode-key"
+      # Safe only because this stack dials the local mock. Production defaults
+      # closed until it has durable reservations and outbound KYC.
+      ATTEST_SANDBOX_ENABLED: "1"
       # Operator credential: unrestricted, for the builder's own runs.
       ATTEST_OPERATOR_KEY: "demo-operator-key"
       # Demo signing key so the zero-credential judge path serves SIGNED

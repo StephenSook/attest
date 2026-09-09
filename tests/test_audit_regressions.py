@@ -79,6 +79,16 @@ async def test_healthz_reports_poller_liveness() -> None:
     assert body["status"] in {"ok", "degraded"}
 
 
+async def test_healthz_reports_sandbox_availability(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("ATTEST_SANDBOX_ENABLED", raising=False)
+    async with _client() as client:
+        assert (await client.get("/healthz")).json()["sandbox"] == "disabled"
+
+    monkeypatch.setenv("ATTEST_SANDBOX_ENABLED", "1")
+    async with _client() as client:
+        assert (await client.get("/healthz")).json()["sandbox"] == "enabled"
+
+
 def test_mock_mode_is_detectable() -> None:
     """A mock-served run must be distinguishable from a real one."""
     assert callable(calle_client.is_mock_mode)
