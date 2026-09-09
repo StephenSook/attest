@@ -27,7 +27,7 @@ def _client() -> httpx.AsyncClient:
 
 def _seed(database: Path, state: str = "completed") -> None:
     conn = db.connect(database)
-    record = {"org": "Example Counseling Center", "replay": True}
+    record = {"org": "Example Counseling Center", "replay": True, "published": True}
     db.create_run(conn, run_id="run_att", idempotency_key="run_att", record_json=json.dumps(record))
     db.set_calle_call_id(conn, "run_att", str(FIXTURE["id"]))
     fsm.advance(conn, "run_att", "submitted")

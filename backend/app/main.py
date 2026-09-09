@@ -66,9 +66,10 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="Attest", version="0.1.0", lifespan=lifespan)
 app.include_router(webhook_router)
 
-# Public read-only API for the console; writes stay key-gated. No secrets or
-# unmasked phone numbers ever leave the server, so a permissive read origin
-# policy is acceptable here.
+# Public read-only API for the console; writes stay key-gated. Only records
+# carrying the server-owned publication flag can leave the server, and phone
+# numbers are masked before they do, so a permissive read origin policy is
+# acceptable here.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -92,12 +93,12 @@ def _record_for(row: sqlite3.Row) -> dict[str, object]:
 
 
 def _require_public_run(row: sqlite3.Row) -> None:
-    """Judge-triggered calls are private even if the sandbox is enabled.
+    """Default every run private unless the server published it explicitly.
 
-    The public replays have explicit publication consent. A judge's consent
-    to receive a call is not consent to publish its transcript.
+    The seeded replays carry recorded publication consent. Permission to place
+    or receive a call never doubles as permission to publish its transcript.
     """
-    if _record_for(row).get("judge_sandbox") is True and not calle_client.is_mock_mode():
+    if _record_for(row).get("published") is not True:
         raise HTTPException(status_code=404, detail="run not found")
 
 
@@ -137,7 +138,7 @@ async def api_runs() -> dict[str, list[dict[str, object]]]:
     out: list[dict[str, object]] = []
     for row in rows:
         record = _record_for(row)
-        if record.get("judge_sandbox") is True:
+        if record.get("published") is not True:
             continue
         item: dict[str, object] = {
             "run_id": row["run_id"],
