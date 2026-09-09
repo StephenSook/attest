@@ -28,6 +28,7 @@ from eval.figures import (
     risk_coverage,
 )
 from eval.personas import Scenario, generate
+from eval.study import analyze as analyze_real_channel
 
 SEED = 20260725
 DEFAULT_N = 600
@@ -160,6 +161,11 @@ def main() -> None:
     }
     (out_dir / "metrics.json").write_text(json.dumps(metrics, indent=2))
 
+    real_channel = analyze_real_channel(
+        metrics_path=out_dir / "metrics.json",
+        out_path=out_dir / "real_channel.json",
+    )
+
     print(f"seed={SEED} n={n} (cal {len(calibration)} / test {len(test)}, disjoint)")
     print(
         f"alpha={HEADLINE_ALPHA}: target {1 - HEADLINE_ALPHA:.0%}, "
@@ -182,6 +188,12 @@ def main() -> None:
         + ", ".join(f"{r['n_cal']:.0f}->{r['coverage']:.1%}" for r in sensitivity_rows)
     )
     print(f"reconciliation example: {recon.verdict} at {recon.posterior_probability:.0%}")
+    print(
+        "real-channel transfer: "
+        f"n={real_channel['n_collected']}, "
+        f"coverage={real_channel['empirical_coverage']:.1%}, "
+        f"abstention={real_channel['abstention_rate']:.1%}"
+    )
     print(f"figures + metrics written to {out_dir}/")
 
 
