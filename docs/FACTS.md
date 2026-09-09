@@ -5,7 +5,7 @@ Devpost submission, and the demo video narration all cite THIS file, and this
 file cites the shipped code. Every entry lists where it was verified. If an
 artifact needs a number that is not here, add it here first, with its audit.
 
-Last audited: 2026-07-27, full pass against shipped code and live surfaces.
+Last audited: 2026-09-09, full pass against shipped code and live surfaces.
 
 Audit method, because "audited" has to mean something: every number below was re-read from its
 generating artifact (`eval/results/metrics.json`, `eval/results/real_channel.json`,
@@ -20,17 +20,17 @@ README was corrected then and this sheet was not.
 | Claim | Verified against |
 | --- | --- |
 | CALL-E is imported and called at runtime via the official Python SDK | `backend/app/calle/client.py:13` (`from calle import CalleClient`); real calls placed through this seam on 2026-07-25 |
-| Every extracted answer carries a verbatim span with character offsets, or abstains | `backend/app/extract.py` (`ExtractionResult.span_char_start/end`); enforced in `tests/test_artifact_two.py` |
+| Every returned yes/no answer carries a verbatim span with character offsets; abstentions may have no span | `backend/app/extract.py` (`ExtractionResult.span_char_start/end`); enforced in `tests/test_artifact_two.py` |
 | Hedge detection uses a graded lexicon that dampens trust proportionally | `backend/app/hedge.py` |
 | Reconciliation is direct Fellegi-Sunter with fixed documented priors | `backend/app/reconcile.py` (`_FIELD_PARAMS`, `PRIOR_LOG_ODDS`) |
-| The conformal core is implemented directly, finite-sample corrected | `eval/conformal.py` (`conformal_quantile`) |
+| The conformal core is implemented directly and finite-sample corrected; its marginal coverage guarantee assumes exchangeability with the seeded scenario distribution | `eval/conformal.py` (`conformal_quantile`); `eval/personas.py` defines the seeded distribution |
 | Do NOT claim: MAPIE, Splink, shadcn/ui, numpy | struck 2026-07-25; never imported anywhere (`grep -ri mapie\|splink` returns nothing in code) |
 
 ## Problem statistics (sourced; quote only these)
 
 - A CMS review of Medicare Advantage online provider directories found inaccuracies in 45 to 52 percent of listings across three audit rounds (CMS Online Provider Directory Review Industry Report, final round 2018: 48.74 percent of locations had at least one inaccuracy).
 - A 2023 secret-shopper study of Medicaid managed-care mental-health directories ("ghost networks", Senate Finance Committee majority staff report, May 2023) reached a bookable appointment in 18 percent of attempted calls.
-- Zhu, Zhang, and Polsky (Health Affairs Scholar, 2024) re-called physician listings and found 44.8 percent of entries still contained at least one error, and only 11.6 percent of listings were accurate on all audited dimensions.
+- Simon F. Haeder and Jane M. Zhu (Health Affairs Scholar, 2024, DOI 10.1093/haschl/qxae079) re-contacted physician listings and found 44.8 percent still contained at least one error, while 11.6 percent were accurate on all audited dimensions.
 - Framing rule: these are directory-accuracy statistics, not claims about any specific insurer or practice. Cite the study, never a named organization.
 
 ## Evaluation numbers (canonical: `eval/results/metrics.json`, seed 20260725)
@@ -52,7 +52,7 @@ ablation abstains LESS than the shipped system, which is the point. Removing a g
 the system more cautious, it makes it answer more often and be wrong more often. Canonical table:
 `eval/results/ablation.md`.
 
-Regeneration: `uv run python -m eval` reproduces every number and figure above on a clean checkout. Do not quote any eval number from memory; re-read `metrics.json`.
+Regeneration: `uv run python -m eval` reproduces the seeded metrics and figures plus `real_channel.json` on a clean checkout. Do not quote any eval number from memory; re-read the generated artifacts.
 
 ## Real-channel transfer study (final, audited 2026-07-27)
 
@@ -60,7 +60,7 @@ Regeneration: `uv run python -m eval` reproduces every number and figure above o
 - At the HARNESS-calibrated threshold (qhat 0.75, never fit on this data): empirical coverage 100.0% (28 of 28; 95 percent Wilson lower bound 87.9%), abstention 42.9%, accuracy when answering 100.0%.
 - Reading, stated precisely: on the 28 attributable calls, coverage was 28 of 28 and every answered call was correct. Measured against the SAME gate, the real channel abstained LESS than the seeded harness, 42.9 percent against 57.7 percent, and still produced no wrong answers. This is a transfer test of extraction plus calibration across the real channel (does the system faithfully report or abstain on what was actually said), not a claim about underlying directory facts.
 - Selection-bias floor: the 8 excluded calls are non-random (ambiguous hedged deliveries). Counting every excluded call as a coverage miss gives a worst-case floor of 77.8 percent; 6 of the 8 abstained, and counting the 2 that answered as errors gives a worst-case accuracy-when-answering of 88.9 percent. Both bounds ship in the report.
-- Provenance on every surface: real phone channel, builder-answered scripted ground truth, consented builder line, never presented as calls to real practices. Reproduce: uv run python -m eval.study analyze on the committed scrubbed payloads.
+- Provenance on every surface: real phone channel, builder-answered scripted ground truth, consented builder line, never presented as calls to real practices. Reproduce with `uv run python -m eval`, or run only this analysis with `uv run python -m eval.study analyze`.
 
 ## Class-conditional (Mondrian) findings (audited 2026-07-26)
 
@@ -68,7 +68,7 @@ Regeneration: `uv run python -m eval` reproduces every number and figure above o
 - Calibration-size sensitivity: coverage stays between 90.3 and 93.0 percent as the calibration fold shrinks from 300 to 50, so the guarantee is not an artifact of a large calibration set. Figure: eval/results/calibration_sensitivity.svg.
 - Both hand-rolled in eval/conformal.py, seeded, regenerated by the one eval command. Headline metrics unchanged.
 
-## Real-call facts (as of 2026-07-25)
+## Real-call facts (audited 2026-09-09)
 
 - Two probe calls and one webhook-delivery test call placed through the seam, all to the builder's own phone with consent. First probe: no spoken response; the system reported `task_completed: false` rather than inventing an answer. Second probe: answered; `task_completed: true`, platform confidence 0.92.
 - The scrubbed second-probe payload is the mock fixture (`mock_calle/fixtures/terminal_result.json`): phone and identifiers replaced with reserved fictional values, conversation verbatim.
@@ -94,23 +94,20 @@ our own receiver, including for failed calls. The same canary also established t
 dialing still works after the platform's v0.6.0 changes with no KYC gate enforced on this account,
 and that terminal payloads now carry a top-level `structured_result` key.
 
-**That last one is time-bounded and is expected to change.** On 2026-07-27 the platform's PM
-stated in the CALL-E Discord that outbound calling does require KYC verification, that individual
-developers can generally clear it with a government-issued ID, and that the outbound KYC flow was
-"still being finalized" and expected roughly two weeks out. So the correct claim is that no gate
-was enforced during our build window, not that the platform has no KYC. Re-check before quoting
-this anywhere.
+**The account state changed after the build window.** On 2026-09-09 the CALL-E dashboard showed
+identity verification in progress. The purchased US number supports inbound calls only until
+Persona identity verification is completed, while the shared outbound pool remains the current
+development and testing path. Identity verification requires the account holder's government ID
+and biometric consent, so it cannot be completed by an automated project agent.
 
-**Operational risk that follows from it:** the judge sandbox dials a judge's own number, and
-judging runs Sep 30 to Oct 13, well after that flow is expected to land. If outbound KYC is
-enforced before then and this account has not cleared it, every judge who tries the sandbox gets a
-failure. Clearing KYC as soon as the flow exists is therefore a submission dependency, not an
-administrative chore. The sandbox kill switch (`ATTEST_SANDBOX_ENABLED=0`) is the fallback so
-judges meet an honest "temporarily unavailable" rather than a broken dial.
+**Operational response:** the public judge sandbox now defaults closed and production keeps
+`ATTEST_SANDBOX_ENABLED=0`. The live run page reports that state before collecting a number. The
+retained real-call evidence, replay, certificate verifier, mobile builds, and zero-credential
+Docker path remain judge-accessible without asking a judge to dial or complete account KYC.
 
 ## Judge sandbox facts (audited 2026-07-27)
 
-- The judge key lets a judge have Attest call THEIR OWN number to experience the product live. Rails, all fail-closed and test-pinned: explicit StrictBool consent (422 without it); one call per phone number ever (SHA-256 hash, no number stored in the record); global cap of 15 (429); US +1 only with premium 900/976 and toll-950 prefixes rejected; kill switch ATTEST_SANDBOX_ENABLED=0 (503). Dedup and cap are enforced in ONE serialized SQLite transaction (sandbox_reservations table, PRIMARY KEY on the hash, count-in-transaction cap), so concurrent requests cannot bypass either rail even across workers.
+- If an operator explicitly enables it, the judge key lets a judge request a call to a number for which they attest consent. The system does not prove ownership. Rails, all fail-closed and test-pinned: explicit StrictBool consent (422 without it); one call per phone number ever (SHA-256 hash, no number stored in the record); global cap of 15 (429); US +1 only with premium 900/976 and toll-950 prefixes rejected; kill switch ATTEST_SANDBOX_ENABLED=0 (503). Dedup and cap are enforced in one serialized SQLite transaction (sandbox_reservations table, PRIMARY KEY on the hash, count-in-transaction cap), so concurrent requests cannot bypass either rail across workers.
 - A second-model adversarial pass (Codex) found both rails were originally raceable (checked before the submission lock) and that consent is not proof of ownership; the races are fixed atomically. Accepted residual, stated plainly: a holder of the secret judge key could cause at most 15 disclosed, capped, one-per-number calls to numbers they do not own. The judge key is the access control and appears only in the judges-only Devpost testing instructions. Full ownership proof (OTP) needs an SMS provider we do not run.
 - The operator key path is unrestricted and never railed; the two keys are distinct env vars.
 
@@ -131,7 +128,7 @@ judges meet an honest "temporarily unavailable" rather than a broken dial.
 
 ## Audio evidence facts (audited 2026-07-26)
 
-- The live CALL-E API exposes NO recording URL: verified field-by-field on the real terminal payload and by grepping the entire installed SDK (zero audio surface). Logged as feedback to the platform.
+- The CALL-E Calls API and Python SDK expose no recording URL: verified field-by-field on the real terminal payload and by grepping the installed SDK. The dashboard may expose recordings through its own authenticated interface. Logged as feedback to the platform.
 - Run audio therefore only exists when captured on our own end of a consented call and placed in ATTEST_AUDIO_DIR. The console's waveform player renders only when audio exists, always with a provenance label, and clicking an evidence span seeks playback to that turn.
 - CI exercises the player with a synthetic alignment tone labeled "synthetic alignment tone, CI harness only" (ATTEST_SEED_TEST_TONE=1, set nowhere in production).
 - Real audio shipped 2026-07-26: a consented builder-line call recorded on the receiving end by the builder, trimmed and loudness-normalized (25.6s, -17 LUFS integrated, mono AAC), scrubbed payload seeded as run_replay_builder_0001 with the label "audio captured on the receiving end of this consented call, builder line". Its verdict is honestly unverifiable at posterior 0.72: one agreeing field is +1.36 bits from an even prior, below the 0.85 verified bar. The extraction span is "Yes. We're we're accepting new patients." with real crosstalk earlier in the call.
@@ -158,7 +155,7 @@ judges meet an honest "temporarily unavailable" rather than a broken dial.
   review wave took the backend suite from 221 to 243 while the Devpost writeup still said 221.
 - The upstream skill `skills/verify-by-phone` passes `validate_repository.py` from CALLE-AI/awesome-phone-call-agents staged against a clean clone. **Upstream PR [#39](https://github.com/CALLE-AI/awesome-phone-call-agents/pull/39) was MERGED on 2026-08-07** (merge commit `87ca859`, 9 commits, 15 files), after five maintainer review rounds; `skills/verify-by-phone` is on that repository's `main` and can be read there rather than taken on our word. The submission requirement is only to open a pull request and provide the URL, so this is that requirement met in its strongest form, not a change of state that affects eligibility. Re-validated on every change to the skill, most recently 2026-08-07, because the validator itself changes upstream (it gained a CRLF fix after our first pass).
 - A maintainer review of PR #39 on 2026-07-29 found seven blockers, all real, all fixed: the abstention gate could answer when the calibrated set was `{unknown}`; a later answer was credited to an earlier question, span-grounded to the wrong sentence; reconciliation never passed `--qhat` and so could only print UNVERIFIABLE; the idempotency key was random and printed only after success; nothing established that the respondent represented the listing; the quick start died on Python 3.9 at import; and the saved payload was world-readable. No reported number moved: `metrics.json` and `real_channel.json` regenerate byte-identical after all seven. Both worked examples in the skill are now diffed against real command output in CI, because one of the seven was a documented figure that contradicted the program.
-- Four further review rounds followed the first seven, ending in the merge. Round 2 (5 blockers, 2026-07-29): identity was fail-open, absence of a denial is not confirmation; both claim questions in one bot turn put a single "Yes." on both claims; a transcript-less call exited non-zero instead of abstaining; a claimless run dialed anyway; and the Python floor was misstated. Round 3 (2): a negated organization name confirmed instead of denying. Round 4 (1): the negation check was position-dependent, so "Example Family Medicine? No, this is Buckhead Clinic" attributed the call to the wrong practice. Round 5 (1, 2026-08-06): a COMMA was telling a front-desk greeting apart from a question, so "Example Family Medicine, right?" confirmed the listing. Identity is now bound to the speech act: only an unambiguous self-identification, or an affirmative answering an identity question the agent actually asked, establishes it. **Every round's finding is fixed with a regression test verified failing against the previous code first, and no reported number moved in any of them.**
+- Four further review rounds followed the first seven, ending in the merge. Round 2 (5 blockers, 2026-07-29): identity was fail-open, absence of a denial is not confirmation; both claim questions in one bot turn put a single "Yes." on both claims; a transcript-less call exited non-zero instead of abstaining; a claimless run dialed anyway; and the Python floor was misstated. Round 3 (2): a negated organization name confirmed instead of denying. Round 4 (1): the negation check was position-dependent, so "Example Family Medicine? No, this is Buckhead Clinic" attributed the call to the wrong practice. Round 5 (1, 2026-08-06): a comma was telling a front-desk greeting apart from a question, so "Example Family Medicine, right?" confirmed the listing. Identity is now bound to the speech act: only an unambiguous self-identification, or an affirmative answering an identity question the agent actually asked, establishes it. Every round's finding is fixed and covered by a committed regression test, and no reported number moved in any round.
 - Before shipping the round-5 fix we attacked it ourselves: a second-model pass found 3 defects in it (one an inversion, where a greeting outvoted an explicit denial in the same turn), and a five-lens adversarial sweep of 35 agents found **17 more verified breaks** (13 further candidates were refuted and dropped). The sharpest: the maintainer's own rejected sentence with the question mark deleted still confirmed, because punctuation is a transcription artifact and the respondent does not control it. Also caught: the name used as a destination or a subject ("transfer you to X", "X is upstairs"), a repudiation one clause away from the name, one distinctive word standing in for a whole name ("New Life Health Center" reduces to {new, life}, so "not accepting new patients" both matched the name and negated it), a bare "No." to the agent's own identity question never denying, and two defects predating the round entirely, one of which flipped verdicts in BOTH extractors on a single typographic apostrophe.
 - Second-model adversarial review found 7 verified issues in the loop/security wave (all fixed and regression-pinned); the harness twice caught confident-wrong extraction ("there's NO doctor's office here" parsing as a no; a plan claim stealing an unrelated span).
 - Lighthouse, measured 2026-08-05 against the deployed landing (mobile emulation, lighthouse latest via npx): **performance 81, accessibility 100, best practices 100, SEO 100**; CLS 0, TBT 80ms, FCP 3.3s, LCP 3.8s under mobile throttling. The FCP cost is the cinematic landing's script weight and is a deliberate trade: per-route code splitting already ships, and the scroll engine is not being refactored for a Lighthouse point because a traversal regression on the judge-facing landing outweighs one (the scroll-scrub freeze was exactly that class of bug). Mobile-viewport traversal and horizontal-overflow assertions are pinned in frontend/e2e/console.spec.ts. Do not claim "performance 90+" anywhere; 81 is the measured number.
@@ -194,8 +191,8 @@ asks what a patient would ask, and records the answer with the exact words the p
 What matters is what it does when the call is unclear. Somebody hedges, or it is voicemail. Most
 systems hand you an answer anyway. This one refuses.
 
-We tuned how cautious it needs to be on three hundred calls where we knew the truth, then ran it
-on three hundred it had never seen. The true answer was in what it reported at least nine times
+We tuned how cautious it needs to be on three hundred scripted synthetic transcript scenarios
+where we knew the truth, then ran it on three hundred held-out scenarios it had never seen. The true answer was in what it reported at least nine times
 in ten. It stayed quiet a little over half the time. When it answered, it was right about
 ninety-seven times in a hundred.
 
@@ -209,7 +206,7 @@ That last number only counts because of the silence in front of it.
 | empirical coverage 90.3 percent | the true answer was in what it reported at least nine times out of ten |
 | abstention rate 57.7 percent | it stayed quiet a little over half the time |
 | accuracy when answering 96.9 percent | when it did answer, it was right about ninety-seven times in a hundred |
-| held-out test fold | three hundred different calls it had never seen |
+| held-out test fold | three hundred different scripted synthetic transcript scenarios it had never seen |
 | the model abstains | it refuses to answer |
 | verbatim span with character offsets | the exact words the person said, so you can check it |
 
