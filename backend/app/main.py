@@ -11,6 +11,7 @@ import hmac
 import json
 import logging
 import os
+import secrets
 import sqlite3
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -73,7 +74,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type", "X-Attest-Key"],
+    allow_headers=["Content-Type", "X-Attest-Key", "X-Attest-Run-Token"],
 )
 
 
@@ -231,26 +232,19 @@ async def api_run_audio(run_id: str) -> FileResponse:
     return FileResponse(audio, media_type=_AUDIO_TYPES[audio.suffix])
 
 
-@app.get("/api/runs/{run_id}")
-async def api_run_detail(run_id: str) -> dict[str, object]:
-    conn = db.connect(db.db_path())
-    try:
-        row = db.get_run(conn, run_id)
-    finally:
-        conn.close()
-    if row is None:
-        raise HTTPException(status_code=404, detail="run not found")
-    _require_public_run(row)
+def _detail_for_run(row: sqlite3.Row) -> dict[str, object]:
+    run_id = str(row["run_id"])
     payload = json.loads(str(row["terminal_payload"])) if row["terminal_payload"] else None
-    record = json.loads(str(row["record_json"])) if row["record_json"] else {}
+    record = _record_for(row)
     detail: dict[str, object] = {
-        "run_id": row["run_id"],
+        "run_id": run_id,
         "state": row["state"],
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
         "payload": analysis.redact_payload(payload) if payload else None,
         "has_audio": _audio_file(run_id) is not None,
         "provider": record.get("provider"),
+        "published": record.get("published") is True,
     }
     if record.get("audio_note"):
         detail["audio_note"] = str(record["audio_note"])[:160]
@@ -264,6 +258,46 @@ async def api_run_detail(run_id: str) -> dict[str, object]:
             "stage": str(payload.get("stage", "unknown"))[:60],
         }
     return detail
+
+
+@app.get("/api/runs/{run_id}")
+async def api_run_detail(run_id: str) -> dict[str, object]:
+    conn = db.connect(db.db_path())
+    try:
+        row = db.get_run(conn, run_id)
+    finally:
+        conn.close()
+    if row is None:
+        raise HTTPException(status_code=404, detail="run not found")
+    _require_public_run(row)
+    return _detail_for_run(row)
+
+
+@app.get("/internal/runs/{run_id}")
+async def internal_run_detail(
+    run_id: str,
+    response: Response,
+    x_attest_run_token: str | None = Header(default=None, alias="X-Attest-Run-Token"),
+) -> dict[str, object]:
+    """Return one private run to the browser that created it.
+
+    The opaque capability never enters the URL or database. Only its digest is
+    persisted, and every rejected lookup returns 404 so private run IDs are not
+    disclosed through response differences.
+    """
+    conn = db.connect(db.db_path())
+    try:
+        row = db.get_run(conn, run_id)
+    finally:
+        conn.close()
+    if row is None or not x_attest_run_token:
+        raise HTTPException(status_code=404, detail="run not found")
+    expected = str(_record_for(row).get("access_token_sha256", ""))
+    provided = hashlib.sha256(x_attest_run_token.encode()).hexdigest()
+    if not expected or not hmac.compare_digest(provided, expected):
+        raise HTTPException(status_code=404, detail="run not found")
+    response.headers["Cache-Control"] = "private, no-store"
+    return _detail_for_run(row)
 
 
 @app.get("/api/runs/{run_id}/attestation")
@@ -447,9 +481,11 @@ async def start_run(
     x_attest_key: str | None = Header(default=None, alias="X-Attest-Key"),
 ) -> dict[str, str]:
     role = _caller_role(x_attest_key)
+    access_token = secrets.token_urlsafe(32)
     record: dict[str, object] = {
         "org": body.org,
         "claims": body.claims,
+        "access_token_sha256": hashlib.sha256(access_token.encode()).hexdigest(),
         # Provenance, stamped at creation: a mock-served run must never be
         # mistakable for a real call anywhere downstream.
         "provider": "mock" if calle_client.is_mock_mode() else "live",
@@ -494,4 +530,4 @@ async def start_run(
     poller = getattr(app.state, "poller", None)
     if poller is not None:
         poller.wake()
-    return {"run_id": run_id}
+    return {"run_id": run_id, "access_token": access_token}

@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { fetchHealth, startRun } from "../api";
+import { fetchHealth, rememberRunAccess, startRun } from "../api";
 
 /* Operator-gated live call. Public visitors can read everything on this
    site; placing a real phone call requires the judge key that judges
@@ -28,7 +28,7 @@ export default function NewRunPage() {
     setBusy(true);
     setError(null);
     try {
-      const { run_id } = await startRun({
+      const { run_id, access_token } = await startRun({
         judgeKey,
         org,
         phone,
@@ -41,6 +41,7 @@ export default function NewRunPage() {
             : {}),
         },
       });
+      rememberRunAccess(run_id, access_token);
       navigate(`/runs/${run_id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");

@@ -60,6 +60,7 @@ export type RunDetail = {
   state: string;
   created_at: string;
   updated_at: string;
+  published: boolean;
   payload: {
     task_completed?: boolean;
     completion_confidence?: { score: number; label: string };
@@ -164,7 +165,24 @@ async function get<T>(path: string): Promise<T> {
 
 export const fetchRuns = () => get<{ runs: RunSummary[] }>("/api/runs");
 export const fetchHealth = () => get<Health>("/healthz");
-export const fetchRun = (runId: string) => get<RunDetail>(`/api/runs/${runId}`);
+
+const runTokenKey = (runId: string) => `attest:run-token:${runId}`;
+
+export function rememberRunAccess(runId: string, accessToken: string): void {
+  window.sessionStorage.setItem(runTokenKey(runId), accessToken);
+}
+
+export async function fetchRun(runId: string): Promise<RunDetail> {
+  const accessToken = window.sessionStorage.getItem(runTokenKey(runId));
+  if (!accessToken) return get<RunDetail>(`/api/runs/${runId}`);
+  const path = `/internal/runs/${runId}`;
+  const response = await fetch(`${BASE}${path}`, {
+    headers: { "X-Attest-Run-Token": accessToken },
+  });
+  if (!response.ok) throw new Error(`${path} responded ${response.status}`);
+  return (await response.json()) as RunDetail;
+}
+
 export const audioUrlOf = (runId: string) => `${BASE}/api/runs/${runId}/audio`;
 export const fetchMetrics = () => get<Metrics>("/api/metrics");
 export const fetchAttestation = (runId: string) =>
@@ -176,7 +194,7 @@ export async function startRun(input: {
   phone: string;
   claims: Record<string, string>;
   consent: boolean;
-}): Promise<{ run_id: string }> {
+}): Promise<{ run_id: string; access_token: string }> {
   const response = await fetch(`${BASE}/internal/runs`, {
     method: "POST",
     headers: {
@@ -204,7 +222,7 @@ export async function startRun(input: {
     );
   }
   if (!response.ok) throw new Error(`Run creation failed (${response.status}).`);
-  return (await response.json()) as { run_id: string };
+  return (await response.json()) as { run_id: string; access_token: string };
 }
 
 export function transcriptOf(detail: RunDetail): TranscriptTurn[] {
