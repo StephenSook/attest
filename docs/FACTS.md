@@ -70,7 +70,7 @@ Regeneration: `uv run python -m eval` reproduces the seeded metrics and figures 
 
 ## Real-call facts (audited 2026-09-09)
 
-- Two probe calls and one webhook-delivery test call placed through the seam, all to the builder's own phone with consent. First probe: no spoken response; the system reported `task_completed: false` rather than inventing an answer. Second probe: answered; `task_completed: true`, platform confidence 0.92.
+- Two probe calls and one webhook-delivery test call placed through the seam to the builder's own phone with consent, plus one post-KYC canary to CALL-E's published testing hotline. First probe: no spoken response; the system reported `task_completed: false` rather than inventing an answer. Second probe: answered; `task_completed: true`, platform confidence 0.92.
 - The scrubbed second-probe payload is the mock fixture (`mock_calle/fixtures/terminal_result.json`): phone and identifiers replaced with reserved fictional values, conversation verbatim.
 - Platform findings, all verified empirically: the live API rejects both `result_schema` and `recipient_result_schema`; `webhook_url` was accepted but no webhook was delivered for a completed call (tunnel capture, 20+ minutes; time-scoped finding, see below); terminal payloads are snake_case `call_task` objects with `recipients[].attempts[].transcript_turns`, `completion_confidence`, and `evidence`; and, **as of 2026-07-27, no KYC gate stood between an
 account and an outbound call**, established by placing 40 real calls rather than by reading docs.
@@ -94,16 +94,20 @@ our own receiver, including for failed calls. The same canary also established t
 dialing still works after the platform's v0.6.0 changes with no KYC gate enforced on this account,
 and that terminal payloads now carry a top-level `structured_result` key.
 
-**The account state changed after the build window.** On 2026-09-09 the CALL-E dashboard showed
-identity verification in progress. The purchased US number supports inbound calls only until
-Persona identity verification is completed, while the shared outbound pool remains the current
-development and testing path. Identity verification requires the account holder's government ID
-and biometric consent, so it cannot be completed by an automated project agent.
+**The account state changed after the build window and was re-verified end to end.** On 2026-09-09
+the account holder completed Persona identity verification. A fresh dashboard load then showed the
+account verified, the purchased US number available for both inbound and outbound calls, and that
+number persisted as the default outbound line. A fresh canary through `scripts/probe_call.py` to
+CALL-E's published testing hotline completed at 18:04:33Z with `task_completed: true`, confidence
+0.90 (high), and no failure. This establishes the state of this account and seam at that time; it
+is not a claim that every CALL-E account follows the same approval path.
 
-**Operational response:** the public judge sandbox now defaults closed and production keeps
-`ATTEST_SANDBOX_ENABLED=0`. The live run page reports that state before collecting a number. The
-retained real-call evidence, replay, certificate verifier, mobile builds, and zero-credential
-Docker path remain judge-accessible without asking a judge to dial or complete account KYC.
+**Operational response:** the public judge sandbox still defaults closed and production keeps
+`ATTEST_SANDBOX_ENABLED=0`. Identity verification removed the provider-side blocker, but the
+sandbox still relies on a caller's consent attestation rather than proving destination ownership,
+and the deployed database is ephemeral. The live run page reports that state before collecting a
+number. Retained real-call evidence, replay, certificate verifier, mobile builds, and the
+zero-credential Docker path remain judge-accessible without placing a new call.
 
 ## Judge sandbox facts (audited 2026-07-27)
 
