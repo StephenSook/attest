@@ -8,9 +8,55 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v7
       - name: Backend healthz
-        run: curl -sfL --max-redirs 3 --max-time 30 --retry 3 --retry-delay 20 https://attest-api-o5gm.onrender.com/healthz
+        run: |
+          set -euo pipefail
+          body="$RUNNER_TEMP/health.json"
+          curl -sfL --max-redirs 3 --max-time 30 --retry 3 --retry-delay 20 \
+            https://attest-api-o5gm.onrender.com/healthz -o "$body"
+          test -s "$body"
+          jq -e \
+            '.status == "ok" and .service == "attest" and .poller == "running" and .provider == "live" and .sandbox == "disabled"' \
+            "$body"
       - name: Frontend landing
-        run: curl -sfL --max-redirs 3 --max-time 30 --retry 3 --retry-delay 20 -o /dev/null https://attest-web-phi.vercel.app/
+        run: |
+          set -euo pipefail
+          body="$RUNNER_TEMP/frontend.html"
+          curl -sfL --max-redirs 3 --max-time 30 --retry 3 --retry-delay 20 \
+            https://attest-web-phi.vercel.app/ -o "$body"
+          test -s "$body"
+          grep -Fq '<title>Attest, the phone agent that refuses to guess</title>' "$body"
       - name: Replay run served
-        run: curl -sfL --max-redirs 3 --max-time 30 https://attest-api-o5gm.onrender.com/api/runs/run_replay_probe_0001 -o /dev/null
+        run: |
+          set -euo pipefail
+          body="$RUNNER_TEMP/replay.json"
+          curl -sfL --max-redirs 3 --max-time 30 \
+            https://attest-api-o5gm.onrender.com/api/runs/run_replay_probe_0001 -o "$body"
+          test -s "$body"
+          jq -e \
+            '.run_id == "run_replay_probe_0001" and .state == "completed" and .analysis.replay == true and .payload.status == "completed"' \
+            "$body"
+      - name: Attestation key matches the repository
+        run: |
+          set -euo pipefail
+          key="$RUNNER_TEMP/attestation-public-key.pem"
+          curl -sfL --max-redirs 3 --max-time 30 \
+            https://attest-api-o5gm.onrender.com/api/attestation-key -o "$key"
+          test -s "$key"
+          cmp "$key" docs/attestation-public-key.pem
+      - name: Judge distribution links remain live
+        run: |
+          set -euo pipefail
+          testflight="$RUNNER_TEMP/testflight.html"
+          video="$RUNNER_TEMP/video.json"
+          curl -sfL --max-redirs 3 --max-time 30 \
+            https://testflight.apple.com/join/XZDXt7jw -o "$testflight"
+          grep -Fq 'Attest Pocket' "$testflight"
+          curl -sfLI --max-redirs 5 --max-time 60 \
+            https://github.com/StephenSook/attest/releases/download/pocket-v0.1.0/attest-pocket.apk \
+            -o "$RUNNER_TEMP/android-headers.txt"
+          curl -sfL --max-redirs 3 --max-time 30 \
+            'https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=o-qZfT4XexU&format=json' \
+            -o "$video"
+          jq -e '.title == "Attest - the phone agent that refuses to guess"' "$video"
