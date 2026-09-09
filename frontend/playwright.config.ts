@@ -8,6 +8,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   use: {
     baseURL: process.env.E2E_BASE_URL ?? "http://localhost:5173",
+    channel: process.env.E2E_BROWSER_CHANNEL === "chrome" ? "chrome" : undefined,
     trace: "retain-on-failure",
   },
   reporter: process.env.CI ? "github" : "list",
