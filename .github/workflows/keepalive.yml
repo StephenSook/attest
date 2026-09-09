@@ -44,8 +44,8 @@ jobs:
         run: |
           set -uo pipefail
           if [ -z "${BACKEND_URL:-}" ]; then
-            echo "BACKEND_URL repository variable not set yet; nothing to ping."
-            exit 0
+            echo "::error::BACKEND_URL repository variable is missing"
+            exit 1
           fi
 
           deadline=$(( SECONDS + DURATION_SECONDS ))
@@ -58,10 +58,17 @@ jobs:
             attempts=$(( attempts + 1 ))
             # --fail so a 5xx counts as a failure. Patience on the first hit of
             # a cold service: waking it is a success, not an incident.
-            ttfb=$(curl --fail --silent --show-error --output /dev/null \
+            response="$RUNNER_TEMP/keepalive-health.json"
+            ttfb=$(curl --fail --silent --show-error --output "$response" \
                      --max-time 90 --retry 3 --retry-delay 15 --retry-all-errors \
                      --write-out '%{time_starttransfer}' \
                      "${BACKEND_URL}/healthz" 2>/dev/null) || ttfb=""
+            if [ -n "$ttfb" ] && ! jq -e \
+              '.status == "ok" and .service == "attest" and .poller == "running" and .provider == "live"' \
+              "$response" > /dev/null; then
+              echo "$(date -u +%H:%M:%SZ) ping $attempts returned the wrong or degraded service"
+              ttfb=""
+            fi
             if [ -z "$ttfb" ]; then
               failures=$(( failures + 1 ))
               consecutive=$(( consecutive + 1 ))
