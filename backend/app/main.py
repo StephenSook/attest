@@ -11,11 +11,13 @@ import hmac
 import json
 import logging
 import os
+import sqlite3
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import cast
 
+from calle.errors import CalleConnectionError, CalleTimeoutError
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from fastapi import FastAPI, Header, HTTPException
@@ -75,6 +77,30 @@ app.add_middleware(
 )
 
 
+def _sandbox_enabled() -> bool:
+    """The public dialing surface is opt-in and defaults closed.
+
+    The current hosted database is ephemeral and the account's dedicated
+    outbound number still requires identity verification. Both conditions
+    must be resolved before production explicitly enables this surface.
+    """
+    return os.environ.get("ATTEST_SANDBOX_ENABLED", "0") == "1"
+
+
+def _record_for(row: sqlite3.Row) -> dict[str, object]:
+    return json.loads(str(row["record_json"])) if row["record_json"] else {}
+
+
+def _require_public_run(row: sqlite3.Row) -> None:
+    """Judge-triggered calls are private even if the sandbox is enabled.
+
+    The public replays have explicit publication consent. A judge's consent
+    to receive a call is not consent to publish its transcript.
+    """
+    if _record_for(row).get("judge_sandbox") is True:
+        raise HTTPException(status_code=404, detail="run not found")
+
+
 @app.get("/healthz")
 async def healthz() -> dict[str, object]:
     """Liveness that tells the truth about the background poller: a dead
@@ -96,6 +122,7 @@ async def healthz() -> dict[str, object]:
         "service": "attest",
         "poller": "running" if poller_alive else "stopped",
         "provider": "mock" if calle_client.is_mock_mode() else "live",
+        "sandbox": "enabled" if _sandbox_enabled() else "disabled",
     }
     return body
 
@@ -109,7 +136,9 @@ async def api_runs() -> dict[str, list[dict[str, object]]]:
         conn.close()
     out: list[dict[str, object]] = []
     for row in rows:
-        record = json.loads(str(row["record_json"])) if row["record_json"] else {}
+        record = _record_for(row)
+        if record.get("judge_sandbox") is True:
+            continue
         item: dict[str, object] = {
             "run_id": row["run_id"],
             "state": row["state"],
@@ -195,6 +224,7 @@ async def api_run_audio(run_id: str) -> FileResponse:
         conn.close()
     if row is None:
         raise HTTPException(status_code=404, detail="run not found")
+    _require_public_run(row)
     audio = _audio_file(run_id)
     if audio is None:
         raise HTTPException(status_code=404, detail="no audio for this run")
@@ -210,6 +240,7 @@ async def api_run_detail(run_id: str) -> dict[str, object]:
         conn.close()
     if row is None:
         raise HTTPException(status_code=404, detail="run not found")
+    _require_public_run(row)
     payload = json.loads(str(row["terminal_payload"])) if row["terminal_payload"] else None
     record = json.loads(str(row["record_json"])) if row["record_json"] else {}
     detail: dict[str, object] = {
@@ -252,6 +283,7 @@ async def api_run_attestation(run_id: str) -> dict[str, object]:
         conn.close()
     if row is None:
         raise HTTPException(status_code=404, detail="run not found")
+    _require_public_run(row)
     if row["state"] != "completed":
         raise HTTPException(status_code=409, detail="attestation exists only for completed runs")
 
@@ -384,7 +416,7 @@ _SANDBOX_CAP = int(os.environ.get("ATTEST_SANDBOX_CAP", "15"))
 def _sandbox_precheck(body: StartRunRequest) -> str:
     """Kill switch and consent gate before we touch the database. Returns
     the phone hash; the actual slot is reserved atomically under the lock."""
-    if os.environ.get("ATTEST_SANDBOX_ENABLED", "1") == "0":
+    if not _sandbox_enabled():
         raise HTTPException(status_code=503, detail="the live demo is currently disabled")
     if not body.consent:
         raise HTTPException(
@@ -454,6 +486,10 @@ async def start_run(
             run_id = await runs.start_verification_run(
                 _get_service(), db.db_path(), task=task, phone=body.phone, record=record
             )
+        except (CalleTimeoutError, CalleConnectionError):
+            # The provider may have accepted the call before the response was
+            # lost. Keep the reservation so a retry cannot ring twice.
+            raise
         except Exception:
             # The call never got placed; give the slot back so an honest
             # retry is not permanently blocked by a transient failure.

@@ -3,11 +3,15 @@ explicit consent, under a global cap, behind a kill switch. Every rail is
 pinned here because this endpoint is the only outward-dialing surface a
 non-operator can reach."""
 
+import json
+
 import httpx
 import pytest
 import respx
+from calle.errors import CalleTimeoutError
 from httpx import Response
 
+from app import db, fsm
 from app.main import app
 
 HEADERS_JUDGE = {"X-Attest-Key": "judge-key"}
@@ -30,6 +34,7 @@ def _env(tmp_path, monkeypatch):  # type: ignore[no-untyped-def]
     monkeypatch.setenv("ATTEST_DB_PATH", str(tmp_path / "sandbox.db"))
     monkeypatch.setenv("ATTEST_JUDGE_KEY", "judge-key")
     monkeypatch.setenv("ATTEST_OPERATOR_KEY", "operator-key")
+    monkeypatch.setenv("ATTEST_SANDBOX_ENABLED", "1")
     monkeypatch.setenv("ATTEST_USE_MOCK", "true")
     monkeypatch.setenv("ATTEST_MOCK_BASE_URL", "http://mock.invalid")
     # Fresh service per test so the base URL env is re-read.
@@ -53,6 +58,13 @@ async def test_kill_switch_disables_the_sandbox(monkeypatch: pytest.MonkeyPatch)
     assert response.status_code == 503
 
 
+async def test_sandbox_defaults_closed(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("ATTEST_SANDBOX_ENABLED")
+    async with _client() as client:
+        response = await client.post("/internal/runs", json=BODY, headers=HEADERS_JUDGE)
+    assert response.status_code == 503
+
+
 @respx.mock
 async def test_same_number_never_gets_two_demo_calls(monkeypatch: pytest.MonkeyPatch) -> None:
     respx.post("http://mock.invalid/v1/calls").mock(
@@ -64,6 +76,52 @@ async def test_same_number_never_gets_two_demo_calls(monkeypatch: pytest.MonkeyP
     assert first.status_code == 201
     assert second.status_code == 429
     assert "already received" in second.json()["detail"]
+
+
+@respx.mock
+async def test_ambiguous_submit_keeps_the_reservation() -> None:
+    respx.post("http://mock.invalid/v1/calls").mock(side_effect=CalleTimeoutError("timed out"))
+    async with _client() as client:
+        with pytest.raises(CalleTimeoutError):
+            await client.post("/internal/runs", json=BODY, headers=HEADERS_JUDGE)
+
+    conn = db.connect(db.db_path())
+    try:
+        assert db.reserve_sandbox_slot(conn, "unused", cap=1) == "capped"
+    finally:
+        conn.close()
+
+
+async def test_judge_runs_never_enter_the_public_ledger() -> None:
+    conn = db.connect(db.db_path())
+    try:
+        db.create_run(
+            conn,
+            run_id="run_private_judge",
+            idempotency_key="run_private_judge",
+            record_json=json.dumps({"org": "Private judge run", "judge_sandbox": True}),
+        )
+        db.set_calle_call_id(conn, "run_private_judge", "call_private_judge")
+        fsm.advance(conn, "run_private_judge", "submitted")
+        fsm.advance(
+            conn,
+            "run_private_judge",
+            "failed",
+            terminal_payload=json.dumps({"status": "failed", "error": "private transcript"}),
+        )
+    finally:
+        conn.close()
+
+    async with _client() as client:
+        ledger = await client.get("/api/runs")
+        detail = await client.get("/api/runs/run_private_judge")
+        attestation = await client.get("/api/runs/run_private_judge/attestation")
+        audio = await client.get("/api/runs/run_private_judge/audio")
+
+    assert all(item["run_id"] != "run_private_judge" for item in ledger.json()["runs"])
+    assert detail.status_code == 404
+    assert attestation.status_code == 404
+    assert audio.status_code == 404
 
 
 async def test_global_cap_closes_the_sandbox(monkeypatch: pytest.MonkeyPatch) -> None:
