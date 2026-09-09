@@ -72,6 +72,29 @@ async def test_correct_key_creates_submitted_run(
     conn.close()
 
 
+@respx.mock
+async def test_product_run_registers_the_public_webhook(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ATTEST_DB_PATH", str(tmp_path / "webhook.db"))
+    monkeypatch.setenv("ATTEST_OPERATOR_KEY", "right-key")
+    monkeypatch.setenv("ATTEST_PUBLIC_BASE_URL", "https://attest.example/")
+    monkeypatch.setenv("ATTEST_USE_MOCK", "true")
+    app.state.calle_service = None
+    route = respx.post(f"{MOCK_BASE}/v1/calls").mock(return_value=Response(201, json=FIXTURE))
+
+    async with _client() as client:
+        response = await client.post(
+            "/internal/runs",
+            json={"org": "Test Practice", "phone": "+15550101234"},
+            headers={"X-Attest-Key": "right-key"},
+        )
+
+    assert response.status_code == 201
+    request_body = json.loads(route.calls.last.request.content)
+    assert request_body["webhook_url"] == "https://attest.example/calle/webhook"
+
+
 async def test_invalid_phone_shape_rejected(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
