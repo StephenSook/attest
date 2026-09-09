@@ -60,7 +60,10 @@ async def test_attestation_policy_matches_calibration_availability(
     monkeypatch.setenv("ATTEST_METRICS_PATH", str(tmp_path / "missing.json"))
     conn = db.connect(tmp_path / "b.db")
     db.create_run(
-        conn, run_id="run_pol", idempotency_key="run_pol", record_json=json.dumps({"org": "X"})
+        conn,
+        run_id="run_pol",
+        idempotency_key="run_pol",
+        record_json=json.dumps({"org": "X", "published": True}),
     )
     db.set_calle_call_id(conn, "run_pol", str(FIXTURE["id"]))
     fsm.advance(conn, "run_pol", "submitted")
