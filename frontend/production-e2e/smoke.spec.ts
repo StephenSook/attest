@@ -1,9 +1,8 @@
 import { expect, test } from "@playwright/test";
 
 test("deployed judge path renders API-backed evidence", async ({ page }) => {
-  test.setTimeout(120_000);
   const failures: string[] = [];
-  const appOrigin = new URL(process.env.E2E_BASE_URL ?? "http://localhost:5173").origin;
+  const appOrigin = new URL(process.env.E2E_BASE_URL as string).origin;
 
   page.on("console", (message) => {
     if (message.type() === "error") failures.push(`console: ${message.text()}`);
