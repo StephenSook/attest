@@ -26,3 +26,12 @@ updates:
     labels: [dependencies]
     commit-message:
       prefix: "deps(frontend)"
+  - package-ecosystem: npm
+    directory: /mobile
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies]
+    commit-message:
+      prefix: "deps(mobile)"
