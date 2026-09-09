@@ -145,7 +145,7 @@ frontend/           the console and the landing experience
 
 ## Honest status
 
-Verified end to end with retained real calls: the CALL-E seam, extraction, reconciliation, calibrated abstention decision, seeded evaluation, live console, and landing. The public call sandbox is closed while outbound service depends on account identity verification. Known limitations: platform webhooks are unsigned, so deliveries act as untrusted hints and the poller stays authoritative; the free-tier database is ephemeral and reseeded on boot; and disclosed verification cannot measure how disclosure itself changes answers because no undisclosed baseline exists inside this protocol.
+Verified end to end with retained real calls: the CALL-E seam, extraction, reconciliation, calibrated abstention decision, seeded evaluation, live console, and landing. The CALL-E account is identity-verified and its dedicated line is available for inbound and outbound calls. The public call sandbox still defaults closed because it accepts a caller's consent attestation but does not prove destination ownership, and its deployed database is ephemeral. Known limitations: platform webhooks are unsigned, so deliveries act as untrusted hints and the poller stays authoritative; the free-tier database is reseeded on boot; and disclosed verification cannot measure how disclosure itself changes answers because no undisclosed baseline exists inside this protocol.
 
 ## License
 
