@@ -185,6 +185,7 @@ export default function RunDetailPage() {
           <p className="mt-1 font-evidence text-xs text-ink-faint">
             {detail.run_id} · {detail.state}
             {analysis?.replay && " · replay of a real recorded call"}
+            {!detail.published && " · private to this browser session"}
             {stale && <span className="text-doubt"> · refresh failed, retrying</span>}
           </p>
           {detail.payload?.summary && (
@@ -197,7 +198,7 @@ export default function RunDetailPage() {
               verdict={analysis.reconciliation.verdict}
               probability={analysis.reconciliation.posterior_probability}
             />
-            {detail.state === "completed" && (
+            {detail.state === "completed" && detail.published && (
               <Link
                 to={`/runs/${detail.run_id}/certificate`}
                 className="font-evidence text-[11px] uppercase tracking-widest text-trust hover:text-ink"
