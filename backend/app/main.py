@@ -17,7 +17,6 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import cast
 
-from calle.errors import CalleConnectionError, CalleTimeoutError
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from fastapi import FastAPI, Header, HTTPException
@@ -464,6 +463,7 @@ async def start_run(
     # The disclosure-first task is built server-side: no client can submit a
     # call script with the disclosure removed.
     task = runs.build_task(str(record["org"]), body.claims)
+    service = _get_service()
     async with _submission_lock:
         if role == "judge":
             # Atomic: dedup + cap enforced in one serialized transaction, so
@@ -483,24 +483,13 @@ async def start_run(
                     status_code=429,
                     detail="this number already received its demo call",
                 )
-        try:
-            run_id = await runs.start_verification_run(
-                _get_service(), db.db_path(), task=task, phone=body.phone, record=record
-            )
-        except (CalleTimeoutError, CalleConnectionError):
-            # The provider may have accepted the call before the response was
-            # lost. Keep the reservation so a retry cannot ring twice.
-            raise
-        except Exception:
-            # The call never got placed; give the slot back so an honest
-            # retry is not permanently blocked by a transient failure.
-            if role == "judge":
-                conn = db.connect(db.db_path())
-                try:
-                    db.release_sandbox_slot(conn, phone_hash)
-                finally:
-                    conn.close()
-            raise
+        # Once a judge slot is reserved, every submission failure is treated
+        # as ambiguous. A provider error, a missing response id, or a local
+        # persistence failure can all happen after the phone call was accepted.
+        # Keeping one slot is safer than letting a retry ring the same person.
+        run_id = await runs.start_verification_run(
+            service, db.db_path(), task=task, phone=body.phone, record=record
+        )
     # Fresh submissions poll immediately instead of waiting out idle backoff.
     poller = getattr(app.state, "poller", None)
     if poller is not None:

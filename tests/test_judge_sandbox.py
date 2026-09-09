@@ -92,6 +92,23 @@ async def test_ambiguous_submit_keeps_the_reservation() -> None:
         conn.close()
 
 
+@respx.mock
+async def test_accepted_response_without_id_keeps_the_reservation() -> None:
+    """A malformed success can arrive after CALL-E accepted the call."""
+    respx.post("http://mock.invalid/v1/calls").mock(
+        return_value=Response(201, json={"status": "queued"})
+    )
+    async with _client() as client:
+        with pytest.raises(RuntimeError, match="no call id"):
+            await client.post("/internal/runs", json=BODY, headers=HEADERS_JUDGE)
+
+    conn = db.connect(db.db_path())
+    try:
+        assert db.reserve_sandbox_slot(conn, "unused", cap=1) == "capped"
+    finally:
+        conn.close()
+
+
 @pytest.mark.parametrize(
     "record",
     [
