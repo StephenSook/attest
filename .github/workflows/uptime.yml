@@ -9,6 +9,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: frontend/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
       - name: Backend healthz
         run: |
           set -euo pipefail
@@ -19,14 +27,16 @@ jobs:
           jq -e \
             '.status == "ok" and .service == "attest" and .poller == "running" and .provider == "live" and .sandbox == "disabled"' \
             "$body"
-      - name: Frontend landing
+      - name: Frontend renders the judged path
+        working-directory: frontend
+        env:
+          E2E_BASE_URL: https://attest-web-phi.vercel.app
+          E2E_BROWSER_CHANNEL: chrome
         run: |
           set -euo pipefail
-          body="$RUNNER_TEMP/frontend.html"
-          curl -sfL --max-redirs 3 --max-time 30 --retry 3 --retry-delay 20 \
-            https://attest-web-phi.vercel.app/ -o "$body"
-          test -s "$body"
-          grep -Fq '<title>Attest, the phone agent that refuses to guess</title>' "$body"
+          command -v google-chrome
+          pnpm install --frozen-lockfile
+          pnpm exec playwright test e2e/production.smoke.spec.ts
       - name: Replay run served
         run: |
           set -euo pipefail
