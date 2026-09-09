@@ -92,23 +92,31 @@ async def test_ambiguous_submit_keeps_the_reservation() -> None:
         conn.close()
 
 
-async def test_judge_runs_never_enter_the_public_ledger(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize(
+    "record",
+    [
+        {"org": "Private judge run", "judge_sandbox": True, "provider": "live"},
+        {"org": "Private operator run", "provider": "live"},
+        {"org": "Private mock run", "judge_sandbox": True, "provider": "mock"},
+    ],
+)
+async def test_unpublished_runs_never_enter_public_endpoints(
+    record: dict[str, object],
 ) -> None:
-    monkeypatch.setenv("ATTEST_USE_MOCK", "false")
+    run_id = "run_" + str(record["org"]).lower().replace(" ", "_")
     conn = db.connect(db.db_path())
     try:
         db.create_run(
             conn,
-            run_id="run_private_judge",
-            idempotency_key="run_private_judge",
-            record_json=json.dumps({"org": "Private judge run", "judge_sandbox": True}),
+            run_id=run_id,
+            idempotency_key=run_id,
+            record_json=json.dumps(record),
         )
-        db.set_calle_call_id(conn, "run_private_judge", "call_private_judge")
-        fsm.advance(conn, "run_private_judge", "submitted")
+        db.set_calle_call_id(conn, run_id, "call_" + run_id)
+        fsm.advance(conn, run_id, "submitted")
         fsm.advance(
             conn,
-            "run_private_judge",
+            run_id,
             "failed",
             terminal_payload=json.dumps({"status": "failed", "error": "private transcript"}),
         )
@@ -117,11 +125,11 @@ async def test_judge_runs_never_enter_the_public_ledger(
 
     async with _client() as client:
         ledger = await client.get("/api/runs")
-        detail = await client.get("/api/runs/run_private_judge")
-        attestation = await client.get("/api/runs/run_private_judge/attestation")
-        audio = await client.get("/api/runs/run_private_judge/audio")
+        detail = await client.get(f"/api/runs/{run_id}")
+        attestation = await client.get(f"/api/runs/{run_id}/attestation")
+        audio = await client.get(f"/api/runs/{run_id}/audio")
 
-    assert all(item["run_id"] != "run_private_judge" for item in ledger.json()["runs"])
+    assert all(item["run_id"] != run_id for item in ledger.json()["runs"])
     assert detail.status_code == 404
     assert attestation.status_code == 404
     assert audio.status_code == 404

@@ -45,6 +45,7 @@ REPLAYS = [
         record={
             "org": "Example Counseling Center",
             "replay": True,
+            "published": True,
             "claims": {"accepting_new_patients": "yes", "accepts_plan": "yes"},
         },
         label="labeled replay of the scrubbed real probe call",
@@ -55,6 +56,7 @@ REPLAYS = [
         record={
             "org": "Attest builder test line",
             "replay": True,
+            "published": True,
             "claims": {"accepting_new_patients": "yes"},
             "audio_note": BUILDER_NOTE,
         },
@@ -72,6 +74,7 @@ REPLAYS = [
             # one and a bracket cannot.
             "org": "a consenting Atlanta counseling practice",
             "replay": True,
+            "published": True,
             "claims": {},
         },
         label="labeled replay of a consented call to a real practice; reached voicemail",

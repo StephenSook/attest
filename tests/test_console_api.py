@@ -26,6 +26,7 @@ def _seed(database: Path) -> None:
     record = {
         "org": "Example Counseling Center",
         "replay": True,
+        "published": True,
         "claims": {"accepting_new_patients": "yes", "accepts_plan": "yes"},
     }
     db.create_run(conn, run_id="run_api", idempotency_key="run_api", record_json=json.dumps(record))
