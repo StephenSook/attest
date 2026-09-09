@@ -9,6 +9,14 @@ export type RunSummary = {
   verdict?: "verified" | "contradicted" | "unverifiable";
 };
 
+export type Health = {
+  status: "ok" | "degraded";
+  service: string;
+  poller: "running" | "stopped";
+  provider: "live" | "mock";
+  sandbox: "enabled" | "disabled";
+};
+
 export type Span = {
   turn: number;
   text: string;
@@ -155,6 +163,7 @@ async function get<T>(path: string): Promise<T> {
 }
 
 export const fetchRuns = () => get<{ runs: RunSummary[] }>("/api/runs");
+export const fetchHealth = () => get<Health>("/healthz");
 export const fetchRun = (runId: string) => get<RunDetail>(`/api/runs/${runId}`);
 export const audioUrlOf = (runId: string) => `${BASE}/api/runs/${runId}/audio`;
 export const fetchMetrics = () => get<Metrics>("/api/metrics");
