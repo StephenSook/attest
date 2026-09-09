@@ -27,7 +27,11 @@ def _client() -> httpx.AsyncClient:
 
 def _seed(database: Path, audio_note: str | None = None) -> None:
     conn = db.connect(database)
-    record: dict[str, object] = {"org": "Example Counseling Center", "replay": True}
+    record: dict[str, object] = {
+        "org": "Example Counseling Center",
+        "replay": True,
+        "published": True,
+    }
     if audio_note:
         record["audio_note"] = audio_note
     db.create_run(
