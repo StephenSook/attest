@@ -92,7 +92,10 @@ async def test_ambiguous_submit_keeps_the_reservation() -> None:
         conn.close()
 
 
-async def test_judge_runs_never_enter_the_public_ledger() -> None:
+async def test_judge_runs_never_enter_the_public_ledger(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ATTEST_USE_MOCK", "false")
     conn = db.connect(db.db_path())
     try:
         db.create_run(
