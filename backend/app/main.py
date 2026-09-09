@@ -97,7 +97,7 @@ def _require_public_run(row: sqlite3.Row) -> None:
     The public replays have explicit publication consent. A judge's consent
     to receive a call is not consent to publish its transcript.
     """
-    if _record_for(row).get("judge_sandbox") is True:
+    if _record_for(row).get("judge_sandbox") is True and not calle_client.is_mock_mode():
         raise HTTPException(status_code=404, detail="run not found")
 
 
