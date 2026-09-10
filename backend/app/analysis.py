@@ -46,6 +46,7 @@ _ISO_DATE_TIME = re.compile(
 )
 _PROVIDER_CALL_ID = re.compile(r"call_[A-Za-z0-9_-]{22}")
 _PROVIDER_CHILD_ID = re.compile(r"(?:rcp|att)_[0-9a-fA-F]{16}")
+_PROVIDER_TRANSPORT_ID = re.compile(r"[0-9a-fA-F]{32}")
 _UUID_ID = re.compile(
     r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
 )
@@ -65,9 +66,7 @@ def _mask_phone_text(text: str) -> str:
 
 
 def _is_safe_provider_id(text: str) -> bool:
-    if not (_PROVIDER_CALL_ID.fullmatch(text) or _PROVIDER_CHILD_ID.fullmatch(text)):
-        return False
-    return _IDENTIFIER_PHONE_CANDIDATE.search(text) is None
+    return bool(_PROVIDER_CALL_ID.fullmatch(text) or _PROVIDER_CHILD_ID.fullmatch(text))
 
 
 def _mask_identifier_text(text: str) -> str:
@@ -205,9 +204,12 @@ def _redact_phone_fields(value: Any, *, context: str = "generic") -> Any:
                 "failure_message": "transcript_text",
                 "error": "transcript_text",
             }.get(key_lower)
+            normalized_key = _normalized_key(key)
             is_identifier_key = _is_identifier_key(key)
             if _is_phone_key(key):
                 nested_context = "phone"
+            elif normalized_key == "provider_call_id":
+                nested_context = "provider_identifier"
             elif is_identifier_key:
                 nested_context = "identifier"
             elif _is_date_key(key):
@@ -225,6 +227,7 @@ def _redact_phone_fields(value: Any, *, context: str = "generic") -> Any:
                         "turn",
                         "transcript_text",
                         "identifier",
+                        "provider_identifier",
                     }
                     else "generic"
                 )
@@ -266,10 +269,18 @@ def _redact_phone_fields(value: Any, *, context: str = "generic") -> Any:
             pass
         else:
             return value
+    if (
+        context == "provider_identifier"
+        and isinstance(value, str)
+        and _PROVIDER_TRANSPORT_ID.fullmatch(value)
+    ):
+        return value
     if isinstance(value, (str, int, float)) and not isinstance(value, bool):
         text = str(value)
         redacted = (
-            _mask_identifier_text(text) if context == "identifier" else _mask_phone_text(text)
+            _mask_identifier_text(text)
+            if context in {"identifier", "provider_identifier"}
+            else _mask_phone_text(text)
         )
         return redacted if redacted != text else value
     return value

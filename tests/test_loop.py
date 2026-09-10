@@ -661,7 +661,7 @@ async def test_poller_redacts_phone_data_from_schema_drift(
         terminal["recipient-ids"] = {"2099-12-31": "tel_15550101234", uuid: uuid}
         terminal["recipientIds"] = ["acct15550101234", uuid]
         terminal["recipientIDs"] = ["acctA15550101234B", uuid]
-        terminal["recipientIDS"] = ["call_x15550101234aaaaaaaaaa", uuid]
+        terminal["recipientIDS"] = ["call_x15550101234aaaaaaaaa", uuid]
         terminal["RECIPIENTIDS"] = {"2099-12-31": "acctB15550101234C", uuid: uuid}
         terminal["recipientids"] = ["acctC15550101234D", uuid]
         terminal["recipientID"] = "acct155.50.101.234x"
@@ -734,7 +734,7 @@ async def test_poller_redacts_phone_data_from_schema_drift(
                     "acctA15550101234B",
                     "acctB15550101234C",
                     "acctC15550101234D",
-                    "call_x15550101234aaaaaaaaaa",
+                    "call_x15550101234aaaaaaaaa",
                     "acct155.50.101.234x",
                     "acctD15550101234E",
                     "acctE15550101234F",
