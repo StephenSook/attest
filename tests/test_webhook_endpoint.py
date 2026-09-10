@@ -139,6 +139,44 @@ async def test_valid_webhook_redacts_mapping_shaped_containers(
         conn.close()
 
 
+@pytest.mark.parametrize(
+    "schema_drift",
+    ["phone_wrapper", "scalar_attempts", "scalar_turns", "summary", "failure_message"],
+)
+async def test_valid_webhook_redacts_phone_data_from_schema_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    schema_drift: str,
+) -> None:
+    database = tmp_path / f"wh-schema-drift-{schema_drift}.db"
+    monkeypatch.setenv("ATTEST_DB_PATH", str(database))
+    monkeypatch.setenv("CALLE_WEBHOOK_SECRET", SECRET)
+    _seed_run(database)
+    payload = json.loads(json.dumps(FIXTURE))
+    attempt = payload["recipients"][0]["attempts"][0]
+    if schema_drift == "phone_wrapper":
+        payload["recipients"][0]["phone"] = {"value": "+15550101234"}
+    elif schema_drift == "scalar_attempts":
+        payload["recipients"][0]["attempts"] = "+15550101234"
+    elif schema_drift == "scalar_turns":
+        attempt["transcript_turns"] = "+15550101234"
+    else:
+        attempt[schema_drift] = "Call +15550101234 for details."
+
+    raw = json.dumps(payload).encode()
+    async with _client() as client:
+        response = await client.post("/calle/webhook", content=raw, headers=_signed_headers(raw))
+    assert response.status_code == 202
+
+    conn = db.connect(database)
+    try:
+        row = db.get_run(conn, "run_wh")
+        assert row is not None and row["state"] == "completed"
+        assert "+15550101234" not in str(row["terminal_payload"])
+    finally:
+        conn.close()
+
+
 @pytest.mark.parametrize("phone_location", ["transcript", "scalar_recipient", "mapping_key"])
 async def test_valid_webhook_redacts_unexpected_phone_locations(
     tmp_path: Path,

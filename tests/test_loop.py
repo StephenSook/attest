@@ -593,6 +593,47 @@ async def test_poller_redacts_mapping_shaped_containers(
         service.close()
 
 
+@pytest.mark.parametrize(
+    "schema_drift",
+    ["phone_wrapper", "scalar_attempts", "scalar_turns", "summary", "failure_message"],
+)
+@respx.mock
+async def test_poller_redacts_phone_data_from_schema_drift(
+    tmp_path: Path, schema_drift: str
+) -> None:
+    database = tmp_path / f"poll-schema-drift-{schema_drift}.db"
+    terminal = json.loads(json.dumps(FIXTURE))
+    attempt = terminal["recipients"][0]["attempts"][0]
+    if schema_drift == "phone_wrapper":
+        terminal["recipients"][0]["phone"] = {"value": "+15550101234"}
+    elif schema_drift == "scalar_attempts":
+        terminal["recipients"][0]["attempts"] = "+15550101234"
+    elif schema_drift == "scalar_turns":
+        attempt["transcript_turns"] = "+15550101234"
+    else:
+        attempt[schema_drift] = "Call +15550101234 for details."
+    respx.post(f"{BASE}/v1/calls").mock(return_value=Response(201, json=_pending_fixture()))
+    respx.get(f"{BASE}/v1/calls/{FIXTURE['id']}").mock(return_value=Response(200, json=terminal))
+    service = _service()
+    run_id = await runs.start_verification_run(
+        service,
+        database,
+        task="verify listing",
+        phone="+15550101234",
+    )
+
+    poller = Poller(service, database)
+    assert await poller.tick() == 1
+    conn = db.connect(database)
+    try:
+        row = db.get_run(conn, run_id)
+        assert row is not None and row["state"] == "completed"
+        assert "+15550101234" not in str(row["terminal_payload"])
+    finally:
+        conn.close()
+        service.close()
+
+
 @pytest.mark.parametrize("phone_location", ["transcript", "scalar_recipient", "mapping_key"])
 @respx.mock
 async def test_poller_redacts_unexpected_phone_locations(
