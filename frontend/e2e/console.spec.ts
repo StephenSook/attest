@@ -259,7 +259,7 @@ test("calibration page serves live metrics, never hardcoded", async ({ page }) =
   const coverage = (metrics.headline.empirical_coverage * 100).toFixed(1);
   await page.goto("/calibration");
   await expect(page.getByText(`${coverage}%`).first()).toBeVisible();
-  await expect(page.getByText("no_dead_end")).toBeVisible();
+  await expect(page.getByRole("cell", { name: "no_dead_end" })).toBeVisible();
 });
 
 test("live-call gate refuses a wrong key", async ({ page }) => {
