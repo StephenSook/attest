@@ -556,6 +556,43 @@ async def test_poller_persists_explicit_null_lists(tmp_path: Path, null_list: st
         service.close()
 
 
+@pytest.mark.parametrize("mapping_container", ["recipients", "attempts"])
+@respx.mock
+async def test_poller_redacts_mapping_shaped_containers(
+    tmp_path: Path, mapping_container: str
+) -> None:
+    database = tmp_path / f"poll-mapping-{mapping_container}.db"
+    terminal = json.loads(json.dumps(FIXTURE))
+    if mapping_container == "recipients":
+        terminal["recipients"] = {"primary": terminal["recipients"][0]}
+    else:
+        terminal["recipients"][0]["attempts"] = {
+            "primary": terminal["recipients"][0]["attempts"][0]
+        }
+    respx.post(f"{BASE}/v1/calls").mock(return_value=Response(201, json=_pending_fixture()))
+    respx.get(f"{BASE}/v1/calls/{FIXTURE['id']}").mock(return_value=Response(200, json=terminal))
+    service = _service()
+    run_id = await runs.start_verification_run(
+        service,
+        database,
+        task="verify listing",
+        phone="+15550101234",
+    )
+
+    poller = Poller(service, database)
+    assert await poller.tick() == 1
+    conn = db.connect(database)
+    try:
+        row = db.get_run(conn, run_id)
+        assert row is not None and row["state"] == "completed"
+        stored = str(row["terminal_payload"])
+        assert "+15550101234" not in stored
+        assert "+15******234" in stored
+    finally:
+        conn.close()
+        service.close()
+
+
 def test_owner_lease_blocks_rivals_and_expiry_waits_for_the_owner(tmp_path: Path) -> None:
     database = tmp_path / "lease.db"
     conn = db.connect(database)

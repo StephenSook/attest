@@ -389,6 +389,21 @@ def test_transcript_walker_survives_an_explicit_null_recipients() -> None:
     assert transcript_turns({}) == []
 
 
+def test_transcript_walker_accepts_id_keyed_provider_containers() -> None:
+    from app.analysis import transcript_turns
+
+    turns = [{"speaker": "user", "text": "Yes"}]
+    payload = {
+        "recipients": {
+            "recipient-1": {
+                "attempts": {"attempt-1": {"transcript_turns": turns}},
+            }
+        }
+    }
+
+    assert transcript_turns(payload) == turns
+
+
 def test_eval_scorecard_defines_no_second_walker() -> None:
     """One walker, not two. The copies had already drifted on null handling,
     so this asserts the structure rather than the behavior: a reintroduced
