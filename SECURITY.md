@@ -8,9 +8,19 @@ open a public issue for a security problem. Expect a reply within 72 hours.
 ## What this project treats as security-relevant
 
 - **Outward dialing.** The public judge sandbox is closed by default. When an
-  operator explicitly enables it, it is consent-gated, capped,
-  one-call-per-number, US-only, premium-rate blocked, and kill-switchable.
+  operator explicitly enables it, it is consent-gated, capped within the
+  current database lifetime, one-call-per-number-hash within that same
+  lifetime, limited to +1 NANP-format numbers, protected by a partial
+  high-risk area-code filter, and kill-switchable. The filter is not a full
+  tariff or destination-country classifier.
   Any bypass of those rails is a security bug.
+- **Dispatch recovery.** Before an external call request, the database stores
+  only a keyed HMAC-SHA256 request digest, an attempt count, a ten-minute
+  cutoff, and an owner-token lease. The raw destination is not persisted for recovery. An
+  identical client retry may reuse the original idempotency key after the
+  lease ends. Provider or endpoint changes, concurrent attempts, and late
+  retries fail closed. A later 4xx can never erase an earlier attempt whose
+  outcome was ambiguous.
 - **Secrets.** No secret may reach the browser or the repository. The signing
   key, API credentials, and operator/judge keys live only in the deployment
   environment. `gitleaks` runs over full history in CI.
@@ -29,5 +39,6 @@ open a public issue for a security problem. Expect a reply within 72 hours.
 
 Rate limits on public read-only endpoints, and the documented residual that,
 if an operator explicitly enables the sandbox, a holder of the secret judge
-key can cause at most fifteen disclosed, capped, one-per-number demo calls
-(see `docs/FACTS.md`).
+key can cause up to fifteen disclosed demo calls within one persistent
+database lifetime. The hosted database is ephemeral, so production keeps the
+sandbox disabled (see `docs/FACTS.md`).
