@@ -188,6 +188,28 @@ export const fetchMetrics = () => get<Metrics>("/api/metrics");
 export const fetchAttestation = (runId: string) =>
   get<Attestation>(`/api/runs/${runId}/attestation`);
 
+type PendingRun = {
+  fingerprint: string;
+  requestId: string;
+  accessToken: string;
+  phone: string;
+  terminal?: "expired";
+};
+
+function isPendingRun(value: unknown): value is PendingRun {
+  if (!value || typeof value !== "object") return false;
+  const item = value as Record<string, unknown>;
+  return (
+    typeof item.fingerprint === "string" &&
+    typeof item.requestId === "string" &&
+    /^[0-9a-f]{32}$/.test(item.requestId) &&
+    typeof item.accessToken === "string" &&
+    /^[0-9a-f]{64}$/.test(item.accessToken) &&
+    typeof item.phone === "string" &&
+    (item.terminal === undefined || item.terminal === "expired")
+  );
+}
+
 export async function startRun(input: {
   judgeKey: string;
   org: string;
@@ -195,34 +217,123 @@ export async function startRun(input: {
   claims: Record<string, string>;
   consent: boolean;
 }): Promise<{ run_id: string; access_token: string }> {
+  const fingerprint = JSON.stringify({
+    claims: Object.fromEntries(Object.entries(input.claims).sort(([a], [b]) => a.localeCompare(b))),
+    consent: input.consent,
+    org: input.org,
+    phone: input.phone,
+  });
+  const pendingKey = "attest:pending-run";
+  const randomHex = (bytes: number): string =>
+    Array.from(crypto.getRandomValues(new Uint8Array(bytes)), (value) =>
+      value.toString(16).padStart(2, "0"),
+    ).join("");
+  let pending: PendingRun | null = null;
+  try {
+    const parsed: unknown = JSON.parse(window.sessionStorage.getItem(pendingKey) ?? "null");
+    pending = isPendingRun(parsed) ? parsed : null;
+  } catch {
+    pending = null;
+  }
+  if (pending?.terminal === "expired" && pending.phone === input.phone) {
+    throw new Error(
+      "The safe retry window ended for this destination. Attest will not create a fresh call identity.",
+    );
+  }
+  if (!pending || pending.fingerprint !== fingerprint) {
+    pending = {
+      fingerprint,
+      requestId: randomHex(16),
+      accessToken: randomHex(32),
+      phone: input.phone,
+    };
+    window.sessionStorage.setItem(pendingKey, JSON.stringify(pending));
+  }
   const response = await fetch(`${BASE}/internal/runs`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "X-Attest-Key": input.judgeKey,
+      "X-Attest-Run-Token": pending.accessToken,
     },
     body: JSON.stringify({
       phone: input.phone,
       org: input.org,
       claims: input.claims,
       consent: input.consent,
+      request_id: pending.requestId,
     }),
   });
+  let errorDetail: unknown = null;
+  if (!response.ok) {
+    try {
+      errorDetail = ((await response.json()) as { detail?: unknown }).detail ?? null;
+    } catch {
+      errorDetail = null;
+    }
+  }
+  if (
+    errorDetail !== null &&
+    typeof errorDetail === "object" &&
+    (errorDetail as { code?: unknown }).code === "call_rejected_before_acceptance"
+  ) {
+    try {
+      window.sessionStorage.removeItem(pendingKey);
+    } catch {
+      // A changed form fingerprint still creates a fresh identity if storage
+      // cannot remove this terminal request record.
+    }
+    const message = (errorDetail as { message?: unknown }).message;
+    throw new Error(
+      typeof message === "string" ? message : "CALL-E rejected the call before acceptance.",
+    );
+  }
+  if (response.status === 409 && errorDetail !== null && typeof errorDetail === "object") {
+    const code = (errorDetail as { code?: unknown }).code;
+    if (code === "call_request_not_retried") {
+      try {
+        window.sessionStorage.setItem(
+          pendingKey,
+          JSON.stringify({ ...pending, terminal: "expired" }),
+        );
+      } catch {
+        // The existing pending identity remains in memory for this page, so
+        // another unchanged click still cannot create a fresh provider key.
+      }
+    }
+    const message = (errorDetail as { message?: unknown }).message;
+    if (typeof message === "string") throw new Error(message);
+  }
   if (response.status === 403) throw new Error("That key was not accepted.");
   if (response.status === 503) throw new Error("Live calling is not enabled on this deployment.");
   if (response.status === 429) {
     throw new Error(
-      (await response.json()).detail ?? "The live demo budget is spent.",
+      typeof errorDetail === "string" ? errorDetail : "The live demo budget is spent.",
     );
   }
   if (response.status === 422) {
-    const detail = (await response.json()).detail;
     throw new Error(
-      typeof detail === "string" ? detail : "Phone must be E.164, like +15550101234.",
+      typeof errorDetail === "string"
+        ? errorDetail
+        : "Phone must be E.164, like +15550101234.",
     );
   }
   if (!response.ok) throw new Error(`Run creation failed (${response.status}).`);
-  return (await response.json()) as { run_id: string; access_token: string };
+  const created = (await response.json()) as { run_id: string; access_token: string };
+  if (created.access_token !== pending.accessToken) {
+    throw new Error("Run creation returned an unexpected access capability.");
+  }
+  // Promote the capability before clearing the retry identity. If storage
+  // fails or the renderer exits here, the same request id and provider key
+  // remain available for a safe retry instead of permitting a second dial.
+  rememberRunAccess(created.run_id, created.access_token);
+  try {
+    window.sessionStorage.removeItem(pendingKey);
+  } catch {
+    // A stale pending record is safe: the next identical request reuses the
+    // same idempotency key and the server returns the existing run.
+  }
+  return created;
 }
 
 export function transcriptOf(detail: RunDetail): TranscriptTurn[] {

@@ -5,6 +5,12 @@ fails if the fix regresses. Named by what breaks, not by finding number.
 """
 
 import json
+import os
+import sqlite3
+import subprocess
+import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import httpx
@@ -16,6 +22,7 @@ from app.extract import extract_yes_no
 from app.main import app
 from app.models import Answer
 from app.runs import build_task
+from scripts import seed_replay
 
 FIXTURE = json.loads(
     (Path(__file__).parent.parent / "mock_calle" / "fixtures" / "terminal_result.json").read_text()
@@ -25,6 +32,46 @@ FIXTURE = json.loads(
 def _client() -> httpx.AsyncClient:
     transport = httpx.ASGITransport(app=app)
     return httpx.AsyncClient(transport=transport, base_url="http://test")
+
+
+def test_concurrent_connect_serializes_legacy_schema_migration(tmp_path: Path) -> None:
+    database = tmp_path / "legacy-concurrent.db"
+    seed = sqlite3.connect(database)
+    seed.execute(
+        "CREATE TABLE call_runs ("
+        "run_id TEXT PRIMARY KEY, calle_call_id TEXT UNIQUE, "
+        "idempotency_key TEXT UNIQUE NOT NULL, state TEXT NOT NULL, "
+        "created_at TEXT, updated_at TEXT, terminal_payload TEXT, record_json TEXT)"
+    )
+    seed.commit()
+    seed.close()
+
+    workers = 12
+    barrier = threading.Barrier(workers)
+
+    def connect_once() -> set[str]:
+        barrier.wait(timeout=5)
+        conn = db.connect(database)
+        try:
+            return {str(row["name"]) for row in conn.execute("PRAGMA table_info(call_runs)")}
+        finally:
+            conn.close()
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        migrated = list(pool.map(lambda _: connect_once(), range(workers)))
+
+    required = {
+        "dispatch_digest",
+        "dispatch_base_url",
+        "dispatch_provider",
+        "dispatch_credential_fingerprint",
+        "destination_hash",
+        "dispatch_expires_at",
+        "submit_attempts",
+        "submit_lease_owner",
+        "submit_lease_until",
+    }
+    assert all(required <= columns for columns in migrated)
 
 
 def test_benign_no_phrases_are_not_a_refusal() -> None:
@@ -88,8 +135,19 @@ async def test_healthz_reports_sandbox_availability(monkeypatch: pytest.MonkeyPa
         assert (await client.get("/healthz")).json()["sandbox"] == "disabled"
 
     monkeypatch.setenv("ATTEST_SANDBOX_ENABLED", "1")
+    monkeypatch.setenv("ATTEST_JUDGE_KEY", "test-judge-key")
+    monkeypatch.setenv("ATTEST_PHONE_HASH_KEY", "test-phone-hash-key")
     async with _client() as client:
         assert (await client.get("/healthz")).json()["sandbox"] == "enabled"
+
+    monkeypatch.delenv("ATTEST_PHONE_HASH_KEY")
+    async with _client() as client:
+        assert (await client.get("/healthz")).json()["sandbox"] == "disabled"
+
+    monkeypatch.setenv("ATTEST_PHONE_HASH_KEY", "test-phone-hash-key")
+    monkeypatch.delenv("ATTEST_JUDGE_KEY", raising=False)
+    async with _client() as client:
+        assert (await client.get("/healthz")).json()["sandbox"] == "disabled"
 
 
 def test_mock_mode_is_detectable() -> None:
@@ -201,3 +259,112 @@ async def test_healthz_reports_whether_it_can_actually_dial(monkeypatch) -> None
     monkeypatch.delenv("ATTEST_USE_MOCK", raising=False)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         assert (await client.get("/healthz")).json()["provider"] == "mock"
+
+
+async def test_private_rows_cannot_crowd_published_runs_out_of_the_ledger(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    database = tmp_path / "ledger.db"
+    monkeypatch.setenv("ATTEST_DB_PATH", str(database))
+    conn = db.connect(database)
+    try:
+        db.create_run(
+            conn,
+            run_id="run_published_old",
+            idempotency_key="run_published_old",
+            record_json=json.dumps({"org": "Visible Evidence", "published": True}),
+        )
+        conn.execute(
+            "UPDATE call_runs SET created_at = '2020-01-01T00:00:00Z' "
+            "WHERE run_id = 'run_published_old'"
+        )
+        for index in range(51):
+            run_id = f"run_private_{index:02d}"
+            db.create_run(
+                conn,
+                run_id=run_id,
+                idempotency_key=run_id,
+                record_json=json.dumps({"org": f"Private {index}"}),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+    async with _client() as client:
+        response = await client.get("/api/runs")
+
+    assert response.status_code == 200
+    assert [item["run_id"] for item in response.json()["runs"]] == ["run_published_old"]
+
+
+async def test_legacy_seed_is_upgraded_to_public_on_every_endpoint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    database = tmp_path / "legacy.db"
+    audio_dir = tmp_path / "audio"
+    monkeypatch.setenv("ATTEST_DB_PATH", str(database))
+    monkeypatch.setenv("ATTEST_AUDIO_DIR", str(audio_dir))
+    replay = next(item for item in seed_replay.REPLAYS if "builder" in item.run_id)
+    payload = json.loads((seed_replay.FIXTURES / replay.fixture).read_text())
+    legacy = dict(replay.record)
+    legacy.pop("published")
+    conn = db.connect(database)
+    try:
+        db.create_run(
+            conn,
+            run_id=replay.run_id,
+            idempotency_key=replay.run_id,
+            record_json=json.dumps(legacy),
+        )
+        db.set_calle_call_id(conn, replay.run_id, str(payload["id"]))
+        fsm.advance(conn, replay.run_id, "submitted")
+        fsm.advance(conn, replay.run_id, "completed", terminal_payload=json.dumps(payload))
+        conn.execute(
+            "UPDATE call_runs SET created_at = ?, updated_at = ? WHERE run_id = ?",
+            ("2020-01-01T00:00:00Z", "2020-01-01T00:01:00Z", replay.run_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    seed_replay.main()
+
+    async with _client() as client:
+        ledger = await client.get("/api/runs")
+        detail = await client.get(f"/api/runs/{replay.run_id}")
+        attestation = await client.get(f"/api/runs/{replay.run_id}/attestation")
+        audio = await client.get(f"/api/runs/{replay.run_id}/audio")
+
+    assert replay.run_id in [item["run_id"] for item in ledger.json()["runs"]]
+    assert detail.status_code == 200
+    assert attestation.status_code == 200
+    assert audio.status_code == 200
+    assert detail.json()["created_at"] == "2020-01-01T00:00:00Z"
+    assert detail.json()["updated_at"] == "2020-01-01T00:01:00Z"
+    assert attestation.json()["created_at"] == "2020-01-01T00:00:00Z"
+    assert attestation.json()["completed_at"] == "2020-01-01T00:01:00Z"
+
+
+def test_seed_replay_help_has_no_database_or_audio_side_effects(tmp_path: Path) -> None:
+    root = Path(__file__).parent.parent
+    database = tmp_path / "help-must-not-create.db"
+    audio_dir = tmp_path / "help-must-not-copy-audio"
+    env = {
+        **os.environ,
+        "ATTEST_DB_PATH": str(database),
+        "ATTEST_AUDIO_DIR": str(audio_dir),
+    }
+
+    result = subprocess.run(
+        [sys.executable, str(root / "scripts" / "seed_replay.py"), "--help"],
+        cwd=root,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "usage:" in result.stdout
+    assert not database.exists()
+    assert not audio_dir.exists()

@@ -72,6 +72,10 @@ class WebhookVerificationError(Exception):
     pass
 
 
+class TransportIdentityMismatch(Exception):
+    pass
+
+
 @router.post("/calle/webhook", status_code=202)
 async def calle_webhook(request: Request, background: BackgroundTasks) -> dict[str, bool]:
     """Terminal result webhook. 202 fast, work applied asynchronously.
@@ -214,11 +218,17 @@ def _hint_allowed(call_id: str) -> bool:
     return True
 
 
-async def _fetch_authoritative(call_id: str) -> dict[str, Any]:
+async def _fetch_authoritative(
+    call_id: str, expected_identity: Mapping[str, object]
+) -> dict[str, Any]:
     """One authenticated GET /v1/calls/{call_id}. Module-level so tests can
     replace it without a network."""
     service = CalleService()
     try:
+        if not service.matches_dispatch_identity(expected_identity):
+            raise TransportIdentityMismatch(
+                "current CALL-E transport does not match the original dispatch"
+            )
         return await service.get_call(call_id)
     finally:
         service.close()
@@ -231,11 +241,17 @@ async def _follow_hint(database: Path, calle_call_id: str) -> None:
     snapshot with our API key and apply that. The hint body itself is never
     written, so a forged delivery cannot plant a result.
     """
-    state = await asyncio.to_thread(_run_state_for_call, database, calle_call_id)
-    if state is None or state in fsm.TERMINAL_STATES:
+    run = await asyncio.to_thread(_run_state_and_transport_for_call, database, calle_call_id)
+    if run is None or run[0] in fsm.TERMINAL_STATES:
         return
     try:
-        snapshot = await _fetch_authoritative(calle_call_id)
+        snapshot = await _fetch_authoritative(calle_call_id, run[1])
+    except TransportIdentityMismatch:
+        logger.error(
+            "hint re-fetch skipped for %s: current CALL-E transport does not match dispatch",
+            calle_call_id,
+        )
+        return
     except Exception:
         # The poller retries on its own schedule; a failed hint costs nothing.
         logger.warning("hint re-fetch failed for call %s", calle_call_id, exc_info=True)
@@ -243,12 +259,23 @@ async def _follow_hint(database: Path, calle_call_id: str) -> None:
     await asyncio.to_thread(runs.apply_terminal_payload, database, snapshot)
 
 
-def _run_state_for_call(database: Path, calle_call_id: str) -> str | None:
-    """Synchronous SQLite lookup, kept off the event loop via to_thread."""
+def _run_state_and_transport_for_call(
+    database: Path, calle_call_id: str
+) -> tuple[str, dict[str, object]] | None:
+    """Read the lifecycle and original transport without exposing secrets."""
     conn = app_db.connect(database)
     try:
         row = app_db.get_run_by_calle_call_id(conn, calle_call_id)
-        return None if row is None else str(row["state"])
+        if row is None:
+            return None
+        return (
+            str(row["state"]),
+            {
+                "base_url": row["dispatch_base_url"],
+                "provider": row["dispatch_provider"],
+                "credential_fingerprint": row["dispatch_credential_fingerprint"],
+            },
+        )
     finally:
         conn.close()
 
