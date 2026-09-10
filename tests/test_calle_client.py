@@ -44,6 +44,38 @@ def test_accepted_call_recovery_distinguishes_rotation_from_endpoint_change() ->
 
 
 @respx.mock
+async def test_readiness_probe_uses_harmless_missing_call_and_caches_success() -> None:
+    route = respx.get(f"{BASE}/v1/calls/call_attest_readiness_probe_v1").mock(
+        return_value=Response(
+            404,
+            json={"error": {"code": "not_found", "message": "call not found"}},
+        )
+    )
+    service = _service()
+    try:
+        assert await service.probe_readiness() == (True, None)
+        assert await service.probe_readiness() == (True, None)
+    finally:
+        service.close()
+    assert route.call_count == 1
+
+
+@respx.mock
+async def test_readiness_probe_reports_rejected_credentials() -> None:
+    respx.get(f"{BASE}/v1/calls/call_attest_readiness_probe_v1").mock(
+        return_value=Response(
+            401,
+            json={"error": {"code": "unauthorized", "message": "bad key"}},
+        )
+    )
+    service = _service()
+    try:
+        assert await service.probe_readiness() == (False, "provider_auth_rejected")
+    finally:
+        service.close()
+
+
+@respx.mock
 async def test_place_call_posts_task_schema_and_idempotency_key() -> None:
     route = respx.post(f"{BASE}/v1/calls").mock(return_value=Response(201, json=FIXTURE))
     service = _service()
