@@ -81,14 +81,24 @@ def test_redacted_container_keys_never_collide() -> None:
 
 def test_redaction_handles_schema_drift_without_discarding_safe_provider_ids() -> None:
     payload = {
-        "summary": "Call +15550101234 for the result.",
+        "summary": {
+            "text": "Call +15550101234 for the result.",
+            "provider_id": "sum_provider_123",
+        },
         "recipients": {
             "rcp_provider_abc": {
-                "phone": {"value": "+15550101234"},
+                "phone": {
+                    "+15550101234": "primary",
+                },
                 "attempts": {
                     "att_provider_xyz": {
                         "summary": "Retry at 555-1234.",
-                        "failure_message": "Escalate through 612 34 56 78.",
+                        "failure_message": [
+                            {
+                                "text": "Escalate through 612 34 56 78.",
+                                "provider_id": "failure_provider_123",
+                            }
+                        ],
                         "transcript_turns": "Call 555/010/1234.",
                     }
                 },
@@ -103,6 +113,13 @@ def test_redaction_handles_schema_drift_without_discarding_safe_provider_ids() -
         assert phone not in serialized
     assert "rcp_provider_abc" in redacted["recipients"]
     assert "att_provider_xyz" in redacted["recipients"]["rcp_provider_abc"]["attempts"]
+    assert redacted["summary"]["provider_id"] == "sum_provider_123"
+    assert (
+        redacted["recipients"]["rcp_provider_abc"]["attempts"]["att_provider_xyz"][
+            "failure_message"
+        ][0]["provider_id"]
+        == "failure_provider_123"
+    )
 
 
 def test_redaction_rejects_phone_data_in_malformed_scalar_containers() -> None:
@@ -114,6 +131,11 @@ def test_redaction_rejects_phone_data_in_malformed_scalar_containers() -> None:
 
     for payload in payloads:
         assert "+15550101234" not in json.dumps(redact_payload(payload))
+
+    assert redact_payload({"recipients": "rcp_421c14316e95fb62"}) == {
+        "recipients": "rcp_421c14316e95fb62"
+    }
+    assert redact_payload({"recipients": False}) == {"recipients": False}
 
 
 def test_analyze_run_ignores_malformed_transcript_members(tmp_path: Path, monkeypatch: Any) -> None:
