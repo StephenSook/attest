@@ -45,5 +45,10 @@
     "web": "expo start --web",
     "lint": "expo lint"
   },
+  "overrides": {
+    "metro": "0.84.5",
+    "metro-config": "0.84.5",
+    "metro-transform-worker": "0.84.5"
+  },
   "private": true
 }
