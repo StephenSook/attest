@@ -34,21 +34,40 @@ def _mask(phone: str) -> str:
     return phone[:3] + "*" * (len(phone) - 6) + phone[-3:]
 
 
+def _redact_phone_fields(value: Any, *, phone_context: bool = False) -> Any:
+    """Recursively mask every scalar below a phone or phones field."""
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            value[key] = _redact_phone_fields(
+                nested,
+                phone_context=phone_context or str(key).lower() in {"phone", "phones"},
+            )
+        return value
+    if isinstance(value, list):
+        return [_redact_phone_fields(item, phone_context=phone_context) for item in value]
+    if phone_context and value is not None:
+        return _mask(str(value))
+    return value
+
+
 def redact_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """Mask phone numbers and remove request echoes before storage or serving."""
     redacted = copy.deepcopy(payload)
-    for recipient in redacted.get("recipients") or []:
-        if not isinstance(recipient, dict):
-            continue
-        recipient["phones"] = [_mask(str(p)) for p in recipient.get("phones") or []]
-        for attempt in recipient.get("attempts") or []:
-            if isinstance(attempt, dict) and attempt.get("phone"):
-                attempt["phone"] = _mask(str(attempt["phone"]))
     # The mock create path stores the original request, which carries the raw
     # dialed number under request.recipient; strip the whole echo rather than
     # chase its shape.
     redacted.pop("request", None)
+    _redact_phone_fields(redacted)
     return redacted
+
+
+def _container_items(value: Any) -> list[Any]:
+    """Return members from either a JSON list or an id-keyed JSON object."""
+    if isinstance(value, list):
+        return value
+    if isinstance(value, dict):
+        return list(value.values())
+    return []
 
 
 def transcript_turns(payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -58,10 +77,14 @@ def transcript_turns(payload: dict[str, Any]) -> list[dict[str, Any]]:
     a list it has no value for, and a default only covers the absent key. The
     served path raised TypeError on a payload carrying "recipients": null.
     """
-    for recipient in payload.get("recipients") or []:
-        for attempt in recipient.get("attempts") or []:
+    for recipient in _container_items(payload.get("recipients")):
+        if not isinstance(recipient, dict):
+            continue
+        for attempt in _container_items(recipient.get("attempts")):
+            if not isinstance(attempt, dict):
+                continue
             turns = attempt.get("transcript_turns")
-            if turns:
+            if isinstance(turns, list) and turns:
                 return list(turns)
     return []
 
