@@ -595,7 +595,16 @@ async def test_poller_redacts_mapping_shaped_containers(
 
 @pytest.mark.parametrize(
     "schema_drift",
-    ["phone_wrapper", "scalar_attempts", "scalar_turns", "summary", "failure_message"],
+    [
+        "phone_wrapper",
+        "phone_mapping_key",
+        "scalar_attempts",
+        "scalar_turns",
+        "summary",
+        "summary_wrapper",
+        "failure_message",
+        "failure_wrapper",
+    ],
 )
 @respx.mock
 async def test_poller_redacts_phone_data_from_schema_drift(
@@ -606,10 +615,26 @@ async def test_poller_redacts_phone_data_from_schema_drift(
     attempt = terminal["recipients"][0]["attempts"][0]
     if schema_drift == "phone_wrapper":
         terminal["recipients"][0]["phone"] = {"value": "+15550101234"}
+    elif schema_drift == "phone_mapping_key":
+        terminal["recipients"][0]["phone"] = {
+            "+15550101234": "primary",
+        }
     elif schema_drift == "scalar_attempts":
         terminal["recipients"][0]["attempts"] = "+15550101234"
     elif schema_drift == "scalar_turns":
         attempt["transcript_turns"] = "+15550101234"
+    elif schema_drift == "summary_wrapper":
+        attempt["summary"] = {
+            "text": "Call +15550101234 for details.",
+            "provider_id": "summary_provider_123",
+        }
+    elif schema_drift == "failure_wrapper":
+        attempt["failure_message"] = [
+            {
+                "text": "Call +15550101234 for details.",
+                "provider_id": "failure_provider_123",
+            }
+        ]
     else:
         attempt[schema_drift] = "Call +15550101234 for details."
     respx.post(f"{BASE}/v1/calls").mock(return_value=Response(201, json=_pending_fixture()))
@@ -628,7 +653,39 @@ async def test_poller_redacts_phone_data_from_schema_drift(
     try:
         row = db.get_run(conn, run_id)
         assert row is not None and row["state"] == "completed"
-        assert "+15550101234" not in str(row["terminal_payload"])
+        stored = str(row["terminal_payload"])
+        assert "+15550101234" not in stored
+        if schema_drift == "summary_wrapper":
+            assert "summary_provider_123" in stored
+        elif schema_drift == "failure_wrapper":
+            assert "failure_provider_123" in stored
+    finally:
+        conn.close()
+        service.close()
+
+
+@respx.mock
+async def test_poller_preserves_safe_scalar_recipient_id(tmp_path: Path) -> None:
+    database = tmp_path / "poll-safe-scalar-recipient.db"
+    terminal = json.loads(json.dumps(FIXTURE))
+    terminal["recipients"] = "rcp_421c14316e95fb62"
+    respx.post(f"{BASE}/v1/calls").mock(return_value=Response(201, json=_pending_fixture()))
+    respx.get(f"{BASE}/v1/calls/{FIXTURE['id']}").mock(return_value=Response(200, json=terminal))
+    service = _service()
+    run_id = await runs.start_verification_run(
+        service,
+        database,
+        task="verify listing",
+        phone="+15550101234",
+    )
+
+    poller = Poller(service, database)
+    assert await poller.tick() == 1
+    conn = db.connect(database)
+    try:
+        row = db.get_run(conn, run_id)
+        assert row is not None and row["state"] == "completed"
+        assert "rcp_421c14316e95fb62" in str(row["terminal_payload"])
     finally:
         conn.close()
         service.close()

@@ -141,7 +141,16 @@ async def test_valid_webhook_redacts_mapping_shaped_containers(
 
 @pytest.mark.parametrize(
     "schema_drift",
-    ["phone_wrapper", "scalar_attempts", "scalar_turns", "summary", "failure_message"],
+    [
+        "phone_wrapper",
+        "phone_mapping_key",
+        "scalar_attempts",
+        "scalar_turns",
+        "summary",
+        "summary_wrapper",
+        "failure_message",
+        "failure_wrapper",
+    ],
 )
 async def test_valid_webhook_redacts_phone_data_from_schema_drift(
     tmp_path: Path,
@@ -156,10 +165,26 @@ async def test_valid_webhook_redacts_phone_data_from_schema_drift(
     attempt = payload["recipients"][0]["attempts"][0]
     if schema_drift == "phone_wrapper":
         payload["recipients"][0]["phone"] = {"value": "+15550101234"}
+    elif schema_drift == "phone_mapping_key":
+        payload["recipients"][0]["phone"] = {
+            "+15550101234": "primary",
+        }
     elif schema_drift == "scalar_attempts":
         payload["recipients"][0]["attempts"] = "+15550101234"
     elif schema_drift == "scalar_turns":
         attempt["transcript_turns"] = "+15550101234"
+    elif schema_drift == "summary_wrapper":
+        attempt["summary"] = {
+            "text": "Call +15550101234 for details.",
+            "provider_id": "summary_provider_123",
+        }
+    elif schema_drift == "failure_wrapper":
+        attempt["failure_message"] = [
+            {
+                "text": "Call +15550101234 for details.",
+                "provider_id": "failure_provider_123",
+            }
+        ]
     else:
         attempt[schema_drift] = "Call +15550101234 for details."
 
@@ -172,7 +197,36 @@ async def test_valid_webhook_redacts_phone_data_from_schema_drift(
     try:
         row = db.get_run(conn, "run_wh")
         assert row is not None and row["state"] == "completed"
-        assert "+15550101234" not in str(row["terminal_payload"])
+        stored = str(row["terminal_payload"])
+        assert "+15550101234" not in stored
+        if schema_drift == "summary_wrapper":
+            assert "summary_provider_123" in stored
+        elif schema_drift == "failure_wrapper":
+            assert "failure_provider_123" in stored
+    finally:
+        conn.close()
+
+
+async def test_valid_webhook_preserves_safe_scalar_recipient_id(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    database = tmp_path / "wh-safe-scalar-recipient.db"
+    monkeypatch.setenv("ATTEST_DB_PATH", str(database))
+    monkeypatch.setenv("CALLE_WEBHOOK_SECRET", SECRET)
+    _seed_run(database)
+    payload = json.loads(json.dumps(FIXTURE))
+    payload["recipients"] = "rcp_421c14316e95fb62"
+
+    raw = json.dumps(payload).encode()
+    async with _client() as client:
+        response = await client.post("/calle/webhook", content=raw, headers=_signed_headers(raw))
+    assert response.status_code == 202
+
+    conn = db.connect(database)
+    try:
+        row = db.get_run(conn, "run_wh")
+        assert row is not None and row["state"] == "completed"
+        assert "rcp_421c14316e95fb62" in str(row["terminal_payload"])
     finally:
         conn.close()
 
