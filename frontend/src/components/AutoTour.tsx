@@ -21,14 +21,17 @@ export default function AutoTour() {
   speedRef.current = speed;
 
   useEffect(() => {
-    const pause = (event?: Event) => {
-      if (event?.target instanceof Element && event.target.closest(".auto-tour")) {
-        return;
-      }
+    const pause = () => {
       if (tween.current?.isActive()) {
         tween.current.pause();
         setState("paused");
       }
+    };
+    const pauseForPointer = (event: Event) => {
+      if (event.target instanceof Element && event.target.closest(".auto-tour")) {
+        return;
+      }
+      pause();
     };
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -42,17 +45,21 @@ export default function AutoTour() {
           event.key,
         )
       ) {
-        pause(event);
+        const spaceOnTourControl =
+          event.key === " " &&
+          event.target instanceof Element &&
+          Boolean(event.target.closest(".auto-tour"));
+        if (!spaceOnTourControl) pause();
       }
     };
     window.addEventListener("wheel", pause, { passive: true });
-    window.addEventListener("touchstart", pause, { passive: true });
-    window.addEventListener("pointerdown", pause);
+    window.addEventListener("touchstart", pauseForPointer, { passive: true });
+    window.addEventListener("pointerdown", pauseForPointer);
     window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("wheel", pause);
-      window.removeEventListener("touchstart", pause);
-      window.removeEventListener("pointerdown", pause);
+      window.removeEventListener("touchstart", pauseForPointer);
+      window.removeEventListener("pointerdown", pauseForPointer);
       window.removeEventListener("keydown", onKey);
       tween.current?.kill();
       tween.current = null;
