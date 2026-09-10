@@ -8,6 +8,7 @@ import httpx
 import pytest
 
 from app import db, fsm
+from app.calle.client import CalleService
 from app.main import app
 
 SECRET = "endpoint-secret-not-real"
@@ -28,11 +29,25 @@ def _client() -> httpx.AsyncClient:
 
 
 def _seed_run(database: Path) -> None:
+    service = CalleService()
+    identity = service.dispatch_identity()
     conn = db.connect(database)
-    db.create_run(conn, run_id="run_wh", idempotency_key="run_wh")
-    db.set_calle_call_id(conn, "run_wh", str(FIXTURE["id"]))
-    fsm.advance(conn, "run_wh", "submitted")
-    conn.close()
+    try:
+        db.create_run(conn, run_id="run_wh", idempotency_key="run_wh")
+        assert db.claim_submission_attempt(
+            conn,
+            "run_wh",
+            dispatch_digest="a" * 64,
+            dispatch_base_url=str(identity["base_url"]),
+            dispatch_provider=str(identity["provider"]),
+            dispatch_credential_fingerprint=str(identity["credential_fingerprint"]),
+            destination_hash="destination-a",
+            lease_owner="owner-a",
+        ) == ("claimed", 1)
+        db.accept_submission(conn, "run_wh", str(FIXTURE["id"]))
+    finally:
+        conn.close()
+        service.close()
 
 
 async def test_valid_webhook_lands_terminal_state(
@@ -103,7 +118,13 @@ def _hint_fetcher(monkeypatch: pytest.MonkeyPatch, snapshot: dict[str, object]) 
     webhook_module._recent_hints.clear()
     fetched: list[str] = []
 
-    async def fake_fetch(call_id: str) -> dict[str, object]:
+    async def fake_fetch(call_id: str, expected_identity: dict[str, object]) -> dict[str, object]:
+        service = CalleService()
+        try:
+            if not service.matches_dispatch_identity(expected_identity):
+                raise webhook_module.TransportIdentityMismatch("transport changed")
+        finally:
+            service.close()
         fetched.append(call_id)
         return snapshot
 
@@ -267,3 +288,35 @@ async def test_empty_string_secret_means_hint_mode(
         )
     assert response.status_code == 202
     assert fetched == [str(FIXTURE["id"])]
+
+
+@pytest.mark.parametrize("change", ["credential", "endpoint"])
+async def test_unsigned_hint_does_not_refetch_through_changed_transport(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    change: str,
+) -> None:
+    database = tmp_path / f"wh-transport-{change}.db"
+    monkeypatch.setenv("ATTEST_DB_PATH", str(database))
+    monkeypatch.delenv("CALLE_WEBHOOK_SECRET", raising=False)
+    _seed_run(database)
+    if change == "credential":
+        monkeypatch.setenv("CALLE_API_KEY", "rotated-key")
+    else:
+        monkeypatch.setenv("ATTEST_MOCK_BASE_URL", "http://other-mock.invalid")
+    fetched = _hint_fetcher(monkeypatch, FIXTURE)
+    hint = json.dumps({"type": "call.completed", "data": {"id": str(FIXTURE["id"])}}).encode()
+
+    async with _client() as client:
+        response = await client.post(
+            "/calle/webhook", content=hint, headers={"CALL-E-Event-Id": "evt_transport"}
+        )
+
+    assert response.status_code == 202
+    assert fetched == []
+    conn = db.connect(database)
+    try:
+        row = db.get_run(conn, "run_wh")
+        assert row is not None and row["state"] == "submitted"
+    finally:
+        conn.close()

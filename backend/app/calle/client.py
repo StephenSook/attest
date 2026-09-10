@@ -7,7 +7,10 @@ If the SDK ever lags the REST surface, this is the one file that changes.
 
 import asyncio
 import functools
+import hashlib
+import hmac
 import os
+from collections.abc import Mapping
 from typing import Any
 
 from calle import CalleClient
@@ -15,6 +18,8 @@ from calle import CalleClient
 JsonObject = dict[str, Any]
 
 _PROD_BASE_URL = "https://api.heycall-e.com"
+_DISPATCH_KEY_DOMAIN = b"attest-dispatch-fingerprint-v1\x00"
+_CREDENTIAL_FINGERPRINT_DOMAIN = b"attest-credential-fingerprint-v1\x00"
 
 
 def _default_base_url() -> str:
@@ -30,21 +35,70 @@ def is_mock_mode() -> bool:
     return os.environ.get("ATTEST_USE_MOCK", "true").lower() == "true"
 
 
+def _dispatch_key(api_key: str) -> bytes:
+    return hashlib.sha256(_DISPATCH_KEY_DOMAIN + api_key.encode()).digest()
+
+
 class CalleService:
     """One outbound verification call at a time. No batching, by design."""
 
     def __init__(self, *, api_key: str | None = None, base_url: str | None = None) -> None:
         resolved_key = api_key if api_key is not None else os.environ.get("CALLE_API_KEY", "")
+        resolved_base_url = base_url if base_url is not None else _default_base_url()
         if not resolved_key:
             # An empty key would produce the header "Bearer " with a trailing
             # space, which h11 rejects as an illegal header value BEFORE any
             # connection, surfacing as a confusing connection error. Use a
             # legal placeholder instead; the live API still 401s it properly.
             resolved_key = "unset-api-key"
+        self._base_url = resolved_base_url.rstrip("/")
+        self._provider_mode = "mock" if is_mock_mode() else "live"
+        self._dispatch_hmac_key = _dispatch_key(resolved_key)
+        self._credential_fingerprint = hashlib.sha256(
+            _CREDENTIAL_FINGERPRINT_DOMAIN + resolved_key.encode()
+        ).hexdigest()
         self._client = CalleClient(
             api_key=resolved_key,
-            base_url=base_url if base_url is not None else _default_base_url(),
+            base_url=self._base_url,
+            timeout=30.0,
         )
+
+    def dispatch_identity(self) -> JsonObject:
+        """Non-secret identity bound to a recoverable idempotent request."""
+        return {
+            "base_url": self._base_url,
+            "provider": self._provider_mode,
+            "credential_fingerprint": self._credential_fingerprint,
+        }
+
+    def matches_dispatch_identity(self, identity: Mapping[str, object]) -> bool:
+        """Check that recovery would use the original account and endpoint."""
+        credential_fingerprint = str(identity.get("credential_fingerprint", ""))
+        return (
+            str(identity.get("base_url", "")) == self._base_url
+            and str(identity.get("provider", "")) == self._provider_mode
+            and bool(credential_fingerprint)
+            and hmac.compare_digest(credential_fingerprint, self._credential_fingerprint)
+        )
+
+    def matches_current_configuration(self) -> bool:
+        """Detect a cached client after runtime call configuration changes."""
+        current_key = os.environ.get("CALLE_API_KEY", "") or "unset-api-key"
+        current_base_url = _default_base_url().rstrip("/")
+        current_provider = "mock" if is_mock_mode() else "live"
+        return (
+            self._base_url == current_base_url
+            and self._provider_mode == current_provider
+            and hmac.compare_digest(self._dispatch_hmac_key, _dispatch_key(current_key))
+        )
+
+    def dispatch_digest(self, canonical_request: str) -> str:
+        """Key the request digest so a database leak cannot enumerate phones."""
+        return hmac.new(
+            self._dispatch_hmac_key,
+            canonical_request.encode(),
+            hashlib.sha256,
+        ).hexdigest()
 
     async def place_call(
         self,

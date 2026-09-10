@@ -65,7 +65,9 @@ async def test_ambiguous_submit_recorded_distinctly(tmp_path: Path) -> None:
     conn = db.connect(database)
     rows = list(conn.execute("SELECT state, terminal_payload FROM call_runs"))
     assert len(rows) == 1
-    assert rows[0]["state"] == "failed"
+    # A transport failure is ambiguous: CALL-E may have accepted the call.
+    # Keep the stable idempotency key retryable instead of making it terminal.
+    assert rows[0]["state"] == "created"
     assert "submit_ambiguous" in str(rows[0]["terminal_payload"])
     conn.close()
     service.close()
