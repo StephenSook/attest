@@ -36,6 +36,9 @@ _PHONE_CANDIDATE = re.compile(
 _DATE_LIKE = re.compile(r"\d{4}-\d{2}-\d{2}(?:[ T]\d{2})?")
 _SLASH_DATE_LIKE = re.compile(r"\d{1,2}/\d{1,2}/\d{2,4}")
 _PROVIDER_RECIPIENT_ID = re.compile(r"rcp_[A-Za-z0-9][A-Za-z0-9_-]{2,127}")
+_UUID_ID = re.compile(
+    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+)
 
 
 def _mask(phone: str) -> str:
@@ -129,7 +132,12 @@ def _redact_phone_fields(value: Any, *, context: str = "generic") -> Any:
                 "summary": "transcript_text",
                 "failure_message": "transcript_text",
             }.get(key_lower)
-            if context == "transcript_text" and (key_lower == "id" or key_lower.endswith("_id")):
+            if (
+                context == "transcript_text"
+                and (key_lower == "id" or key_lower.endswith("_id"))
+                and isinstance(nested, str)
+                and _UUID_ID.fullmatch(nested)
+            ):
                 nested_context = "generic"
             elif nested_context is None:
                 nested_context = (

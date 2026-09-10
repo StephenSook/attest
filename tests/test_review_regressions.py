@@ -83,7 +83,9 @@ def test_redaction_handles_schema_drift_without_discarding_safe_provider_ids() -
     payload = {
         "summary": {
             "text": "Call +15550101234 for the result.",
-            "provider_id": 15550101234,
+            "provider_id": 42,
+            "phone_shaped_id": "+15550101234",
+            "nested_id": {"value": "+15550101234"},
         },
         "recipients": {
             "rcp_provider_abc": {
@@ -113,7 +115,7 @@ def test_redaction_handles_schema_drift_without_discarding_safe_provider_ids() -
         assert phone not in serialized
     assert "rcp_provider_abc" in redacted["recipients"]
     assert "att_provider_xyz" in redacted["recipients"]["rcp_provider_abc"]["attempts"]
-    assert redacted["summary"]["provider_id"] == 15550101234
+    assert redacted["summary"]["provider_id"] == 42
     assert (
         redacted["recipients"]["rcp_provider_abc"]["attempts"]["att_provider_xyz"][
             "failure_message"
