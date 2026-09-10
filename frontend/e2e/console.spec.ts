@@ -1,6 +1,61 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 
 const API = process.env.E2E_API_URL ?? "http://localhost:8000";
+
+async function renderedTextSamples(locator: Locator) {
+  return locator.evaluateAll((elements) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 1;
+    canvas.height = 1;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    const parseColor = (value: string): [number, number, number, number] => {
+      if (!context) return [0, 0, 0, 1];
+      context.clearRect(0, 0, 1, 1);
+      context.fillStyle = value;
+      context.fillRect(0, 0, 1, 1);
+      const [red, green, blue, alpha] = context.getImageData(0, 0, 1, 1).data;
+      return [red, green, blue, alpha / 255];
+    };
+    const compositeBackground = (element: Element): number[] => {
+      const chain: Element[] = [];
+      for (let current: Element | null = element; current; current = current.parentElement) {
+        chain.push(current);
+      }
+      return chain.reverse().reduce<number[]>((background, current) => {
+        const [red, green, blue, alpha] = parseColor(
+          getComputedStyle(current).backgroundColor,
+        );
+        return [
+          red * alpha + background[0] * (1 - alpha),
+          green * alpha + background[1] * (1 - alpha),
+          blue * alpha + background[2] * (1 - alpha),
+        ];
+      }, [255, 255, 255]);
+    };
+    const luminance = ([red, green, blue]: number[]) => {
+      const channels = [red, green, blue].map((value) => {
+        const channel = value / 255;
+        return channel <= 0.04045
+          ? channel / 12.92
+          : ((channel + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+    };
+
+    return elements.flatMap((element) => {
+      const text = element.textContent?.trim().toLowerCase() ?? "";
+      const rect = element.getBoundingClientRect();
+      if (!text || rect.width === 0 || rect.height === 0) return [];
+      const style = getComputedStyle(element);
+      const foreground = luminance(parseColor(style.color));
+      const background = luminance(compositeBackground(element));
+      const contrast =
+        (Math.max(foreground, background) + 0.05) /
+        (Math.min(foreground, background) + 0.05);
+      return [{ text, fontSize: Number.parseFloat(style.fontSize), contrast }];
+    });
+  });
+}
 
 test("landing renders the hero and the tour control", async ({ page }) => {
   await page.goto("/");
@@ -116,59 +171,8 @@ test("mobile calibration evidence labels meet text contrast and size floors", as
   await page.goto("/calibration");
   await expect(page.getByRole("heading", { name: "The guarantee, measured" })).toBeVisible();
 
-  const samples = await page.locator('[role="list"] p, [role="list"] span').evaluateAll(
-    (elements) => {
-      const canvas = document.createElement("canvas");
-      canvas.width = 1;
-      canvas.height = 1;
-      const context = canvas.getContext("2d", { willReadFrequently: true });
-      const parseColor = (value: string): [number, number, number, number] => {
-        if (!context) return [0, 0, 0, 1];
-        context.clearRect(0, 0, 1, 1);
-        context.fillStyle = value;
-        context.fillRect(0, 0, 1, 1);
-        const [red, green, blue, alpha] = context.getImageData(0, 0, 1, 1).data;
-        return [red, green, blue, alpha / 255];
-      };
-      const compositeBackground = (element: Element): number[] => {
-        const chain: Element[] = [];
-        for (let current: Element | null = element; current; current = current.parentElement) {
-          chain.push(current);
-        }
-        return chain.reverse().reduce<number[]>((background, current) => {
-          const [red, green, blue, alpha] = parseColor(
-            getComputedStyle(current).backgroundColor,
-          );
-          return [
-            red * alpha + background[0] * (1 - alpha),
-            green * alpha + background[1] * (1 - alpha),
-            blue * alpha + background[2] * (1 - alpha),
-          ];
-        }, [255, 255, 255]);
-      };
-      const luminance = ([red, green, blue]: number[]) => {
-        const channels = [red, green, blue].map((value) => {
-          const channel = value / 255;
-          return channel <= 0.04045
-            ? channel / 12.92
-            : ((channel + 0.055) / 1.055) ** 2.4;
-        });
-        return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
-      };
-
-      return elements.flatMap((element) => {
-        const text = element.textContent?.trim().toLowerCase() ?? "";
-        const rect = element.getBoundingClientRect();
-        if (!text || rect.width === 0 || rect.height === 0) return [];
-        const style = getComputedStyle(element);
-        const foreground = luminance(parseColor(style.color));
-        const background = luminance(compositeBackground(element));
-        const contrast =
-          (Math.max(foreground, background) + 0.05) /
-          (Math.min(foreground, background) + 0.05);
-        return [{ text, fontSize: Number.parseFloat(style.fontSize), contrast }];
-      });
-    },
+  const samples = await renderedTextSamples(
+    page.locator('[role="list"] p, [role="list"] span'),
   );
 
   const observed = new Set(samples.map(({ text }) => text));
@@ -186,6 +190,46 @@ test("mobile calibration evidence labels meet text contrast and size floors", as
   }
   for (const sample of samples) {
     expect(sample.fontSize, `${sample.text} is too small`).toBeGreaterThanOrEqual(11);
+    expect(sample.contrast, `${sample.text} lacks 4.5:1 contrast`).toBeGreaterThanOrEqual(4.5);
+  }
+});
+
+test("amber warning cards and badges meet rendered contrast floors", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/verify");
+  await page.locator("textarea").fill("{");
+  await page.getByRole("button", { name: "verify signature" }).click();
+  await expect(page.getByText("not checked", { exact: true })).toBeVisible();
+  const warningSamples = await renderedTextSamples(
+    page.locator(".bg-doubt-soft .text-doubt"),
+  );
+
+  await page.route("**/api/runs", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        runs: [
+          {
+            run_id: "run_unverifiable_contrast",
+            state: "completed",
+            created_at: "2026-09-10T00:00:00Z",
+            org: "Contrast fixture",
+            replay: false,
+            verdict: "unverifiable",
+          },
+        ],
+      }),
+    }),
+  );
+  await page.goto("/runs");
+  const badge = page.getByText("unverifiable", { exact: true });
+  await expect(badge).toBeVisible();
+  const badgeSamples = await renderedTextSamples(badge);
+
+  expect(warningSamples.length).toBeGreaterThanOrEqual(2);
+  expect(badgeSamples).toHaveLength(1);
+  for (const sample of [...warningSamples, ...badgeSamples]) {
     expect(sample.contrast, `${sample.text} lacks 4.5:1 contrast`).toBeGreaterThanOrEqual(4.5);
   }
 });
