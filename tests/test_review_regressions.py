@@ -30,27 +30,51 @@ def test_request_echo_is_stripped_from_served_payloads() -> None:
 
 def test_redaction_covers_unexpected_phone_locations_without_mutating_input() -> None:
     payload = {
-        "recipients": [
-            "+15550101234",
-            {
-                "+15550101234": {
-                    "attempts": [
-                        {
-                            "transcript_turns": [
-                                {"speaker": "user", "text": "Call me at +15550101234."}
-                            ]
-                        }
-                    ]
-                }
-            },
-        ]
+        "recipients": {
+            "+15550101234": {
+                "attempts": [
+                    {
+                        "transcript_turns": [
+                            {
+                                "speaker": "user",
+                                "text": (
+                                    "Call 555-1234, 612 34 56 78, 5550101234x89, or 555/010/1234."
+                                ),
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        "metadata": {
+            "timestamp": "2026-09-10 01:17:24",
+            "ip": "192.168.100.123",
+            "correlation_id": "1234567890",
+            "decimal": "15550101234.0",
+        },
     }
     original = json.loads(json.dumps(payload))
 
     redacted = redact_payload(payload)
 
-    assert "+15550101234" not in json.dumps(redacted)
+    serialized = json.dumps(redacted)
+    for phone in ["+15550101234", "555-1234", "612 34 56 78", "5550101234x89", "555/010/1234"]:
+        assert phone not in serialized
+    assert redacted["metadata"] == payload["metadata"]
     assert payload == original
+
+
+def test_redacted_container_keys_never_collide() -> None:
+    for recipients in [
+        {"+15550101234": {"marker": "phone"}, "recipient-0": {"marker": "existing"}},
+        {"recipient-0": {"marker": "existing"}, "+15550101234": {"marker": "phone"}},
+    ]:
+        redacted = redact_payload({"recipients": recipients})
+        assert len(redacted["recipients"]) == 2
+        assert {item["marker"] for item in redacted["recipients"].values()} == {
+            "phone",
+            "existing",
+        }
 
 
 def test_analyze_run_ignores_malformed_transcript_members(tmp_path: Path, monkeypatch: Any) -> None:
