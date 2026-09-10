@@ -363,6 +363,7 @@
   .frame-marks span:nth-child(3),
   .frame-marks span:nth-child(4) { display: none; }
   .chapter { min-height: 84vh; }
+  .hero { min-height: 100vh; }
   .call-line { flex-wrap: wrap; }
 }
 
