@@ -42,7 +42,7 @@ export default function AutoTour() {
           event.key,
         )
       ) {
-        pause();
+        pause(event);
       }
     };
     window.addEventListener("wheel", pause, { passive: true });
