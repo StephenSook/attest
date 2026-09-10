@@ -149,7 +149,13 @@ async def test_valid_webhook_redacts_mapping_shaped_containers(
         "summary",
         "summary_wrapper",
         "failure_message",
+        "error",
         "failure_wrapper",
+        "date_shaped_mapping_keys",
+        "date_shaped_id_fields",
+        "unknown_mapping_keys",
+        "unknown_scalar_value",
+        "sensitive_mapping_keys",
     ],
 )
 async def test_valid_webhook_redacts_phone_data_from_schema_drift(
@@ -168,6 +174,7 @@ async def test_valid_webhook_redacts_phone_data_from_schema_drift(
     elif schema_drift == "phone_mapping_key":
         payload["recipients"][0]["phone"] = {
             "+15550101234": "primary",
+            "12/34/5678": "secondary",
         }
     elif schema_drift == "scalar_attempts":
         payload["recipients"][0]["attempts"] = "+15550101234"
@@ -178,6 +185,8 @@ async def test_valid_webhook_redacts_phone_data_from_schema_drift(
             "text": "Call +15550101234 for details.",
             "provider_id": 42,
             "phone_shaped_id": "+15550101234",
+            "id": "12/34/5678",
+            "date_shaped_id": "12/34/5678",
             "nested_id": {"value": "+15550101234"},
         }
     elif schema_drift == "failure_wrapper":
@@ -186,6 +195,57 @@ async def test_valid_webhook_redacts_phone_data_from_schema_drift(
                 "text": "Call +15550101234 for details.",
                 "provider_id": "550e8400-e29b-41d4-a716-446655440000",
             }
+        ]
+    elif schema_drift == "date_shaped_mapping_keys":
+        recipient = payload["recipients"][0]
+        recipient["12/34/5678"] = "recipient-key"
+        attempt["2099-12-31"] = "attempt-key"
+        attempt["transcript_turns"][0]["12/34/5678"] = "turn-key"
+        recipient["attempts"] = {"2099-12-31": attempt}
+        payload["recipients"] = {"12/34/5678": recipient}
+    elif schema_drift == "date_shaped_id_fields":
+        uuid = "550e8400-e29b-41d4-a716-446655440000"
+        payload["call_id"] = "2099-12-31"
+        payload["callId"] = "12/34/5678"
+        payload["recipient_ids"] = ["12/34/5678", uuid]
+        payload["recipient-ids"] = {"2099-12-31": "tel_15550101234", uuid: uuid}
+        payload["recipientIds"] = ["acct15550101234", uuid]
+        payload["recipientIDs"] = ["acctA15550101234B", uuid]
+        payload["recipientIDS"] = ["call_x15550101234aaaaaaaaaa", uuid]
+        payload["RECIPIENTIDS"] = {"2099-12-31": "acctB15550101234C", uuid: uuid}
+        payload["recipientids"] = ["acctC15550101234D", uuid]
+        payload["recipientID"] = "acct155.50.101.234x"
+        payload["provider.id"] = "acctD15550101234E"
+        payload["provider_id_v2"] = "acctE15550101234F"
+        payload["destinationIdValue"] = "acctF15550101234G"
+        payload["idList"] = ["acctG15550101234H"]
+        payload["recipients"][0]["id"] = "12/34/5678"
+        payload["recipients"][0]["recipientId"] = "12/34/5678"
+        attempt["call_id"] = "2099-12-31"
+        attempt["call-id"] = "2099-12-31"
+        attempt["nested_id"] = {"value": uuid, "values": [uuid]}
+        attempt["transcript_turns"][0]["id"] = "12/34/5678"
+        attempt["transcript_turns"][0]["turnID"] = "12/34/5678"
+    elif schema_drift == "unknown_mapping_keys":
+        payload["+15550101234"] = "root"
+        payload["results"] = {
+            "+15550101234": "nested",
+            "acct15550101234": "embedded",
+            "acct155.50.101.234x": "dotted-embedded",
+            "2099-12-31": "generic-date",
+            "2026-09-10T01:17:24Z": "seconds",
+            "2026-09-10T01:17:24.123456Z": "fraction",
+            "2026-09-10T01:17:24-04:00": "offset",
+        }
+    elif schema_drift == "sensitive_mapping_keys":
+        recipient = payload["recipients"][0]
+        recipient["acct15550101234"] = "recipient-key"
+        attempt["acct15550101234"] = "attempt-key"
+        attempt["transcript_turns"][0]["acct15550101234"] = "turn-key"
+    elif schema_drift == "unknown_scalar_value":
+        payload["notes"] = [
+            "Call +15550101234",
+            {"detail": "Use 555-1234", "number": 15550101234, "items": [15550101234.0]},
         ]
     else:
         attempt[schema_drift] = "Call +15550101234 for details."
@@ -201,10 +261,44 @@ async def test_valid_webhook_redacts_phone_data_from_schema_drift(
         assert row is not None and row["state"] == "completed"
         stored = str(row["terminal_payload"])
         assert "+15550101234" not in stored
-        if schema_drift == "summary_wrapper":
+        if schema_drift == "phone_mapping_key":
+            assert "12/34/5678" not in stored
+        elif schema_drift == "summary_wrapper":
             assert '"provider_id": 42' in stored
+            assert "12/34/5678" not in stored
         elif schema_drift == "failure_wrapper":
             assert "550e8400-e29b-41d4-a716-446655440000" in stored
+        elif schema_drift in {"date_shaped_mapping_keys", "date_shaped_id_fields"}:
+            assert "12/34/5678" not in stored
+            assert "2099-12-31" not in stored
+            if schema_drift == "date_shaped_id_fields":
+                for prefixed_phone in [
+                    "tel_15550101234",
+                    "acct15550101234",
+                    "acctA15550101234B",
+                    "acctB15550101234C",
+                    "acctC15550101234D",
+                    "call_x15550101234aaaaaaaaaa",
+                    "acct155.50.101.234x",
+                    "acctD15550101234E",
+                    "acctE15550101234F",
+                    "acctF15550101234G",
+                    "acctG15550101234H",
+                ]:
+                    assert prefixed_phone not in stored
+                assert "550e8400-e29b-41d4-a716-446655440000" in stored
+        elif schema_drift == "unknown_mapping_keys":
+            assert "acct15550101234" not in stored
+            assert "acct155.50.101.234x" not in stored
+            assert "2099-12-31" in stored
+            assert "2026-09-10T01:17:24Z" in stored
+            assert "2026-09-10T01:17:24.123456Z" in stored
+            assert "2026-09-10T01:17:24-04:00" in stored
+        elif schema_drift == "sensitive_mapping_keys":
+            assert "acct15550101234" not in stored
+        elif schema_drift == "unknown_scalar_value":
+            assert "555-1234" not in stored
+            assert "15550101234" not in stored
     finally:
         conn.close()
 

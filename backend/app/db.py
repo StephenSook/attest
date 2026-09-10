@@ -1,10 +1,18 @@
 """SQLite access. WAL mode, single writer, durable when its path is persistent."""
 
 import fcntl
+import json
 import os
 import sqlite3
 import time
 from pathlib import Path
+
+from app import analysis
+
+
+def _redacted_payload_json(payload_json: str) -> str:
+    return analysis.redact_payload_json(payload_json)
+
 
 _PRAGMAS = (
     "PRAGMA busy_timeout=5000",
@@ -220,7 +228,7 @@ def set_submit_error(conn: sqlite3.Connection, run_id: str, error_json: str) -> 
         "updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') "
         "WHERE run_id = ? AND state = 'created' "
         "AND (calle_call_id IS NULL OR calle_call_id = '')",
-        (error_json, run_id),
+        (_redacted_payload_json(error_json), run_id),
     )
     conn.commit()
     return cursor.rowcount == 1
@@ -305,7 +313,7 @@ def claim_submission_attempt(
                 "submit_lease_owner = NULL, submit_lease_until = 0, "
                 "updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') "
                 "WHERE run_id = ? AND state = 'created'",
-                (expired_payload, run_id),
+                (_redacted_payload_json(expired_payload), run_id),
             )
             conn.execute("COMMIT")
             return "expired", attempts
@@ -358,7 +366,11 @@ def release_submission_lease(
 def expire_submission_attempts(conn: sqlite3.Connection, *, now: float | None = None) -> int:
     """Fail expired, unleased unknown outcomes without permitting a late dial."""
     current = time.time() if now is None else now
-    payload = '{"error":"dispatch recovery window expired","stage":"submit_recovery_expired"}'
+    payload = _redacted_payload_json(
+        json.dumps(
+            {"error": "dispatch recovery window expired", "stage": "submit_recovery_expired"}
+        )
+    )
     cursor = conn.execute(
         "UPDATE call_runs SET state = 'failed', terminal_payload = ?, "
         "submit_lease_owner = NULL, submit_lease_until = 0, "
@@ -387,7 +399,7 @@ def set_recovery_issue(conn: sqlite3.Connection, run_id: str, issue_json: str) -
         "UPDATE call_runs SET terminal_payload = ?, "
         "updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') "
         "WHERE run_id = ? AND state = 'submitted'",
-        (issue_json, run_id),
+        (_redacted_payload_json(issue_json), run_id),
     )
     conn.commit()
     return cursor.rowcount == 1
@@ -548,7 +560,7 @@ def reject_submission(
             "updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') "
             "WHERE run_id = ? AND state = 'created' "
             "AND submit_lease_owner = ? AND submit_attempts = ?",
-            (error_json, run_id, lease_owner, attempt_number),
+            (_redacted_payload_json(error_json), run_id, lease_owner, attempt_number),
         )
         if cursor.rowcount != 1:
             conn.execute("ROLLBACK")
