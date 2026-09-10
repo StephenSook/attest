@@ -107,6 +107,38 @@ async def test_valid_webhook_persists_explicit_null_lists(
         conn.close()
 
 
+@pytest.mark.parametrize("mapping_container", ["recipients", "attempts"])
+async def test_valid_webhook_redacts_mapping_shaped_containers(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mapping_container: str,
+) -> None:
+    database = tmp_path / f"wh-mapping-{mapping_container}.db"
+    monkeypatch.setenv("ATTEST_DB_PATH", str(database))
+    monkeypatch.setenv("CALLE_WEBHOOK_SECRET", SECRET)
+    _seed_run(database)
+    payload = json.loads(json.dumps(FIXTURE))
+    if mapping_container == "recipients":
+        payload["recipients"] = {"primary": payload["recipients"][0]}
+    else:
+        payload["recipients"][0]["attempts"] = {"primary": payload["recipients"][0]["attempts"][0]}
+
+    raw = json.dumps(payload).encode()
+    async with _client() as client:
+        response = await client.post("/calle/webhook", content=raw, headers=_signed_headers(raw))
+    assert response.status_code == 202
+
+    conn = db.connect(database)
+    try:
+        row = db.get_run(conn, "run_wh")
+        assert row is not None and row["state"] == "completed"
+        stored = str(row["terminal_payload"])
+        assert "+15550101234" not in stored
+        assert "+15******234" in stored
+    finally:
+        conn.close()
+
+
 async def test_replayed_webhook_is_a_noop(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     database = tmp_path / "wh2.db"
     monkeypatch.setenv("ATTEST_DB_PATH", str(database))
