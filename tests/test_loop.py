@@ -236,6 +236,83 @@ async def test_restart_does_not_poll_through_changed_transport(
         conn.close()
 
 
+@respx.mock
+async def test_poll_exhaustion_keeps_destination_reserved_until_late_terminal(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "poll-exhausted.db"
+    service = _service()
+    identity = service.dispatch_identity()
+    conn = db.connect(database)
+    try:
+        db.create_run(conn, run_id="run_poll_exhausted", idempotency_key="run_poll_exhausted")
+        assert db.claim_submission_attempt(
+            conn,
+            "run_poll_exhausted",
+            dispatch_digest="a" * 64,
+            dispatch_base_url=str(identity["base_url"]),
+            dispatch_provider=str(identity["provider"]),
+            dispatch_credential_fingerprint=str(identity["credential_fingerprint"]),
+            destination_hash="destination-a",
+            lease_owner="owner-a",
+        ) == ("claimed", 1)
+        assert db.accept_submission(conn, "run_poll_exhausted", str(FIXTURE["id"]))
+    finally:
+        conn.close()
+
+    route = respx.get(f"{BASE}/v1/calls/{FIXTURE['id']}").mock(
+        side_effect=[
+            *[
+                Response(503, json={"error": {"code": "unavailable", "message": "retry"}})
+                for _ in range(5)
+            ],
+            Response(200, json=FIXTURE),
+        ]
+    )
+    poller = Poller(service, database)
+    for _ in range(5):
+        assert await poller.tick() == 0
+
+    conn = db.connect(database)
+    try:
+        blocked = db.get_run(conn, "run_poll_exhausted")
+        assert blocked is not None and blocked["state"] == "submitted"
+        assert json.loads(str(blocked["terminal_payload"]))["stage"] == "poll_exhausted"
+        assert poller.blocked_run_count == 1
+        assert (
+            db.create_request_run(
+                conn,
+                run_id="run_duplicate_destination",
+                idempotency_key="run_duplicate_destination",
+                record_json="{}",
+                destination_hash="destination-a",
+            )
+            == "destination_blocked"
+        )
+    finally:
+        conn.close()
+
+    assert await poller.tick() == 1
+    conn = db.connect(database)
+    try:
+        completed = db.get_run(conn, "run_poll_exhausted")
+        assert completed is not None and completed["state"] == "completed"
+        assert (
+            db.create_request_run(
+                conn,
+                run_id="run_after_terminal",
+                idempotency_key="run_after_terminal",
+                record_json="{}",
+                destination_hash="destination-a",
+            )
+            == "ok"
+        )
+    finally:
+        conn.close()
+        service.close()
+    assert route.call_count == 6
+
+
 def test_same_request_recovers_acceptance_lost_at_process_boundary(tmp_path: Path) -> None:
     """Two spawned interpreters exercise the real accepted-before-SQLite boundary."""
     database = tmp_path / "accepted-remotely.db"
