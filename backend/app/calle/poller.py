@@ -1,8 +1,4 @@
-"""Asyncio poller. The webhook's backup, and the loop's heartbeat.
-
-On startup it resumes every submitted run straight from SQLite, so killing
-the process mid-call and restarting picks up exactly where it left off.
-"""
+"""Asyncio poller. The webhook's backup, and the loop's heartbeat."""
 
 import asyncio
 import json
@@ -43,7 +39,16 @@ class Poller:
         self._wake.set()
 
     async def tick(self) -> int:
-        """Poll every submitted run once. Returns how many reached terminal."""
+        """Expire abandoned submissions, then poll accepted runs once."""
+        conn = db.connect(self._database)
+        try:
+            expired = db.expire_submission_attempts(conn)
+        finally:
+            conn.close()
+
+        if expired:
+            logger.error("expired %d unreconciled CALL-E dispatches", expired)
+
         conn = db.connect(self._database)
         try:
             pending = db.pollable_runs(conn)
@@ -54,6 +59,18 @@ class Poller:
         for row in pending:
             calle_call_id = str(row["calle_call_id"])
             run_id = str(row["run_id"])
+            identity = {
+                "base_url": row["dispatch_base_url"],
+                "provider": row["dispatch_provider"],
+                "credential_fingerprint": row["dispatch_credential_fingerprint"],
+            }
+            if not self._service.matches_dispatch_identity(identity):
+                self._failures.pop(run_id, None)
+                logger.error(
+                    "poll skipped for %s: current CALL-E transport does not match dispatch",
+                    run_id,
+                )
+                continue
             try:
                 call = await self._service.get_call(calle_call_id)
             except Exception as exc:

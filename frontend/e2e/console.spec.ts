@@ -270,6 +270,170 @@ test("live-call gate refuses a wrong key", async ({ page }) => {
   await expect(page.getByText(/key was not accepted/i)).toBeVisible();
 });
 
+test("capability promotion failure keeps the same safe retry identity", async ({ page }) => {
+  const attempts: { requestId: string; accessToken: string }[] = [];
+  await page.route("**/healthz", async (route) => {
+    await route.fulfill({
+      json: {
+        status: "ok",
+        service: "attest",
+        poller: "running",
+        provider: "live",
+        sandbox: "enabled",
+      },
+    });
+  });
+  await page.route("**/internal/runs", async (route) => {
+    const body = route.request().postDataJSON() as { request_id: string };
+    const accessToken = route.request().headers()["x-attest-run-token"];
+    attempts.push({ requestId: body.request_id, accessToken });
+    await route.fulfill({
+      status: 201,
+      json: { run_id: `run_${body.request_id}`, access_token: accessToken },
+    });
+  });
+  await page.addInitScript(() => {
+    const original = Storage.prototype.setItem;
+    Object.defineProperty(window, "failRunTokenPromotion", {
+      configurable: true,
+      value: true,
+      writable: true,
+    });
+    Storage.prototype.setItem = function (key: string, value: string) {
+      if (
+        key.startsWith("attest:run-token:") &&
+        (window as Window & { failRunTokenPromotion?: boolean }).failRunTokenPromotion
+      ) {
+        throw new DOMException("storage unavailable", "QuotaExceededError");
+      }
+      return original.call(this, key, value);
+    };
+  });
+
+  await page.goto("/runs/new");
+  await page.getByLabel(/judge key/i).fill("demo-mode-key");
+  await page.getByLabel(/organization/i).fill("Recovery Test Practice");
+  await page.getByLabel(/published phone line/i).fill("+15550109999");
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: /place the call/i }).click();
+  await expect(page.getByText(/storage unavailable/i)).toBeVisible();
+
+  await page.evaluate(() => {
+    (window as Window & { failRunTokenPromotion?: boolean }).failRunTokenPromotion = false;
+  });
+  await page.getByRole("button", { name: /place the call/i }).click();
+  await expect(page).toHaveURL(/\/runs\/run_/);
+
+  expect(attempts).toHaveLength(2);
+  expect(attempts[1]).toEqual(attempts[0]);
+  await expect
+    .poll(() =>
+      page.evaluate(() => ({
+        pending: sessionStorage.getItem("attest:pending-run"),
+        promoted: Object.keys(sessionStorage).some((key) =>
+          key.startsWith("attest:run-token:"),
+        ),
+      })),
+    )
+    .toEqual({ pending: null, promoted: true });
+});
+
+test("definite provider rejection clears the terminal request identity", async ({ page }) => {
+  const attempts: { requestId: string; accessToken: string }[] = [];
+  await page.route("**/healthz", async (route) => {
+    await route.fulfill({
+      json: {
+        status: "ok",
+        service: "attest",
+        poller: "running",
+        provider: "live",
+        sandbox: "enabled",
+      },
+    });
+  });
+  await page.route("**/internal/runs", async (route) => {
+    const body = route.request().postDataJSON() as { request_id: string };
+    const accessToken = route.request().headers()["x-attest-run-token"];
+    attempts.push({ requestId: body.request_id, accessToken });
+    if (attempts.length === 1) {
+      await route.fulfill({
+        status: 502,
+        json: {
+          detail: {
+            code: "call_rejected_before_acceptance",
+            message: "CALL-E rejected the request before accepting a call.",
+          },
+        },
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 201,
+      json: { run_id: `run_${body.request_id}`, access_token: accessToken },
+    });
+  });
+
+  await page.goto("/runs/new");
+  await page.getByLabel(/judge key/i).fill("demo-mode-key");
+  await page.getByLabel(/organization/i).fill("Fresh Retry Practice");
+  await page.getByLabel(/published phone line/i).fill("+15550108888");
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: /place the call/i }).click();
+  await expect(page.getByText(/rejected the request before accepting/i)).toBeVisible();
+  await expect.poll(() => page.evaluate(() => sessionStorage.getItem("attest:pending-run"))).toBeNull();
+
+  await page.getByRole("button", { name: /place the call/i }).click();
+  await expect(page).toHaveURL(/\/runs\/run_/);
+  expect(attempts).toHaveLength(2);
+  expect(attempts[1]).not.toEqual(attempts[0]);
+});
+
+test("expired request tombstones the destination instead of redialing", async ({ page }) => {
+  const attempts: { requestId: string; accessToken: string }[] = [];
+  await page.route("**/healthz", async (route) => {
+    await route.fulfill({
+      json: {
+        status: "ok",
+        service: "attest",
+        poller: "running",
+        provider: "live",
+        sandbox: "enabled",
+      },
+    });
+  });
+  await page.route("**/internal/runs", async (route) => {
+    const body = route.request().postDataJSON() as { request_id: string };
+    const accessToken = route.request().headers()["x-attest-run-token"];
+    attempts.push({ requestId: body.request_id, accessToken });
+    await route.fulfill({
+      status: 409,
+      json: {
+        detail: {
+          code: "call_request_not_retried",
+          message: "The safe retry window ended.",
+        },
+      },
+    });
+  });
+
+  await page.goto("/runs/new");
+  await page.getByLabel(/judge key/i).fill("demo-mode-key");
+  await page.getByLabel(/organization/i).fill("Expired Retry Practice");
+  await page.getByLabel(/published phone line/i).fill("+15550107777");
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: /place the call/i }).click();
+  await expect(page.getByText(/safe retry window ended/i)).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(() => JSON.parse(sessionStorage.getItem("attest:pending-run") ?? "null")),
+    )
+    .toMatchObject({ terminal: "expired", phone: "+15550107777" });
+
+  await page.getByRole("button", { name: /place the call/i }).click();
+  await expect(page.getByText(/will not create a fresh call identity/i)).toBeVisible();
+  expect(attempts).toHaveLength(1);
+});
+
 test("the whole loop: a judge-key run travels to a verdict", async ({ page }) => {
   await page.goto("/runs/new");
   await page.getByLabel(/judge key/i).fill("demo-mode-key");

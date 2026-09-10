@@ -13,6 +13,7 @@ Two replays ship:
     uv run python scripts/seed_replay.py
 """
 
+import argparse
 import json
 import math
 import os
@@ -136,8 +137,19 @@ def _ensure_builder_audio() -> None:
 
 def _seed_one(conn: sqlite3.Connection, replay: Replay) -> None:
     run_id = replay.run_id
-    if db.get_run(conn, run_id) is not None:
-        print(f"{run_id} already seeded; nothing to do")
+    existing = db.get_run(conn, run_id)
+    if existing is not None:
+        existing_record = (
+            json.loads(str(existing["record_json"])) if existing["record_json"] else {}
+        )
+        upgraded = {**replay.record, **existing_record, "published": True}
+        if upgraded != existing_record:
+            # Publishing metadata must not rewrite the signed historical
+            # completion time of an already completed replay.
+            db.update_run_record_metadata(conn, run_id, json.dumps(upgraded))
+            print(f"upgraded {run_id} to the current replay record")
+        else:
+            print(f"{run_id} already seeded; nothing to do")
         return
     payload = json.loads((FIXTURES / replay.fixture).read_text())
     record = dict(replay.record)
@@ -166,4 +178,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Seed Attest's scrubbed public replay records.",
+    )
+    parser.parse_args()
     main()

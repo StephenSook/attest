@@ -3,15 +3,78 @@
 import json
 import logging
 import os
+import sqlite3
 import uuid
 from pathlib import Path
 
-from calle.errors import CalleConnectionError, CalleTimeoutError
+from calle.errors import CalleAPIError, CalleConnectionError, CalleTimeoutError
 
 from app import db, fsm
 from app.calle.client import CalleService
 
 logger = logging.getLogger(__name__)
+
+_DEFINITE_REJECTION_STATUS_CODES = frozenset({400, 401, 403, 404, 422, 429})
+DISPATCH_LEASE_SECONDS = 120.0
+DISPATCH_RECOVERY_WINDOW_SECONDS = 600.0
+
+
+class CallSubmissionRejected(Exception):
+    """CALL-E definitively rejected a request before accepting a call."""
+
+    def __init__(self, status_code: int) -> None:
+        super().__init__(f"CALL-E rejected the call request ({status_code})")
+        self.status_code = status_code
+
+
+class CallSubmissionBusy(Exception):
+    """Another process still owns the external submission attempt."""
+
+
+class CallSubmissionExpired(Exception):
+    """The safe retry window ended, so Attest refused to dial late."""
+
+
+def _record_ambiguous_submit(
+    conn: sqlite3.Connection,
+    run_id: str,
+    exc: Exception,
+) -> None:
+    """Keep a possibly accepted submission retryable under the same key."""
+    recorded = db.set_submit_error(
+        conn,
+        run_id,
+        json.dumps({"error": str(exc), "stage": "submit_ambiguous"}),
+    )
+    if recorded:
+        logger.warning("ambiguous submit for %s: safe retry available", run_id)
+    else:
+        logger.info("late ambiguous submit for %s ignored after acceptance", run_id)
+
+
+def _stored_definite_rejection_status(row: sqlite3.Row) -> int | None:
+    """Return the provider status for a previously completed rejection."""
+    if row["state"] != "failed" or row["calle_call_id"]:
+        return None
+    try:
+        payload = json.loads(str(row["terminal_payload"] or ""))
+    except json.JSONDecodeError:
+        return None
+    if payload.get("classification") != "definite_rejection":
+        return None
+    status_code = payload.get("provider_status_code")
+    return status_code if isinstance(status_code, int) else None
+
+
+def _stored_failure_stage(row: sqlite3.Row) -> str | None:
+    if row["state"] != "failed" or row["calle_call_id"]:
+        return None
+    try:
+        payload = json.loads(str(row["terminal_payload"] or ""))
+    except json.JSONDecodeError:
+        return None
+    stage = payload.get("stage")
+    return stage if isinstance(stage, str) else None
 
 
 # How the agent must behave once the questions are asked. Held as one constant
@@ -65,6 +128,25 @@ def build_task(org: str, claims: dict[str, str]) -> str:
     )
 
 
+def _dispatch_request(
+    service: CalleService,
+    task: str,
+    phone: str,
+) -> tuple[str | None, str, dict[str, object]]:
+    """Key the exact request and transport identity without storing the phone."""
+    public_base = os.environ.get("ATTEST_PUBLIC_BASE_URL", "").rstrip("/")
+    webhook_url = f"{public_base}/calle/webhook" if public_base else None
+    transport = service.dispatch_identity()
+    request = {
+        "phone": phone,
+        "task": task,
+        "transport": transport,
+        "webhook_url": webhook_url,
+    }
+    canonical = json.dumps(request, separators=(",", ":"), sort_keys=True)
+    return webhook_url, service.dispatch_digest(canonical), transport
+
+
 async def start_verification_run(
     service: CalleService,
     database: Path,
@@ -72,70 +154,151 @@ async def start_verification_run(
     task: str,
     phone: str,
     record: dict[str, object] | None = None,
+    run_id: str | None = None,
+    connection: sqlite3.Connection | None = None,
+    sandbox_phone_hash: str | None = None,
+    destination_hash: str = "",
 ) -> str:
-    """Create a run row, submit the call to CALL-E, record the outcome.
+    """Create or resume a run, submit the call to CALL-E, and record it.
 
-    The run_id doubles as the Idempotency-Key, so re-submitting the same run
-    can never create a second call. `record` carries the directory claims the
-    call verifies, stored server-side for reconciliation.
+    The run id doubles as CALL-E's idempotency key. A client-supplied stable
+    run id therefore makes a lost create response safely retryable without a
+    second dial. `record` carries the claims stored for reconciliation.
     """
-    run_id = f"run_{uuid.uuid4().hex[:16]}"
-    conn = db.connect(database)
+    resolved_run_id = run_id or f"run_{uuid.uuid4().hex[:16]}"
+    dispatch_webhook_url, dispatch_digest, transport = _dispatch_request(service, task, phone)
+    dispatch_base_url = str(transport.get("base_url", ""))
+    dispatch_provider = str(transport.get("provider", ""))
+    credential_fingerprint = str(transport.get("credential_fingerprint", ""))
+    if not dispatch_base_url or not dispatch_provider or not credential_fingerprint:
+        raise RuntimeError("CALL-E service did not expose a complete transport identity")
+    if not destination_hash:
+        destination_hash = service.dispatch_digest(f"destination:{phone}")
+    lease_owner = uuid.uuid4().hex
+    owns_connection = connection is None
+    conn = connection or db.connect(database)
     try:
-        db.create_run(
+        row = db.get_run(conn, resolved_run_id)
+        if row is None:
+            db.create_run(
+                conn,
+                run_id=resolved_run_id,
+                idempotency_key=resolved_run_id,
+                record_json=json.dumps(record) if record else None,
+            )
+            row = db.get_run(conn, resolved_run_id)
+        if row is not None and row["calle_call_id"]:
+            if row["state"] == "created":
+                db.accept_submission(conn, resolved_run_id, str(row["calle_call_id"]))
+            return resolved_run_id
+        if row is not None:
+            stored_rejection = _stored_definite_rejection_status(row)
+            if stored_rejection is not None:
+                raise CallSubmissionRejected(stored_rejection)
+            if _stored_failure_stage(row) == "submit_recovery_expired":
+                raise CallSubmissionExpired
+        if row is not None and row["state"] != "created":
+            raise RuntimeError(f"run {resolved_run_id} is not retryable")
+        claim, attempt_number = db.claim_submission_attempt(
             conn,
-            run_id=run_id,
-            idempotency_key=run_id,
-            record_json=json.dumps(record) if record else None,
+            resolved_run_id,
+            dispatch_digest=dispatch_digest,
+            dispatch_base_url=dispatch_base_url,
+            dispatch_provider=dispatch_provider,
+            dispatch_credential_fingerprint=credential_fingerprint,
+            destination_hash=destination_hash,
+            lease_owner=lease_owner,
+            lease_seconds=DISPATCH_LEASE_SECONDS,
+            recovery_window_seconds=DISPATCH_RECOVERY_WINDOW_SECONDS,
         )
+        if claim == "busy":
+            raise CallSubmissionBusy
+        if claim == "expired":
+            raise CallSubmissionExpired
+        if claim == "mismatch":
+            raise RuntimeError(f"run {resolved_run_id} cannot change its destination or provider")
+        if claim == "closed":
+            closed = db.get_run(conn, resolved_run_id)
+            if closed is not None and closed["calle_call_id"]:
+                return resolved_run_id
+            if closed is not None:
+                stored_rejection = _stored_definite_rejection_status(closed)
+                if stored_rejection is not None:
+                    raise CallSubmissionRejected(stored_rejection)
+                if _stored_failure_stage(closed) == "submit_recovery_expired":
+                    raise CallSubmissionExpired
+            raise RuntimeError(f"run {resolved_run_id} closed during submission")
+        if claim != "claimed":
+            raise RuntimeError(f"unknown submission claim outcome {claim}")
         try:
-            public_base = os.environ.get("ATTEST_PUBLIC_BASE_URL", "").rstrip("/")
-            webhook_url = f"{public_base}/calle/webhook" if public_base else None
             created = await service.place_call(
                 task=task,
                 phone=phone,
-                idempotency_key=run_id,
-                webhook_url=webhook_url,
+                idempotency_key=resolved_run_id,
+                webhook_url=dispatch_webhook_url,
             )
-        except (CalleTimeoutError, CalleConnectionError) as exc:
+        except (CalleTimeoutError, CalleConnectionError, json.JSONDecodeError) as exc:
             # Ambiguous: CALL-E may have ACCEPTED the call even though our
             # request died, so a real phone may still ring. The run_id is the
             # Idempotency-Key, so a future resubmission with this run_id can
             # never double-dial. Recorded distinctly for reconciliation.
-            logger.warning("ambiguous submit for %s: possible orphaned call", run_id)
-            fsm.advance(
-                conn,
-                run_id,
-                "failed",
-                terminal_payload=json.dumps({"error": str(exc), "stage": "submit_ambiguous"}),
-            )
+            _record_ambiguous_submit(conn, resolved_run_id, exc)
+            db.release_submission_lease(conn, resolved_run_id, lease_owner)
             raise
-        except Exception as exc:
-            fsm.advance(
+        except CalleAPIError as exc:
+            if exc.status_code not in _DEFINITE_REJECTION_STATUS_CODES or attempt_number > 1:
+                # A server error does not prove the provider rejected the
+                # request. A later 4xx also cannot erase an earlier attempt
+                # that may already have been accepted before its response was
+                # lost. The original reservation therefore remains consumed.
+                _record_ambiguous_submit(conn, resolved_run_id, exc)
+                db.release_submission_lease(conn, resolved_run_id, lease_owner)
+                raise
+            rejected = db.reject_submission(
                 conn,
-                run_id,
-                "failed",
-                terminal_payload=json.dumps({"error": str(exc), "stage": "submit"}),
+                resolved_run_id,
+                json.dumps(
+                    {
+                        "classification": "definite_rejection",
+                        "error": str(exc),
+                        "provider_status_code": exc.status_code,
+                        "stage": "submit",
+                    }
+                ),
+                lease_owner=lease_owner,
+                attempt_number=attempt_number,
+                sandbox_phone_hash=sandbox_phone_hash,
             )
+            if not rejected:
+                logger.warning(
+                    "stale definite rejection ignored for %s attempt %d",
+                    resolved_run_id,
+                    attempt_number,
+                )
+                raise
+            raise CallSubmissionRejected(exc.status_code) from exc
+        except Exception as exc:
+            # An unclassified SDK or transport error does not prove whether
+            # the provider accepted the request. Preserve the stable key.
+            _record_ambiguous_submit(conn, resolved_run_id, exc)
+            db.release_submission_lease(conn, resolved_run_id, lease_owner)
             raise
         calle_call_id = str(created.get("id") or "")
         if not calle_call_id:
-            # Advancing to submitted with an empty id would create a zombie
-            # the poller retries forever. Fail loudly instead.
-            fsm.advance(
+            # The provider may have accepted the call before returning a
+            # malformed response. Keep the stable idempotency key retryable.
+            db.set_submit_error(
                 conn,
-                run_id,
-                "failed",
-                terminal_payload=json.dumps(
-                    {"error": "provider returned no call id", "stage": "submit_no_id"}
-                ),
+                resolved_run_id,
+                json.dumps({"error": "provider returned no call id", "stage": "submit_no_id"}),
             )
+            db.release_submission_lease(conn, resolved_run_id, lease_owner)
             raise RuntimeError("CALL-E returned no call id")
-        db.set_calle_call_id(conn, run_id, calle_call_id)
-        fsm.advance(conn, run_id, "submitted")
-        return run_id
+        db.accept_submission(conn, resolved_run_id, calle_call_id)
+        return resolved_run_id
     finally:
-        conn.close()
+        if owns_connection:
+            conn.close()
 
 
 def apply_terminal_payload(database: Path, payload: dict[str, object]) -> bool:
@@ -159,6 +322,8 @@ def apply_terminal_payload(database: Path, payload: dict[str, object]) -> bool:
         if row is None:
             logger.warning("terminal payload for unknown call id %s dropped", calle_call_id)
             return False
+        if row["state"] == "created":
+            db.accept_submission(conn, str(row["run_id"]), calle_call_id)
         return fsm.advance(
             conn,
             str(row["run_id"]),

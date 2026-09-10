@@ -11,7 +11,6 @@ import hmac
 import json
 import logging
 import os
-import secrets
 import sqlite3
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -81,11 +80,19 @@ app.add_middleware(
 def _sandbox_enabled() -> bool:
     """The public dialing surface is opt-in and defaults closed.
 
-    The current hosted database is ephemeral and the account's dedicated
-    outbound number still requires identity verification. Both conditions
-    must be resolved before production explicitly enables this surface.
+    The current hosted database is ephemeral, so production remains closed
+    until its call reservations can survive a deploy.
     """
     return os.environ.get("ATTEST_SANDBOX_ENABLED", "0") == "1"
+
+
+def _sandbox_ready() -> bool:
+    """True only when the opt-in switch and private sandbox keys are present."""
+    return (
+        _sandbox_enabled()
+        and bool(os.environ.get("ATTEST_JUDGE_KEY", ""))
+        and bool(os.environ.get("ATTEST_PHONE_HASH_KEY", ""))
+    )
 
 
 def _record_for(row: sqlite3.Row) -> dict[str, object]:
@@ -123,7 +130,7 @@ async def healthz() -> dict[str, object]:
         "service": "attest",
         "poller": "running" if poller_alive else "stopped",
         "provider": "mock" if calle_client.is_mock_mode() else "live",
-        "sandbox": "enabled" if _sandbox_enabled() else "disabled",
+        "sandbox": "enabled" if _sandbox_ready() else "disabled",
     }
     return body
 
@@ -132,7 +139,7 @@ async def healthz() -> dict[str, object]:
 async def api_runs() -> dict[str, list[dict[str, object]]]:
     conn = db.connect(db.db_path())
     try:
-        rows = db.list_runs(conn)
+        rows = db.list_published_runs(conn)
     finally:
         conn.close()
     out: list[dict[str, object]] = []
@@ -410,6 +417,7 @@ class StartRunRequest(BaseModel):
     # intentionally accepted (used for demos and tests); premium and toll
     # prefixes are rejected in the validator below.
     phone: str = Field(pattern=r"^\+1\d{10}$")
+    request_id: str = Field(pattern=r"^[0-9a-f]{32}$")
     org: str = Field(min_length=2, max_length=120)
     claims: dict[str, str] = Field(default_factory=dict)
     consent: StrictBool = False
@@ -449,7 +457,7 @@ _SANDBOX_CAP = int(os.environ.get("ATTEST_SANDBOX_CAP", "15"))
 
 def _sandbox_precheck(body: StartRunRequest) -> str:
     """Kill switch and consent gate before we touch the database. Returns
-    the phone hash; the actual slot is reserved atomically under the lock."""
+    the keyed phone digest; the slot is reserved atomically under the lock."""
     if not _sandbox_enabled():
         raise HTTPException(status_code=503, detail="the live demo is currently disabled")
     if not body.consent:
@@ -460,7 +468,19 @@ def _sandbox_precheck(body: StartRunRequest) -> str:
                 "you are requesting this call"
             ),
         )
-    return hashlib.sha256(body.phone.encode()).hexdigest()
+    return _destination_hash(body.phone)
+
+
+def _destination_hash(phone: str) -> str:
+    """Stable keyed destination identity for duplicate-call prevention."""
+    phone_hash_key = os.environ.get("ATTEST_PHONE_HASH_KEY", "")
+    if not phone_hash_key:
+        raise HTTPException(status_code=503, detail="phone deduplication is not configured")
+    return hmac.new(
+        phone_hash_key.encode(),
+        phone.encode(),
+        hashlib.sha256,
+    ).hexdigest()
 
 
 def _get_service() -> CalleService:
@@ -471,6 +491,22 @@ def _get_service() -> CalleService:
     return service
 
 
+def _assert_dispatch_ready(provider: str) -> None:
+    """Fail before reserving a judge slot when live dispatch cannot authenticate."""
+    if provider == "live" and not os.environ.get("CALLE_API_KEY", "").strip():
+        raise HTTPException(status_code=503, detail="live calling credentials are not configured")
+
+
+def _assert_service_provider(service: CalleService, provider: str) -> None:
+    """Reject a cached service after any call configuration change."""
+    service_provider = str(service.dispatch_identity().get("provider", ""))
+    if service_provider != provider or not service.matches_current_configuration():
+        raise HTTPException(
+            status_code=503,
+            detail="call provider configuration changed; retry after restart",
+        )
+
+
 # One verification call at a time is a product invariant, not a hope.
 _submission_lock = asyncio.Lock()
 
@@ -479,20 +515,45 @@ _submission_lock = asyncio.Lock()
 async def start_run(
     body: StartRunRequest,
     x_attest_key: str | None = Header(default=None, alias="X-Attest-Key"),
+    x_attest_run_token: str | None = Header(default=None, alias="X-Attest-Run-Token"),
 ) -> dict[str, str]:
     role = _caller_role(x_attest_key)
-    access_token = secrets.token_urlsafe(32)
+    if x_attest_run_token is None or len(x_attest_run_token) < 32:
+        raise HTTPException(status_code=422, detail="a client run capability is required")
+    access_token = x_attest_run_token
+    run_id = f"run_{body.request_id}"
+    provider = "mock" if calle_client.is_mock_mode() else "live"
+    _assert_dispatch_ready(provider)
+    request_json = json.dumps(
+        {
+            "claims": body.claims,
+            "org": body.org,
+            "phone": body.phone,
+            "provider": provider,
+            "role": role,
+        },
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    request_digest = hmac.new(
+        access_token.encode(),
+        request_json.encode(),
+        hashlib.sha256,
+    ).hexdigest()
+    token_sha256 = hashlib.sha256(access_token.encode()).hexdigest()
     record: dict[str, object] = {
         "org": body.org,
         "claims": body.claims,
-        "access_token_sha256": hashlib.sha256(access_token.encode()).hexdigest(),
+        "access_token_sha256": token_sha256,
+        "request_digest": request_digest,
         # Provenance, stamped at creation: a mock-served run must never be
         # mistakable for a real call anywhere downstream.
-        "provider": "mock" if calle_client.is_mock_mode() else "live",
+        "provider": provider,
     }
+    destination_hash = _sandbox_precheck(body) if role == "judge" else _destination_hash(body.phone)
     phone_hash = ""
     if role == "judge":
-        phone_hash = _sandbox_precheck(body)
+        phone_hash = destination_hash
         record["judge_sandbox"] = True
         record["judge_phone_hash"] = phone_hash
         record["org"] = f"{body.org} (self-requested demo)"
@@ -500,32 +561,119 @@ async def start_run(
     # call script with the disclosure removed.
     task = runs.build_task(str(record["org"]), body.claims)
     service = _get_service()
+    _assert_service_provider(service, provider)
+
+    def validate_existing(row: sqlite3.Row) -> None:
+        stored = _record_for(row)
+        stored_token = str(stored.get("access_token_sha256", ""))
+        if not stored_token or not hmac.compare_digest(stored_token, token_sha256):
+            raise HTTPException(status_code=404, detail="run not found")
+        stored_request = str(stored.get("request_digest", ""))
+        if not stored_request or not hmac.compare_digest(stored_request, request_digest):
+            raise HTTPException(status_code=409, detail="request id already belongs to another run")
+
     async with _submission_lock:
-        if role == "judge":
-            # Atomic: dedup + cap enforced in one serialized transaction, so
-            # concurrent judge requests cannot both slip past either rail.
-            conn = db.connect(db.db_path())
+        conn = db.connect(db.db_path())
+        try:
+            existing = db.get_run(conn, run_id)
+            if existing is not None:
+                validate_existing(existing)
+            elif role == "judge":
+                # The reservation and recoverable run identity commit as one
+                # transaction. A failed insert cannot consume the call budget.
+                outcome = db.create_sandbox_run(
+                    conn,
+                    phone_hash=phone_hash,
+                    cap=_SANDBOX_CAP,
+                    run_id=run_id,
+                    idempotency_key=run_id,
+                    record_json=json.dumps(record),
+                )
+                if outcome == "capped":
+                    raise HTTPException(
+                        status_code=429,
+                        detail="the live demo call budget is spent; the replays show real runs",
+                    )
+                if outcome == "duplicate":
+                    raise HTTPException(
+                        status_code=429,
+                        detail="this number already received its demo call",
+                    )
+                if outcome == "request_exists":
+                    raced = db.get_run(conn, run_id)
+                    if raced is None:
+                        raise RuntimeError("request identity disappeared during creation")
+                    validate_existing(raced)
+            else:
+                outcome = db.create_request_run(
+                    conn,
+                    run_id=run_id,
+                    idempotency_key=run_id,
+                    record_json=json.dumps(record),
+                    destination_hash=destination_hash,
+                )
+                if outcome == "request_exists":
+                    raced = db.get_run(conn, run_id)
+                    if raced is None:
+                        raise RuntimeError("request identity disappeared during creation")
+                    validate_existing(raced)
+                elif outcome == "destination_blocked":
+                    raise HTTPException(
+                        status_code=409,
+                        detail={
+                            "code": "call_destination_unreconciled",
+                            "message": (
+                                "A prior call to this destination has an unknown outcome. "
+                                "Resume its original request or reconcile it in CALL-E first."
+                            ),
+                        },
+                    )
             try:
-                outcome = db.reserve_sandbox_slot(conn, phone_hash, _SANDBOX_CAP)
-            finally:
-                conn.close()
-            if outcome == "capped":
-                raise HTTPException(
-                    status_code=429,
-                    detail="the live demo call budget is spent; the replays show real runs",
+                run_id = await runs.start_verification_run(
+                    service,
+                    db.db_path(),
+                    task=task,
+                    phone=body.phone,
+                    record=record,
+                    run_id=run_id,
+                    connection=conn,
+                    sandbox_phone_hash=phone_hash if role == "judge" else None,
+                    destination_hash=destination_hash,
                 )
-            if outcome == "duplicate":
+            except runs.CallSubmissionRejected as exc:
                 raise HTTPException(
-                    status_code=429,
-                    detail="this number already received its demo call",
-                )
-        # Once a judge slot is reserved, every submission failure is treated
-        # as ambiguous. A provider error, a missing response id, or a local
-        # persistence failure can all happen after the phone call was accepted.
-        # Keeping one slot is safer than letting a retry ring the same person.
-        run_id = await runs.start_verification_run(
-            service, db.db_path(), task=task, phone=body.phone, record=record
-        )
+                    status_code=502,
+                    detail={
+                        "code": "call_rejected_before_acceptance",
+                        "message": (
+                            "CALL-E rejected the request before accepting a call. "
+                            "No demo call was counted; try again with a new request."
+                        ),
+                    },
+                ) from exc
+            except runs.CallSubmissionBusy as exc:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "code": "call_request_in_progress",
+                        "message": (
+                            "The original call request is still in progress. "
+                            "Wait briefly, then retry this same request."
+                        ),
+                    },
+                ) from exc
+            except runs.CallSubmissionExpired as exc:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "code": "call_request_not_retried",
+                        "message": (
+                            "The safe retry window ended. Attest will not dial this request late."
+                        ),
+                    },
+                ) from exc
+        finally:
+            conn.close()
     # Fresh submissions poll immediately instead of waiting out idle backoff.
     poller = getattr(app.state, "poller", None)
     if poller is not None:
