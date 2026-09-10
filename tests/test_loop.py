@@ -630,6 +630,52 @@ async def test_poller_redacts_unexpected_phone_locations(
         service.close()
 
 
+@pytest.mark.parametrize(
+    ("phone_location", "phone_value"),
+    [
+        ("transcript", "555-1234"),
+        ("transcript", "612 34 56 78"),
+        ("transcript", "5550101234x89"),
+        ("transcript", "555/010/1234"),
+        ("scalar_recipient", 15550101234.0),
+    ],
+)
+@respx.mock
+async def test_poller_redacts_realistic_phone_encodings(
+    tmp_path: Path,
+    phone_location: str,
+    phone_value: object,
+) -> None:
+    database = tmp_path / f"poll-encoding-{phone_location}-{str(phone_value).replace('/', '_')}.db"
+    terminal = json.loads(json.dumps(FIXTURE))
+    if phone_location == "transcript":
+        terminal["recipients"][0]["attempts"][0]["transcript_turns"][0]["text"] = (
+            f"Call {phone_value} for details."
+        )
+    else:
+        terminal["recipients"] = [phone_value]
+    respx.post(f"{BASE}/v1/calls").mock(return_value=Response(201, json=_pending_fixture()))
+    respx.get(f"{BASE}/v1/calls/{FIXTURE['id']}").mock(return_value=Response(200, json=terminal))
+    service = _service()
+    run_id = await runs.start_verification_run(
+        service,
+        database,
+        task="verify listing",
+        phone="+15550101234",
+    )
+
+    poller = Poller(service, database)
+    assert await poller.tick() == 1
+    conn = db.connect(database)
+    try:
+        row = db.get_run(conn, run_id)
+        assert row is not None and row["state"] == "completed"
+        assert str(phone_value) not in str(row["terminal_payload"])
+    finally:
+        conn.close()
+        service.close()
+
+
 def test_owner_lease_blocks_rivals_and_expiry_waits_for_the_owner(tmp_path: Path) -> None:
     database = tmp_path / "lease.db"
     conn = db.connect(database)

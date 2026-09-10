@@ -6,6 +6,7 @@ Phone numbers are redacted before anything leaves the server.
 """
 
 import copy
+import ipaddress
 import json
 import logging
 import os
@@ -28,7 +29,12 @@ CLAIM_QUESTIONS = {
     "accepts_plan": r"\baccepts?\b|\btakes?\b.*\b(?:plan|insurance)\b|\bin[- ]network\b",
 }
 
-_PHONE_LIKE = re.compile(r"(?<!\w)\+?(?:\d[\s().-]*){9,14}\d(?!\w)")
+_PHONE_CANDIDATE = re.compile(
+    r"(?<!\w)\+?(?:\d[\s()./-]*){6,14}\d(?:\s*(?:(?:ext\.?|x)\s*\d{1,6}))?(?!\w)",
+    re.IGNORECASE,
+)
+_DATE_LIKE = re.compile(r"\d{4}-\d{2}-\d{2}(?:[ T]\d{2})?")
+_SLASH_DATE_LIKE = re.compile(r"\d{1,2}/\d{1,2}/\d{2,4}")
 
 
 def _mask(phone: str) -> str:
@@ -38,33 +44,61 @@ def _mask(phone: str) -> str:
 
 
 def _mask_phone_text(text: str) -> str:
-    return _PHONE_LIKE.sub(lambda match: _mask(match.group(0)), text)
+    def replace(match: re.Match[str]) -> str:
+        candidate = match.group(0)
+        stripped = candidate.strip()
+        if _DATE_LIKE.fullmatch(stripped) or _SLASH_DATE_LIKE.fullmatch(stripped):
+            return candidate
+        try:
+            ipaddress.ip_address(stripped)
+        except ValueError:
+            return "[redacted phone]"
+        return candidate
+
+    return _PHONE_CANDIDATE.sub(replace, text)
 
 
-def _redact_phone_fields(value: Any, *, phone_context: bool = False) -> Any:
-    """Recursively mask phone fields and phone-like strings or mapping keys."""
+def _redact_phone_fields(value: Any, *, context: str = "generic") -> Any:
+    """Redact phone data using the payload field's semantic context."""
     if isinstance(value, dict):
+        container_contexts = {
+            "recipients": ("recipient", "recipient"),
+            "attempts": ("attempt", "attempt"),
+            "turns": ("turn", "turn"),
+        }
+        if context in container_contexts:
+            child_context, key_prefix = container_contexts[context]
+            items = list(value.values())
+            value.clear()
+            for index, nested in enumerate(items):
+                value[f"{key_prefix}-{index}"] = _redact_phone_fields(nested, context=child_context)
+            return value
+
         items = list(value.items())
-        value.clear()
-        for index, (key, nested) in enumerate(items):
-            safe_key = _mask_phone_text(key) if isinstance(key, str) else key
-            if safe_key != key:
-                safe_key = f"{safe_key}#{index}"
-            value[safe_key] = _redact_phone_fields(
-                nested,
-                phone_context=phone_context or str(key).lower() in {"phone", "phones"},
-            )
+        for key, nested in items:
+            key_lower = str(key).lower()
+            child_context = {
+                "phone": "phone",
+                "phones": "phone",
+                "recipients": "recipients",
+                "attempts": "attempts",
+                "transcript_turns": "turns",
+            }.get(key_lower, "generic")
+            if context == "turn" and key_lower == "text":
+                child_context = "transcript_text"
+            value[key] = _redact_phone_fields(nested, context=child_context)
         return value
     if isinstance(value, list):
-        return [_redact_phone_fields(item, phone_context=phone_context) for item in value]
-    if phone_context and value is not None:
+        child_context = {
+            "recipients": "recipient",
+            "attempts": "attempt",
+            "turns": "turn",
+        }.get(context, context)
+        return [_redact_phone_fields(item, context=child_context) for item in value]
+    if context in {"phone", "recipient"} and value is not None:
         return _mask(str(value))
-    if isinstance(value, str):
+    if context in {"attempt", "turn", "transcript_text"} and isinstance(value, str):
         return _mask_phone_text(value)
-    if isinstance(value, int) and not isinstance(value, bool):
-        text = str(value)
-        masked = _mask_phone_text(text)
-        return masked if masked != text else value
     return value
 
 
