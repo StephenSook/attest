@@ -235,18 +235,18 @@ export default function CalibrationPage() {
                 role="listitem"
               >
                 <div className="flex items-baseline justify-between gap-3">
-                  <span className="font-evidence text-[10px] uppercase tracking-widest text-ink-faint">
+                  <span className="font-evidence text-[11px] uppercase tracking-wide text-ink-soft">
                     true answer
                   </span>
                   <span className="font-evidence text-sm font-medium">{row.label}</span>
                 </div>
                 <div className="mt-3 grid grid-cols-3 gap-3 font-evidence text-xs">
                   <div>
-                    <p className="text-[9px] uppercase tracking-wider text-ink-faint">n</p>
+                    <p className="text-[11px] uppercase tracking-wide text-ink-soft">n</p>
                     <p className="mt-1">{row.n}</p>
                   </div>
                   <div>
-                    <p className="text-[9px] uppercase tracking-wider text-ink-faint">marginal</p>
+                    <p className="text-[11px] uppercase tracking-wide text-ink-soft">marginal</p>
                     <p
                       className="mt-1"
                       style={{
@@ -260,7 +260,7 @@ export default function CalibrationPage() {
                     </p>
                   </div>
                   <div>
-                    <p className="text-[9px] uppercase tracking-wider text-ink-faint">conditional</p>
+                    <p className="text-[11px] uppercase tracking-wide text-ink-soft">conditional</p>
                     <p className="mt-1">{(row.mondrian_coverage * 100).toFixed(1)}%</p>
                   </div>
                 </div>
@@ -312,14 +312,14 @@ export default function CalibrationPage() {
               role="listitem"
             >
               <div className="flex items-baseline justify-between gap-3">
-                <span className="font-evidence text-[10px] uppercase tracking-widest text-ink-faint">
+                <span className="font-evidence text-[11px] uppercase tracking-wide text-ink-soft">
                   config
                 </span>
                 <span className="font-evidence text-sm font-medium">{row.config}</span>
               </div>
               <div className="mt-3 grid grid-cols-3 gap-3 font-evidence text-xs">
                 <div>
-                  <p className="text-[9px] uppercase tracking-wider text-ink-faint">coverage</p>
+                  <p className="text-[11px] uppercase tracking-wide text-ink-soft">coverage</p>
                   <p className="mt-1">
                     {row.coverage === null
                       ? "n/a"
@@ -327,11 +327,11 @@ export default function CalibrationPage() {
                   </p>
                 </div>
                 <div>
-                  <p className="text-[9px] uppercase tracking-wider text-ink-faint">abstention</p>
+                  <p className="text-[11px] uppercase tracking-wide text-ink-soft">abstention</p>
                   <p className="mt-1">{(row.abstention_rate * 100).toFixed(1)}%</p>
                 </div>
                 <div>
-                  <p className="text-[9px] uppercase tracking-wider text-ink-faint">accuracy</p>
+                  <p className="text-[11px] uppercase tracking-wide text-ink-soft">accuracy</p>
                   <p className="mt-1">
                     {(row.accuracy_when_answering * 100).toFixed(1)}%
                   </p>
