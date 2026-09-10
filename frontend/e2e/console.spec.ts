@@ -240,6 +240,36 @@ test("console header and certificate stay inside a phone viewport", async ({ pag
   }
 });
 
+test("phone ledger wraps a maximum-length unbroken organization name", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const organization = "A".repeat(120);
+  await page.route("**/api/runs", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        runs: [
+          {
+            run_id: "run_boundary_name",
+            state: "completed",
+            created_at: "2026-09-10T00:00:00Z",
+            org: organization,
+            replay: true,
+            verdict: "verified",
+          },
+        ],
+      }),
+    }),
+  );
+  await page.goto("/runs");
+  await expect(page.getByText(organization, { exact: true })).toBeVisible();
+  const width = await page.evaluate(() => ({
+    client: document.documentElement.clientWidth,
+    scroll: document.documentElement.scrollWidth,
+  }));
+  expect(width.scroll).toBeLessThanOrEqual(width.client + 1);
+});
+
 test("runs ledger lists the seeded replay with its verdict badge", async ({ page }) => {
   await page.goto("/runs");
   const row = page.getByRole("link", { name: /Example Counseling Center/ });
