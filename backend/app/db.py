@@ -39,6 +39,12 @@ CREATE TABLE IF NOT EXISTS sandbox_reservations (
     reserved_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
+CREATE TABLE IF NOT EXISTS runtime_bindings (
+    name TEXT PRIMARY KEY,
+    fingerprint TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
 CREATE TABLE IF NOT EXISTS call_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     run_id TEXT NOT NULL REFERENCES call_runs(run_id),
@@ -142,6 +148,47 @@ def list_published_runs(conn: sqlite3.Connection, limit: int = 50) -> list[sqlit
             (limit,),
         )
     )
+
+
+def bind_runtime_fingerprint(
+    conn: sqlite3.Connection,
+    *,
+    name: str,
+    fingerprint: str,
+) -> str:
+    """Bind a stable runtime identity before it protects persisted hashes.
+
+    Returns bound for the first clean database, match for the same identity,
+    mismatch after rotation, or unbound_data for a legacy database whose
+    existing destination hashes cannot be attributed safely.
+    """
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT fingerprint FROM runtime_bindings WHERE name = ?",
+            (name,),
+        ).fetchone()
+        if row is not None:
+            outcome = "match" if str(row["fingerprint"]) == fingerprint else "mismatch"
+            conn.execute("COMMIT")
+            return outcome
+        has_protected_data = conn.execute(
+            "SELECT EXISTS(SELECT 1 FROM sandbox_reservations) OR "
+            "EXISTS(SELECT 1 FROM call_runs WHERE destination_hash IS NOT NULL)"
+        ).fetchone()[0]
+        if has_protected_data:
+            conn.execute("ROLLBACK")
+            return "unbound_data"
+        conn.execute(
+            "INSERT INTO runtime_bindings (name, fingerprint) VALUES (?, ?)",
+            (name, fingerprint),
+        )
+        conn.execute("COMMIT")
+        return "bound"
+    except Exception:
+        if conn.in_transaction:
+            conn.execute("ROLLBACK")
+        raise
 
 
 def update_run_record(conn: sqlite3.Connection, run_id: str, record_json: str) -> None:

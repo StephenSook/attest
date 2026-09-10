@@ -483,6 +483,13 @@ def _destination_hash(phone: str) -> str:
     ).hexdigest()
 
 
+def _destination_hash_key_fingerprint() -> str:
+    phone_hash_key = os.environ.get("ATTEST_PHONE_HASH_KEY", "")
+    if not phone_hash_key:
+        raise HTTPException(status_code=503, detail="phone deduplication is not configured")
+    return hashlib.sha256(phone_hash_key.encode()).hexdigest()
+
+
 def _get_service() -> CalleService:
     service = getattr(app.state, "calle_service", None)
     if service is None:
@@ -575,6 +582,23 @@ async def start_run(
     async with _submission_lock:
         conn = db.connect(db.db_path())
         try:
+            binding = db.bind_runtime_fingerprint(
+                conn,
+                name="destination_hash_key",
+                fingerprint=_destination_hash_key_fingerprint(),
+            )
+            if binding not in {"bound", "match"}:
+                raise HTTPException(
+                    status_code=503,
+                    detail={
+                        "code": "destination_identity_mismatch",
+                        "message": (
+                            "Outbound calling is locked because the destination identity "
+                            "key does not match this database. Reconcile or migrate the "
+                            "stored reservations before dialing."
+                        ),
+                    },
+                )
             existing = db.get_run(conn, run_id)
             if existing is not None:
                 validate_existing(existing)
