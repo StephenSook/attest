@@ -176,7 +176,9 @@ async def test_valid_webhook_redacts_phone_data_from_schema_drift(
     elif schema_drift == "summary_wrapper":
         attempt["summary"] = {
             "text": "Call +15550101234 for details.",
-            "provider_id": 15550101234,
+            "provider_id": 42,
+            "phone_shaped_id": "+15550101234",
+            "nested_id": {"value": "+15550101234"},
         }
     elif schema_drift == "failure_wrapper":
         attempt["failure_message"] = [
@@ -200,7 +202,7 @@ async def test_valid_webhook_redacts_phone_data_from_schema_drift(
         stored = str(row["terminal_payload"])
         assert "+15550101234" not in stored
         if schema_drift == "summary_wrapper":
-            assert '"provider_id": 15550101234' in stored
+            assert '"provider_id": 42' in stored
         elif schema_drift == "failure_wrapper":
             assert "550e8400-e29b-41d4-a716-446655440000" in stored
     finally:
