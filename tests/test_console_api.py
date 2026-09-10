@@ -69,7 +69,7 @@ async def test_run_detail_redacts_phones_and_analyzes(
             "acct15550101234": "embedded-key",
             "2099-12-31": "generic-date",
         }
-        payload["recipientIDS"] = ["call_x15550101234aaaaaaaaaa"]
+        payload["recipientIDS"] = ["call_x15550101234aaaaaaaaa"]
         payload["RECIPIENTIDS"] = {"2099-12-31": "acctB15550101234C"}
         payload["metadata"]["unknown_number"] = 15550101234
         payload["metadata"]["items"] = [15550101234.0]
@@ -91,7 +91,7 @@ async def test_run_detail_redacts_phones_and_analyzes(
     assert "+15550101234" not in raw, "unmasked phone leaked through the API"
     assert "acct15550101234" not in raw
     assert "acctB15550101234C" not in raw
-    assert "call_x15550101234aaaaaaaaaa" not in raw
+    assert "call_x15550101234aaaaaaaaa" not in raw
     assert "15550101234" not in raw
     assert body["payload"]["results"]["2099-12-31"] == "generic-date"
     assert "+15*" in raw
@@ -156,6 +156,77 @@ async def test_failed_run_details_redact_error_text_on_public_and_private_routes
         assert "+15550101234" not in json.dumps(body)
         assert body["payload"]["error"] == "Could not call [redacted phone]"
         assert body["failure"]["error"] == "Could not call [redacted phone]"
+
+
+async def test_provider_ids_survive_persistence_and_both_detail_routes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    database = tmp_path / "provider-ids.db"
+    monkeypatch.setenv("ATTEST_DB_PATH", str(database))
+    token = "private-provider-id-token"
+    expected_recipient_id = "rcp_1234567890abcdef"
+    expected_attempt_id = "att_1234567890abcdef"
+    expected_provider_call_id = "1234567890abcdef1234567890abcdef"
+    runs = {
+        "run_public_ids": {
+            "published": True,
+            "call_id": "call_1234567890abcdefghijkl",
+        },
+        "run_private_ids": {
+            "published": False,
+            "call_id": "call_1234567890abcdefghijkm",
+            "access_token_sha256": hashlib.sha256(token.encode()).hexdigest(),
+        },
+    }
+
+    conn = db.connect(database)
+    try:
+        for run_id, values in runs.items():
+            payload = json.loads(json.dumps(FIXTURE))
+            payload["id"] = values["call_id"]
+            payload["recipients"][0]["id"] = expected_recipient_id
+            attempt = payload["recipients"][0]["attempts"][0]
+            attempt["id"] = expected_attempt_id
+            attempt["provider_call_id"] = expected_provider_call_id
+            record = {
+                "org": run_id,
+                "published": values["published"],
+                "access_token_sha256": values.get("access_token_sha256"),
+            }
+            db.create_run(
+                conn,
+                run_id=run_id,
+                idempotency_key=run_id,
+                record_json=json.dumps(record),
+            )
+            db.set_calle_call_id(conn, run_id, str(values["call_id"]))
+            fsm.advance(conn, run_id, "submitted")
+            fsm.advance(conn, run_id, "completed", terminal_payload=json.dumps(payload))
+            stored = db.get_run(conn, run_id)
+            assert stored is not None
+            stored_payload = json.loads(str(stored["terminal_payload"]))
+            stored_attempt = stored_payload["recipients"][0]["attempts"][0]
+            assert stored_payload["id"] == values["call_id"]
+            assert stored_payload["recipients"][0]["id"] == expected_recipient_id
+            assert stored_attempt["id"] == expected_attempt_id
+            assert stored_attempt["provider_call_id"] == expected_provider_call_id
+    finally:
+        conn.close()
+
+    async with _client() as client:
+        public = await client.get("/api/runs/run_public_ids")
+        private = await client.get(
+            "/internal/runs/run_private_ids",
+            headers={"X-Attest-Run-Token": token},
+        )
+
+    for response in [public, private]:
+        assert response.status_code == 200
+        payload = response.json()["payload"]
+        attempt = payload["recipients"][0]["attempts"][0]
+        assert payload["recipients"][0]["id"] == expected_recipient_id
+        assert attempt["id"] == expected_attempt_id
+        assert attempt["provider_call_id"] == expected_provider_call_id
 
 
 async def test_metrics_endpoint_serves_eval_results(

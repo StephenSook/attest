@@ -195,7 +195,7 @@ def test_identifier_redaction_handles_plural_prefixed_and_nested_values() -> Non
         "recipient-ids": {"2099-12-31": "tel_15550101234", uuid: uuid},
         "recipientIds": ["acct15550101234", uuid],
         "recipientIDs": ["acctA15550101234B", uuid],
-        "recipientIDS": ["call_x15550101234aaaaaaaaaa", uuid],
+        "recipientIDS": ["call_x15550101234aaaaaaaaa", uuid],
         "RECIPIENTIDS": {"2099-12-31": "acctB15550101234C", uuid: uuid},
         "recipientids": ["acct15550101234", uuid],
         "recipientID": "acct155.50.101.234x",
@@ -210,7 +210,7 @@ def test_identifier_redaction_handles_plural_prefixed_and_nested_values() -> Non
             "att_74b5e3e66d7ec8d7",
             "rcp_15550101234",
             "rcp_15550101234a",
-            "call_x15550101234aaaaaaaaaa",
+            "call_x15550101234aaaaaaaaa",
         ],
     }
 
@@ -226,7 +226,7 @@ def test_identifier_redaction_handles_plural_prefixed_and_nested_values() -> Non
         "acctB15550101234C",
         "rcp_15550101234",
         "rcp_15550101234a",
-        "call_x15550101234aaaaaaaaaa",
+        "call_x15550101234aaaaaaaaa",
         "acct155.50.101.234x",
         "acctD15550101234E",
         "acctE15550101234F",
@@ -240,6 +240,62 @@ def test_identifier_redaction_handles_plural_prefixed_and_nested_values() -> Non
         "rcp_421c14316e95fb62",
         "att_74b5e3e66d7ec8d7",
     ]
+
+
+def test_committed_call_fixtures_preserve_provider_identifiers() -> None:
+    fixtures = sorted((ROOT / "eval" / "study_data" / "calls").glob("*.json"))
+    assert len(fixtures) == 36
+
+    for fixture in fixtures:
+        payload = json.loads(fixture.read_text())
+        redacted = redact_payload(payload)
+
+        assert redacted["id"] == payload["id"]
+        for original_recipient, redacted_recipient in zip(
+            payload["recipients"], redacted["recipients"], strict=True
+        ):
+            assert redacted_recipient["id"] == original_recipient["id"]
+            for original_attempt, redacted_attempt in zip(
+                original_recipient["attempts"],
+                redacted_recipient["attempts"],
+                strict=True,
+            ):
+                assert redacted_attempt["id"] == original_attempt["id"]
+                assert redacted_attempt["provider_call_id"] == original_attempt["provider_call_id"]
+
+
+def test_provider_identifier_grammars_reject_malformed_phone_values() -> None:
+    valid = {
+        "id": "call_1234567890abcdefghijkl",
+        "recipients": [
+            {
+                "id": "rcp_1234567890abcdef",
+                "attempts": [
+                    {
+                        "id": "att_1234567890abcdef",
+                        "provider_call_id": "1234567890abcdef1234567890abcdef",
+                    }
+                ],
+            }
+        ],
+    }
+    assert redact_payload(valid) == valid
+
+    malformed = {
+        "id": "call_x15550101234aaaaaaaaa",
+        "recipients": [
+            {
+                "id": "rcp_15550101234",
+                "attempts": [
+                    {
+                        "id": "att_15550101234",
+                        "provider_call_id": "+15550101234",
+                    }
+                ],
+            }
+        ],
+    }
+    assert "15550101234" not in json.dumps(redact_payload(malformed))
 
 
 def test_redaction_sanitizes_phone_mapping_keys_under_unknown_containers() -> None:
