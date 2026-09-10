@@ -211,7 +211,7 @@ async def test_valid_webhook_redacts_phone_data_from_schema_drift(
         payload["recipient-ids"] = {"2099-12-31": "tel_15550101234", uuid: uuid}
         payload["recipientIds"] = ["acct15550101234", uuid]
         payload["recipientIDs"] = ["acctA15550101234B", uuid]
-        payload["recipientIDS"] = ["call_x15550101234aaaaaaaaaa", uuid]
+        payload["recipientIDS"] = ["call_x15550101234aaaaaaaaa", uuid]
         payload["RECIPIENTIDS"] = {"2099-12-31": "acctB15550101234C", uuid: uuid}
         payload["recipientids"] = ["acctC15550101234D", uuid]
         payload["recipientID"] = "acct155.50.101.234x"
@@ -278,7 +278,7 @@ async def test_valid_webhook_redacts_phone_data_from_schema_drift(
                     "acctA15550101234B",
                     "acctB15550101234C",
                     "acctC15550101234D",
-                    "call_x15550101234aaaaaaaaaa",
+                    "call_x15550101234aaaaaaaaa",
                     "acct155.50.101.234x",
                     "acctD15550101234E",
                     "acctE15550101234F",
