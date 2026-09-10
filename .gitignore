@@ -50,3 +50,6 @@ tmp/
 frontend/.pnpm-store/
 frontend/test-results/
 .secrets/
+
+# Internal project planning
+CONSTITUTION.md
