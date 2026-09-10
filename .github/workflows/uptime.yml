@@ -66,4 +66,4 @@ jobs:
           curl -sfL --max-redirs 3 --max-time 30 \
             'https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=o-qZfT4XexU&format=json' \
             -o "$video"
-          jq -e '.title == "Attest - the phone agent that refuses to guess"' "$video"
+          jq -e '.title == "Attest: the phone agent that refuses to guess"' "$video"
