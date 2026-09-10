@@ -37,10 +37,12 @@ def _mask(phone: str) -> str:
 def redact_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """Mask phone numbers and remove request echoes before storage or serving."""
     redacted = copy.deepcopy(payload)
-    for recipient in redacted.get("recipients", []):
-        recipient["phones"] = [_mask(str(p)) for p in recipient.get("phones", [])]
-        for attempt in recipient.get("attempts", []):
-            if attempt.get("phone"):
+    for recipient in redacted.get("recipients") or []:
+        if not isinstance(recipient, dict):
+            continue
+        recipient["phones"] = [_mask(str(p)) for p in recipient.get("phones") or []]
+        for attempt in recipient.get("attempts") or []:
+            if isinstance(attempt, dict) and attempt.get("phone"):
                 attempt["phone"] = _mask(str(attempt["phone"]))
     # The mock create path stores the original request, which carries the raw
     # dialed number under request.recipient; strip the whole echo rather than
