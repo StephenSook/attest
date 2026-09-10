@@ -89,7 +89,7 @@ export default function RunsPage() {
                 <span className="shrink-0 font-evidence text-xs text-ink-faint">
                   {run.created_at.slice(0, 10)}
                 </span>
-                <span className="font-medium sm:truncate">
+                <span className="min-w-0 max-w-full font-medium [overflow-wrap:anywhere] sm:truncate">
                   {run.org ?? "Unnamed record"}
                 </span>
                 {run.replay && (
