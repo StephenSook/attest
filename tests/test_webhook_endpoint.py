@@ -139,6 +139,40 @@ async def test_valid_webhook_redacts_mapping_shaped_containers(
         conn.close()
 
 
+@pytest.mark.parametrize("phone_location", ["transcript", "scalar_recipient", "mapping_key"])
+async def test_valid_webhook_redacts_unexpected_phone_locations(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    phone_location: str,
+) -> None:
+    database = tmp_path / f"wh-phone-{phone_location}.db"
+    monkeypatch.setenv("ATTEST_DB_PATH", str(database))
+    monkeypatch.setenv("CALLE_WEBHOOK_SECRET", SECRET)
+    _seed_run(database)
+    payload = json.loads(json.dumps(FIXTURE))
+    if phone_location == "transcript":
+        payload["recipients"][0]["attempts"][0]["transcript_turns"][0]["text"] = (
+            "Call +15550101234 for details."
+        )
+    elif phone_location == "scalar_recipient":
+        payload["recipients"] = ["+15550101234"]
+    else:
+        payload["recipients"] = {"+15550101234": payload["recipients"][0]}
+
+    raw = json.dumps(payload).encode()
+    async with _client() as client:
+        response = await client.post("/calle/webhook", content=raw, headers=_signed_headers(raw))
+    assert response.status_code == 202
+
+    conn = db.connect(database)
+    try:
+        row = db.get_run(conn, "run_wh")
+        assert row is not None and row["state"] == "completed"
+        assert "+15550101234" not in str(row["terminal_payload"])
+    finally:
+        conn.close()
+
+
 async def test_replayed_webhook_is_a_noop(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     database = tmp_path / "wh2.db"
     monkeypatch.setenv("ATTEST_DB_PATH", str(database))

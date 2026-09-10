@@ -9,9 +9,10 @@ import copy
 import json
 import logging
 import os
+import re
 import sqlite3
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from app.extract import extract_yes_no
 from app.models import Answer
@@ -27,6 +28,8 @@ CLAIM_QUESTIONS = {
     "accepts_plan": r"\baccepts?\b|\btakes?\b.*\b(?:plan|insurance)\b|\bin[- ]network\b",
 }
 
+_PHONE_LIKE = re.compile(r"(?<!\w)\+?(?:\d[\s().-]*){9,14}\d(?!\w)")
+
 
 def _mask(phone: str) -> str:
     if len(phone) < 7:
@@ -34,11 +37,20 @@ def _mask(phone: str) -> str:
     return phone[:3] + "*" * (len(phone) - 6) + phone[-3:]
 
 
+def _mask_phone_text(text: str) -> str:
+    return _PHONE_LIKE.sub(lambda match: _mask(match.group(0)), text)
+
+
 def _redact_phone_fields(value: Any, *, phone_context: bool = False) -> Any:
-    """Recursively mask every scalar below a phone or phones field."""
+    """Recursively mask phone fields and phone-like strings or mapping keys."""
     if isinstance(value, dict):
-        for key, nested in value.items():
-            value[key] = _redact_phone_fields(
+        items = list(value.items())
+        value.clear()
+        for index, (key, nested) in enumerate(items):
+            safe_key = _mask_phone_text(key) if isinstance(key, str) else key
+            if safe_key != key:
+                safe_key = f"{safe_key}#{index}"
+            value[safe_key] = _redact_phone_fields(
                 nested,
                 phone_context=phone_context or str(key).lower() in {"phone", "phones"},
             )
@@ -47,6 +59,12 @@ def _redact_phone_fields(value: Any, *, phone_context: bool = False) -> Any:
         return [_redact_phone_fields(item, phone_context=phone_context) for item in value]
     if phone_context and value is not None:
         return _mask(str(value))
+    if isinstance(value, str):
+        return _mask_phone_text(value)
+    if isinstance(value, int) and not isinstance(value, bool):
+        text = str(value)
+        masked = _mask_phone_text(text)
+        return masked if masked != text else value
     return value
 
 
@@ -85,7 +103,11 @@ def transcript_turns(payload: dict[str, Any]) -> list[dict[str, Any]]:
                 continue
             turns = attempt.get("transcript_turns")
             if isinstance(turns, list) and turns:
-                return list(turns)
+                valid_turns = [
+                    cast(dict[str, Any], turn) for turn in turns if isinstance(turn, dict)
+                ]
+                if valid_turns:
+                    return valid_turns
     return []
 
 

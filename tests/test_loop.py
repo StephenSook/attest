@@ -593,6 +593,43 @@ async def test_poller_redacts_mapping_shaped_containers(
         service.close()
 
 
+@pytest.mark.parametrize("phone_location", ["transcript", "scalar_recipient", "mapping_key"])
+@respx.mock
+async def test_poller_redacts_unexpected_phone_locations(
+    tmp_path: Path, phone_location: str
+) -> None:
+    database = tmp_path / f"poll-phone-{phone_location}.db"
+    terminal = json.loads(json.dumps(FIXTURE))
+    if phone_location == "transcript":
+        terminal["recipients"][0]["attempts"][0]["transcript_turns"][0]["text"] = (
+            "Call +15550101234 for details."
+        )
+    elif phone_location == "scalar_recipient":
+        terminal["recipients"] = ["+15550101234"]
+    else:
+        terminal["recipients"] = {"+15550101234": terminal["recipients"][0]}
+    respx.post(f"{BASE}/v1/calls").mock(return_value=Response(201, json=_pending_fixture()))
+    respx.get(f"{BASE}/v1/calls/{FIXTURE['id']}").mock(return_value=Response(200, json=terminal))
+    service = _service()
+    run_id = await runs.start_verification_run(
+        service,
+        database,
+        task="verify listing",
+        phone="+15550101234",
+    )
+
+    poller = Poller(service, database)
+    assert await poller.tick() == 1
+    conn = db.connect(database)
+    try:
+        row = db.get_run(conn, run_id)
+        assert row is not None and row["state"] == "completed"
+        assert "+15550101234" not in str(row["terminal_payload"])
+    finally:
+        conn.close()
+        service.close()
+
+
 def test_owner_lease_blocks_rivals_and_expiry_waits_for_the_owner(tmp_path: Path) -> None:
     database = tmp_path / "lease.db"
     conn = db.connect(database)

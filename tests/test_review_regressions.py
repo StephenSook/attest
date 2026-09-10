@@ -28,6 +28,68 @@ def test_request_echo_is_stripped_from_served_payloads() -> None:
     assert "request" not in redacted
 
 
+def test_redaction_covers_unexpected_phone_locations_without_mutating_input() -> None:
+    payload = {
+        "recipients": [
+            "+15550101234",
+            {
+                "+15550101234": {
+                    "attempts": [
+                        {
+                            "transcript_turns": [
+                                {"speaker": "user", "text": "Call me at +15550101234."}
+                            ]
+                        }
+                    ]
+                }
+            },
+        ]
+    }
+    original = json.loads(json.dumps(payload))
+
+    redacted = redact_payload(payload)
+
+    assert "+15550101234" not in json.dumps(redacted)
+    assert payload == original
+
+
+def test_analyze_run_ignores_malformed_transcript_members(tmp_path: Path, monkeypatch: Any) -> None:
+    import sqlite3
+
+    from app import analysis
+
+    payload = {
+        "recipients": [
+            {
+                "attempts": [
+                    {
+                        "transcript_turns": [
+                            None,
+                            "not a turn",
+                            {"speaker": "bot", "text": "Are you accepting new patients?"},
+                            17,
+                            {"speaker": "user", "text": "Yes"},
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.execute("CREATE TABLE r (terminal_payload TEXT, record_json TEXT)")
+    conn.execute("INSERT INTO r VALUES (?, ?)", (json.dumps(payload), None))
+    row = cast(sqlite3.Row, conn.execute("SELECT * FROM r").fetchone())
+    monkeypatch.setenv("ATTEST_METRICS_PATH", str(tmp_path / "missing.json"))
+
+    result = analysis.analyze_run(row)
+
+    claims = cast(list[dict[str, Any]], result["claims"])
+    accepting = next(claim for claim in claims if claim["claim"] == "accepting_new_patients")
+    assert accepting["stated_answer"] == "yes"
+    conn.close()
+
+
 def test_landing_numbers_match_the_canonical_metrics() -> None:
     """L5 guard: the landing hardcodes display numbers; they must agree with
     eval/results/metrics.json or the page silently contradicts the eval."""
