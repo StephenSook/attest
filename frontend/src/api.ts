@@ -12,7 +12,8 @@ export type RunSummary = {
 export type Health = {
   status: "ok" | "degraded";
   service: string;
-  poller: "running" | "stopped";
+  poller: "running" | "degraded" | "stopped";
+  recovery_blocked: number;
   provider: "live" | "mock";
   sandbox: "enabled" | "disabled";
 };
@@ -75,6 +76,7 @@ export type RunDetail = {
     reconciliation: Reconciliation;
   };
   failure?: { error: string; stage: string };
+  blocked?: { error: string; stage: string };
   has_audio?: boolean;
   audio_note?: string;
 };

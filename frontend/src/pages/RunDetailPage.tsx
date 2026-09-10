@@ -226,6 +226,22 @@ export default function RunDetailPage() {
         </section>
       )}
 
+      {detail.blocked && (
+        <section
+          aria-label="Run recovery blocked"
+          className="mt-8 max-w-xl rounded-lg border border-doubt/40 bg-doubt-soft p-4"
+        >
+          <p className="font-evidence text-[11px] uppercase tracking-widest text-doubt">
+            recovery blocked at stage: {detail.blocked.stage}
+          </p>
+          <p className="mt-1 font-evidence text-sm text-ink">{detail.blocked.error}</p>
+          <p className="mt-2 text-sm text-ink-soft">
+            The call is not labeled failed because its final provider state is
+            unknown. Restore the original CALL-E transport to resume recovery.
+          </p>
+        </section>
+      )}
+
       {analysis && (
         <motion.section
           initial={{ opacity: 0, y: 10 }}

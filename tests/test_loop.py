@@ -220,7 +220,10 @@ async def test_restart_does_not_poll_through_changed_transport(
 
     changed_service = CalleService(api_key=poll_api_key, base_url=poll_base_url)
     try:
-        assert await Poller(changed_service, database).tick() == 0
+        poller = Poller(changed_service, database)
+        assert await poller.tick() == 0
+        assert poller.healthy is False
+        assert poller.blocked_run_count == 1
     finally:
         changed_service.close()
     assert changed_get.call_count == 0
@@ -228,6 +231,7 @@ async def test_restart_does_not_poll_through_changed_transport(
     try:
         row = db.get_run(conn, run_id)
         assert row is not None and row["state"] == "submitted"
+        assert json.loads(str(row["terminal_payload"]))["stage"] == ("transport_identity_mismatch")
     finally:
         conn.close()
 

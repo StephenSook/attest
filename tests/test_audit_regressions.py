@@ -4,6 +4,7 @@ Each test here corresponds to a finding from the parallel review sweep and
 fails if the fix regresses. Named by what breaks, not by finding number.
 """
 
+import asyncio
 import json
 import os
 import sqlite3
@@ -18,8 +19,10 @@ import pytest
 
 from app import db, fsm
 from app.calle import client as calle_client
+from app.calle.client import CalleService
+from app.calle.poller import Poller
 from app.extract import extract_yes_no
-from app.main import app
+from app.main import app, lifespan
 from app.models import Answer
 from app.runs import build_task
 from scripts import seed_replay
@@ -122,11 +125,41 @@ async def test_attestation_policy_matches_calibration_availability(
     assert "NO calibrated gate" in doc["policy"]
 
 
-async def test_healthz_reports_poller_liveness() -> None:
-    async with _client() as client:
-        body = (await client.get("/healthz")).json()
-    assert "poller" in body
-    assert body["status"] in {"ok", "degraded"}
+async def test_healthz_requires_a_successful_poller_tick(tmp_path: Path) -> None:
+    service = CalleService(api_key="health-test-key", base_url="https://calle.test")
+    poller = Poller(service, tmp_path / "health.db")
+    assert poller.healthy is False
+    assert await poller.tick() == 0
+    assert poller.healthy is True
+    stop = asyncio.Event()
+    task = asyncio.create_task(stop.wait())
+    previous_poller = getattr(app.state, "poller", None)
+    previous_task = getattr(app.state, "poller_task", None)
+    app.state.poller = poller
+    app.state.poller_task = task
+    try:
+        async with _client() as client:
+            response = await client.get("/healthz")
+        assert response.status_code == 200
+        assert response.json()["poller"] == "running"
+    finally:
+        stop.set()
+        await task
+        app.state.poller = previous_poller
+        app.state.poller_task = previous_task
+        service.close()
+
+
+async def test_lifespan_refuses_database_startup_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_connect(path: Path | None = None) -> sqlite3.Connection:
+        raise sqlite3.OperationalError("migration failed")
+
+    monkeypatch.setattr(db, "connect", fail_connect)
+    with pytest.raises(sqlite3.OperationalError, match="migration failed"):
+        async with lifespan(app):
+            pass
 
 
 async def test_healthz_reports_sandbox_availability(monkeypatch: pytest.MonkeyPatch) -> None:

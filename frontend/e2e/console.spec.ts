@@ -229,6 +229,7 @@ test("disabled live sandbox explains the safe replay path", async ({ page }) => 
         status: "ok",
         service: "attest",
         poller: "running",
+        recovery_blocked: 0,
         provider: "live",
         sandbox: "disabled",
       },
@@ -278,6 +279,7 @@ test("capability promotion failure keeps the same safe retry identity", async ({
         status: "ok",
         service: "attest",
         poller: "running",
+        recovery_blocked: 0,
         provider: "live",
         sandbox: "enabled",
       },
@@ -346,6 +348,7 @@ test("definite provider rejection clears the terminal request identity", async (
         status: "ok",
         service: "attest",
         poller: "running",
+        recovery_blocked: 0,
         provider: "live",
         sandbox: "enabled",
       },
@@ -396,6 +399,7 @@ test("expired request tombstones the destination instead of redialing", async ({
         status: "ok",
         service: "attest",
         poller: "running",
+        recovery_blocked: 0,
         provider: "live",
         sandbox: "enabled",
       },
@@ -432,6 +436,42 @@ test("expired request tombstones the destination instead of redialing", async ({
   await page.getByRole("button", { name: /place the call/i }).click();
   await expect(page.getByText(/will not create a fresh call identity/i)).toBeVisible();
   expect(attempts).toHaveLength(1);
+});
+
+test("transport rotation is visible without falsely failing the call", async ({ page }) => {
+  const runId = "run_transport_blocked";
+  await page.addInitScript((id) => {
+    sessionStorage.setItem(
+      `attest:run-token:${id}`,
+      "transport-blocked-capability-token-1234567890abcdef",
+    );
+  }, runId);
+  await page.route(`**/internal/runs/${runId}`, async (route) => {
+    await route.fulfill({
+      json: {
+        run_id: runId,
+        state: "submitted",
+        created_at: "2026-09-09T20:00:00Z",
+        updated_at: "2026-09-09T20:01:00Z",
+        published: false,
+        provider: "live",
+        payload: {
+          error: "CALL-E transport no longer matches the original dispatch.",
+          stage: "transport_identity_mismatch",
+        },
+        blocked: {
+          error: "CALL-E transport no longer matches the original dispatch.",
+          stage: "transport_identity_mismatch",
+        },
+        has_audio: false,
+      },
+    });
+  });
+
+  await page.goto(`/runs/${runId}`);
+  await expect(page.getByRole("region", { name: "Run recovery blocked" })).toBeVisible();
+  await expect(page.getByText(/restore the original CALL-E transport/i)).toBeVisible();
+  await expect(page.getByText(/call failed at stage/i)).toHaveCount(0);
 });
 
 test("the whole loop: a judge-key run travels to a verdict", async ({ page }) => {
