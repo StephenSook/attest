@@ -1,5 +1,6 @@
 """Distribution checks stay separate from product and uptime checks."""
 
+import re
 from pathlib import Path
 
 
@@ -9,7 +10,7 @@ def test_distribution_monitor_downloads_and_verifies_the_apk() -> None:
     uptime = (root / ".github" / "workflows" / "uptime.yml").read_text()
     checksum = (root / "docs" / "mobile" / "attest-pocket.apk.sha256").read_text()
 
-    assert "actions/checkout@v7" in workflow
+    assert re.search(r"actions/checkout@[0-9a-f]{40}", workflow)
     assert "attest-pocket.apk" in workflow
     assert "sha256sum" in workflow
     assert "PK\\x03\\x04" in workflow
