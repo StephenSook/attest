@@ -468,6 +468,58 @@ async def test_expired_unknown_dispatch_is_failed_without_a_late_call(tmp_path: 
     assert create_route.call_count == 1
 
 
+@respx.mock
+async def test_expired_unknown_dispatch_stays_visible_in_readiness(tmp_path: Path) -> None:
+    database = tmp_path / "expired-dispatch-readiness.db"
+    run_id = "run_expired_readiness"
+    respx.post(f"{BASE}/v1/calls").mock(
+        return_value=Response(500, json={"error": {"code": "unknown", "message": "retry"}})
+    )
+    service = _service()
+    with pytest.raises(Exception):  # noqa: B017 - provider seam error is expected
+        await runs.start_verification_run(
+            service,
+            database,
+            task="verify listing",
+            phone="+15550101234",
+            run_id=run_id,
+        )
+    conn = db.connect(database)
+    try:
+        row = db.get_run(conn, run_id)
+        assert row is not None
+        destination_hash = str(row["destination_hash"])
+        conn.execute(
+            "UPDATE call_runs SET dispatch_expires_at = 0, submit_lease_until = 0 WHERE run_id = ?",
+            (run_id,),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    poller = Poller(service, database)
+    assert await poller.tick() == 0
+    assert poller.healthy is False
+    assert poller.blocked_run_count == 1
+
+    conn = db.connect(database)
+    try:
+        assert db.recovery_blocked_run_ids(conn) == {run_id}
+        assert (
+            db.create_request_run(
+                conn,
+                run_id="run_same_expired_destination",
+                idempotency_key="run_same_expired_destination",
+                record_json="{}",
+                destination_hash=destination_hash,
+            )
+            == "destination_blocked"
+        )
+    finally:
+        conn.close()
+        service.close()
+
+
 def test_owner_lease_blocks_rivals_and_expiry_waits_for_the_owner(tmp_path: Path) -> None:
     database = tmp_path / "lease.db"
     conn = db.connect(database)
