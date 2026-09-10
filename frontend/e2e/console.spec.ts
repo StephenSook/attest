@@ -65,7 +65,18 @@ test("mobile viewport: full traversal, no horizontal overflow, 720p film", async
   expect(tourBox?.height).toBeGreaterThanOrEqual(44);
   await tour.click();
   await expect(tour).toHaveAccessibleName(/pause guided tour/i);
-  await tour.click();
+  await page.waitForTimeout(300);
+  await tour.press("Space");
+  await expect(tour).toHaveAccessibleName(/resume guided tour/i);
+  const pausedY = await page.evaluate(() => window.scrollY);
+  await page.waitForTimeout(350);
+  expect(Math.abs((await page.evaluate(() => window.scrollY)) - pausedY)).toBeLessThanOrEqual(1);
+  await tour.press("Space");
+  await expect(tour).toHaveAccessibleName(/pause guided tour/i);
+  const resumedY = await page.evaluate(() => window.scrollY);
+  await page.waitForTimeout(350);
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(resumedY);
+  await tour.press("Space");
   await expect(tour).toHaveAccessibleName(/resume guided tour/i);
   const result = await page.evaluate(async () => {
     const video = document.querySelector<HTMLVideoElement>(".landing-film video");
