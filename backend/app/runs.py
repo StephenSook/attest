@@ -6,10 +6,11 @@ import os
 import sqlite3
 import uuid
 from pathlib import Path
+from typing import Any, cast
 
 from calle.errors import CalleAPIError, CalleConnectionError, CalleTimeoutError
 
-from app import db, fsm
+from app import analysis, db, fsm
 from app.calle.client import CalleService
 
 logger = logging.getLogger(__name__)
@@ -324,11 +325,12 @@ def apply_terminal_payload(database: Path, payload: dict[str, object]) -> bool:
             return False
         if row["state"] == "created":
             db.accept_submission(conn, str(row["run_id"]), calle_call_id)
+        stored_payload = analysis.redact_payload(cast(dict[str, Any], payload))
         return fsm.advance(
             conn,
             str(row["run_id"]),
             status,
-            terminal_payload=json.dumps(payload),
+            terminal_payload=json.dumps(stored_payload),
         )
     finally:
         conn.close()

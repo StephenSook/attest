@@ -66,6 +66,9 @@ async def test_valid_webhook_lands_terminal_state(
     conn = db.connect(database)
     row = db.get_run(conn, "run_wh")
     assert row is not None and row["state"] == "completed"
+    stored = str(row["terminal_payload"])
+    assert "+15550101234" not in stored
+    assert json.loads(stored)["recipients"][0]["phones"] == ["+15******234"]
     conn.close()
 
 

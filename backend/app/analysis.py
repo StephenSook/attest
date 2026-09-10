@@ -35,7 +35,7 @@ def _mask(phone: str) -> str:
 
 
 def redact_payload(payload: dict[str, Any]) -> dict[str, Any]:
-    """Mask every phone number in a terminal payload before serving it."""
+    """Mask phone numbers and remove request echoes before storage or serving."""
     redacted = copy.deepcopy(payload)
     for recipient in redacted.get("recipients", []):
         recipient["phones"] = [_mask(str(p)) for p in recipient.get("phones", [])]
