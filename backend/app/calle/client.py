@@ -10,16 +10,19 @@ import functools
 import hashlib
 import hmac
 import os
+import time
 from collections.abc import Mapping
 from typing import Any
 
 from calle import CalleClient
+from calle.errors import CalleAPIError, CalleConnectionError, CalleTimeoutError
 
 JsonObject = dict[str, Any]
 
 _PROD_BASE_URL = "https://api.heycall-e.com"
 _DISPATCH_KEY_DOMAIN = b"attest-dispatch-fingerprint-v1\x00"
 _CREDENTIAL_FINGERPRINT_DOMAIN = b"attest-credential-fingerprint-v1\x00"
+_READINESS_CALL_ID = "call_attest_readiness_probe_v1"
 
 
 def _default_base_url() -> str:
@@ -57,6 +60,9 @@ class CalleService:
         self._credential_fingerprint = hashlib.sha256(
             _CREDENTIAL_FINGERPRINT_DOMAIN + resolved_key.encode()
         ).hexdigest()
+        self._readiness_lock = asyncio.Lock()
+        self._readiness_checked_at: float | None = None
+        self._readiness_result: tuple[bool, str | None] = (False, "provider_not_checked")
         self._client = CalleClient(
             api_key=resolved_key,
             base_url=self._base_url,
@@ -111,6 +117,59 @@ class CalleService:
             canonical_request.encode(),
             hashlib.sha256,
         ).hexdigest()
+
+    async def probe_readiness(
+        self,
+        *,
+        max_age_seconds: float = 60.0,
+    ) -> tuple[bool, str | None]:
+        """Prove that the configured credential reaches the Calls API.
+
+        A read of a reserved nonexistent call id is harmless. CALL-E's
+        documented 404 response proves the authenticated Calls API path is
+        reachable without placing a call. The result is cached so a public
+        health check cannot amplify traffic to the provider.
+        """
+        now = time.monotonic()
+        if (
+            self._readiness_checked_at is not None
+            and now - self._readiness_checked_at < max_age_seconds
+        ):
+            return self._readiness_result
+        async with self._readiness_lock:
+            now = time.monotonic()
+            if (
+                self._readiness_checked_at is not None
+                and now - self._readiness_checked_at < max_age_seconds
+            ):
+                return self._readiness_result
+            try:
+                snapshot = await self.get_call(_READINESS_CALL_ID)
+            except CalleAPIError as exc:
+                if exc.status_code == 404:
+                    result: tuple[bool, str | None] = (True, None)
+                elif exc.status_code in {401, 403}:
+                    result = (False, "provider_auth_rejected")
+                elif exc.status_code == 429:
+                    result = (False, "provider_rate_limited")
+                elif exc.status_code >= 500:
+                    result = (False, "provider_unavailable")
+                else:
+                    result = (False, "provider_probe_rejected")
+            except CalleTimeoutError:
+                result = (False, "provider_timeout")
+            except CalleConnectionError:
+                result = (False, "provider_unreachable")
+            except Exception:
+                result = (False, "provider_probe_failed")
+            else:
+                if str(snapshot.get("id") or "") == _READINESS_CALL_ID:
+                    result = (True, None)
+                else:
+                    result = (False, "provider_probe_invalid_response")
+            self._readiness_checked_at = now
+            self._readiness_result = result
+            return result
 
     async def place_call(
         self,

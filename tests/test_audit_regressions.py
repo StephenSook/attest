@@ -5,6 +5,7 @@ fails if the fix regresses. Named by what breaks, not by finding number.
 """
 
 import asyncio
+import hashlib
 import json
 import os
 import sqlite3
@@ -125,28 +126,191 @@ async def test_attestation_policy_matches_calibration_availability(
     assert "NO calibrated gate" in doc["policy"]
 
 
-async def test_healthz_requires_a_successful_poller_tick(tmp_path: Path) -> None:
+async def test_healthz_requires_a_successful_poller_tick(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    database = tmp_path / "health.db"
+    monkeypatch.setenv("ATTEST_DB_PATH", str(database))
+    monkeypatch.setenv("ATTEST_USE_MOCK", "true")
+    monkeypatch.setenv("ATTEST_MOCK_BASE_URL", "https://calle.test")
+    monkeypatch.setenv("CALLE_API_KEY", "health-test-key")
+    monkeypatch.setenv("ATTEST_OPERATOR_KEY", "operator-test-key")
+    monkeypatch.setenv("ATTEST_PHONE_HASH_KEY", "phone-hash-test-key")
     service = CalleService(api_key="health-test-key", base_url="https://calle.test")
-    poller = Poller(service, tmp_path / "health.db")
+    poller = Poller(service, database)
     assert poller.healthy is False
     assert await poller.tick() == 0
     assert poller.healthy is True
+
+    async def provider_ready() -> tuple[bool, str | None]:
+        return True, None
+
+    monkeypatch.setattr(service, "probe_readiness", provider_ready)
     stop = asyncio.Event()
     task = asyncio.create_task(stop.wait())
     previous_poller = getattr(app.state, "poller", None)
     previous_task = getattr(app.state, "poller_task", None)
+    previous_service = getattr(app.state, "calle_service", None)
     app.state.poller = poller
     app.state.poller_task = task
+    app.state.calle_service = service
     try:
         async with _client() as client:
             response = await client.get("/healthz")
         assert response.status_code == 200
         assert response.json()["poller"] == "running"
+        assert response.json()["outbound"] == {"status": "ready", "reasons": []}
     finally:
         stop.set()
         await task
         app.state.poller = previous_poller
         app.state.poller_task = previous_task
+        app.state.calle_service = previous_service
+        service.close()
+
+
+async def test_healthz_reports_exact_outbound_block_reasons(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    database = tmp_path / "blocked-health.db"
+    monkeypatch.setenv("ATTEST_DB_PATH", str(database))
+    monkeypatch.setenv("ATTEST_USE_MOCK", "false")
+    monkeypatch.delenv("CALLE_API_KEY", raising=False)
+    monkeypatch.setenv("ATTEST_OPERATOR_KEY", "operator-test-key")
+    monkeypatch.setenv("ATTEST_PHONE_HASH_KEY", "phone-hash-test-key")
+    service = CalleService()
+    poller = Poller(service, database)
+    assert await poller.tick() == 0
+
+    async def must_not_probe() -> tuple[bool, str | None]:
+        raise AssertionError("provider probe must not run with missing credentials")
+
+    monkeypatch.setattr(service, "probe_readiness", must_not_probe)
+    stop = asyncio.Event()
+    task = asyncio.create_task(stop.wait())
+    previous_poller = getattr(app.state, "poller", None)
+    previous_task = getattr(app.state, "poller_task", None)
+    previous_service = getattr(app.state, "calle_service", None)
+    app.state.poller = poller
+    app.state.poller_task = task
+    app.state.calle_service = service
+    try:
+        async with _client() as client:
+            response = await client.get("/healthz")
+        assert response.status_code == 503
+        assert response.json()["outbound"] == {
+            "status": "blocked",
+            "reasons": ["provider_credentials_missing"],
+        }
+    finally:
+        stop.set()
+        await task
+        app.state.poller = previous_poller
+        app.state.poller_task = previous_task
+        app.state.calle_service = previous_service
+        service.close()
+
+
+async def test_healthz_detects_stale_cached_call_service(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    database = tmp_path / "stale-service-health.db"
+    monkeypatch.setenv("ATTEST_DB_PATH", str(database))
+    monkeypatch.setenv("ATTEST_USE_MOCK", "true")
+    monkeypatch.setenv("ATTEST_MOCK_BASE_URL", "https://calle-before.test")
+    monkeypatch.setenv("CALLE_API_KEY", "before-key")
+    monkeypatch.setenv("ATTEST_OPERATOR_KEY", "operator-test-key")
+    monkeypatch.setenv("ATTEST_PHONE_HASH_KEY", "phone-hash-test-key")
+    service = CalleService()
+    poller = Poller(service, database)
+    assert await poller.tick() == 0
+    monkeypatch.setenv("ATTEST_MOCK_BASE_URL", "https://calle-after.test")
+
+    async def must_not_probe() -> tuple[bool, str | None]:
+        raise AssertionError("a stale cached client must not probe the new endpoint")
+
+    monkeypatch.setattr(service, "probe_readiness", must_not_probe)
+    stop = asyncio.Event()
+    task = asyncio.create_task(stop.wait())
+    previous_poller = getattr(app.state, "poller", None)
+    previous_task = getattr(app.state, "poller_task", None)
+    previous_service = getattr(app.state, "calle_service", None)
+    app.state.poller = poller
+    app.state.poller_task = task
+    app.state.calle_service = service
+    try:
+        async with _client() as client:
+            response = await client.get("/healthz")
+        assert response.status_code == 503
+        assert response.json()["outbound"] == {
+            "status": "blocked",
+            "reasons": ["call_service_configuration_stale"],
+        }
+    finally:
+        stop.set()
+        await task
+        app.state.poller = previous_poller
+        app.state.poller_task = previous_task
+        app.state.calle_service = previous_service
+        service.close()
+
+
+async def test_healthz_detects_destination_hash_binding_mismatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    database = tmp_path / "hash-binding-health.db"
+    monkeypatch.setenv("ATTEST_DB_PATH", str(database))
+    monkeypatch.setenv("ATTEST_USE_MOCK", "true")
+    monkeypatch.setenv("ATTEST_MOCK_BASE_URL", "https://calle.test")
+    monkeypatch.setenv("CALLE_API_KEY", "health-test-key")
+    monkeypatch.setenv("ATTEST_OPERATOR_KEY", "operator-test-key")
+    monkeypatch.setenv("ATTEST_PHONE_HASH_KEY", "phone-hash-after")
+    conn = db.connect(database)
+    try:
+        assert (
+            db.bind_runtime_fingerprint(
+                conn,
+                name="destination_hash_key",
+                fingerprint=hashlib.sha256(b"phone-hash-before").hexdigest(),
+            )
+            == "bound"
+        )
+    finally:
+        conn.close()
+    service = CalleService()
+    poller = Poller(service, database)
+    assert await poller.tick() == 0
+
+    async def must_not_probe() -> tuple[bool, str | None]:
+        raise AssertionError("provider probe must not run through an invalid hash binding")
+
+    monkeypatch.setattr(service, "probe_readiness", must_not_probe)
+    stop = asyncio.Event()
+    task = asyncio.create_task(stop.wait())
+    previous_poller = getattr(app.state, "poller", None)
+    previous_task = getattr(app.state, "poller_task", None)
+    previous_service = getattr(app.state, "calle_service", None)
+    app.state.poller = poller
+    app.state.poller_task = task
+    app.state.calle_service = service
+    try:
+        async with _client() as client:
+            response = await client.get("/healthz")
+        assert response.status_code == 503
+        assert response.json()["outbound"] == {
+            "status": "blocked",
+            "reasons": ["destination_hash_binding_mismatch"],
+        }
+    finally:
+        stop.set()
+        await task
+        app.state.poller = previous_poller
+        app.state.poller_task = previous_task
+        app.state.calle_service = previous_service
         service.close()
 
 
