@@ -1,0 +1,29 @@
+name: Distribution integrity
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 8 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  android-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download and verify the published APK
+        run: |
+          set -euo pipefail
+          apk="$RUNNER_TEMP/attest-pocket.apk"
+          curl -sfL --max-redirs 5 --max-time 300 \
+            https://github.com/StephenSook/attest/releases/download/pocket-v0.1.0/attest-pocket.apk \
+            -o "$apk"
+          test -s "$apk"
+          test "$(stat -c %s "$apk")" -eq 110733361
+          # APK files are ZIP archives and must begin with PK\x03\x04.
+          test "$(head -c 4 "$apk" | od -An -tx1 | tr -d ' \n')" = "504b0304"
+          expected="$(cut -d ' ' -f 1 docs/mobile/attest-pocket.apk.sha256)"
+          printf '%s  %s\n' "$expected" "$apk" | sha256sum --check --status
