@@ -72,6 +72,41 @@ async def test_valid_webhook_lands_terminal_state(
     conn.close()
 
 
+@pytest.mark.parametrize("null_list", ["recipients", "attempts"])
+async def test_valid_webhook_persists_explicit_null_lists(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    null_list: str,
+) -> None:
+    database = tmp_path / f"wh-null-{null_list}.db"
+    monkeypatch.setenv("ATTEST_DB_PATH", str(database))
+    monkeypatch.setenv("CALLE_WEBHOOK_SECRET", SECRET)
+    _seed_run(database)
+    payload = json.loads(json.dumps(FIXTURE))
+    if null_list == "recipients":
+        payload["recipients"] = None
+    else:
+        payload["recipients"][0]["attempts"] = None
+
+    raw = json.dumps(payload).encode()
+    async with _client() as client:
+        response = await client.post("/calle/webhook", content=raw, headers=_signed_headers(raw))
+    assert response.status_code == 202
+
+    conn = db.connect(database)
+    try:
+        row = db.get_run(conn, "run_wh")
+        assert row is not None and row["state"] == "completed"
+        stored = json.loads(str(row["terminal_payload"]))
+        assert "+15550101234" not in json.dumps(stored)
+        if null_list == "recipients":
+            assert stored["recipients"] is None
+        else:
+            assert stored["recipients"][0]["attempts"] is None
+    finally:
+        conn.close()
+
+
 async def test_replayed_webhook_is_a_noop(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     database = tmp_path / "wh2.db"
     monkeypatch.setenv("ATTEST_DB_PATH", str(database))
