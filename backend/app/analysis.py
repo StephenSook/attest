@@ -68,25 +68,45 @@ def _redact_phone_fields(value: Any, *, context: str = "generic") -> Any:
         }
         if context in container_contexts:
             child_context, key_prefix = container_contexts[context]
-            items = list(value.values())
+            items = list(value.items())
+            safe_keys = {str(key) for key, _ in items if _mask_phone_text(str(key)) == str(key)}
+            used_keys = set(safe_keys)
+            next_placeholder = 0
             value.clear()
-            for index, nested in enumerate(items):
-                value[f"{key_prefix}-{index}"] = _redact_phone_fields(nested, context=child_context)
+            for key, nested in items:
+                key_text = str(key)
+                if _mask_phone_text(key_text) != key_text:
+                    replacement = f"{key_prefix}-{next_placeholder}"
+                    while replacement in used_keys:
+                        next_placeholder += 1
+                        replacement = f"{key_prefix}-{next_placeholder}"
+                    output_key: object = replacement
+                    used_keys.add(replacement)
+                    next_placeholder += 1
+                else:
+                    output_key = key
+                value[output_key] = _redact_phone_fields(nested, context=child_context)
             return value
 
         items = list(value.items())
         for key, nested in items:
             key_lower = str(key).lower()
-            child_context = {
+            nested_context: str | None = {
                 "phone": "phone",
                 "phones": "phone",
                 "recipients": "recipients",
                 "attempts": "attempts",
                 "transcript_turns": "turns",
-            }.get(key_lower, "generic")
+                "summary": "transcript_text",
+                "failure_message": "transcript_text",
+            }.get(key_lower)
+            if nested_context is None:
+                nested_context = (
+                    context if context in {"phone", "recipient", "attempt", "turn"} else "generic"
+                )
             if context == "turn" and key_lower == "text":
-                child_context = "transcript_text"
-            value[key] = _redact_phone_fields(nested, context=child_context)
+                nested_context = "transcript_text"
+            value[key] = _redact_phone_fields(nested, context=nested_context)
         return value
     if isinstance(value, list):
         child_context = {
@@ -95,10 +115,16 @@ def _redact_phone_fields(value: Any, *, context: str = "generic") -> Any:
             "turns": "turn",
         }.get(context, context)
         return [_redact_phone_fields(item, context=child_context) for item in value]
-    if context in {"phone", "recipient"} and value is not None:
+    if context in {"phone", "recipients"} and value is not None:
         return _mask(str(value))
-    if context in {"attempt", "turn", "transcript_text"} and isinstance(value, str):
-        return _mask_phone_text(value)
+    if (
+        context in {"recipient", "attempt", "turn", "attempts", "turns", "transcript_text"}
+        and isinstance(value, (str, int, float))
+        and not isinstance(value, bool)
+    ):
+        text = str(value)
+        redacted = _mask_phone_text(text)
+        return redacted if redacted != text else value
     return value
 
 

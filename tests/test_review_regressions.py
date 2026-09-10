@@ -71,10 +71,49 @@ def test_redacted_container_keys_never_collide() -> None:
     ]:
         redacted = redact_payload({"recipients": recipients})
         assert len(redacted["recipients"]) == 2
+        assert redacted["recipients"]["recipient-0"] == {"marker": "existing"}
+        assert "+15550101234" not in redacted["recipients"]
         assert {item["marker"] for item in redacted["recipients"].values()} == {
             "phone",
             "existing",
         }
+
+
+def test_redaction_handles_schema_drift_without_discarding_safe_provider_ids() -> None:
+    payload = {
+        "summary": "Call +15550101234 for the result.",
+        "recipients": {
+            "rcp_provider_abc": {
+                "phone": {"value": "+15550101234"},
+                "attempts": {
+                    "att_provider_xyz": {
+                        "summary": "Retry at 555-1234.",
+                        "failure_message": "Escalate through 612 34 56 78.",
+                        "transcript_turns": "Call 555/010/1234.",
+                    }
+                },
+            }
+        },
+    }
+
+    redacted = redact_payload(payload)
+    serialized = json.dumps(redacted)
+
+    for phone in ["+15550101234", "555-1234", "612 34 56 78", "555/010/1234"]:
+        assert phone not in serialized
+    assert "rcp_provider_abc" in redacted["recipients"]
+    assert "att_provider_xyz" in redacted["recipients"]["rcp_provider_abc"]["attempts"]
+
+
+def test_redaction_rejects_phone_data_in_malformed_scalar_containers() -> None:
+    payloads: list[dict[str, Any]] = [
+        {"recipients": "+15550101234"},
+        {"recipients": [{"attempts": "+15550101234"}]},
+        {"recipients": [{"attempts": [{"transcript_turns": "+15550101234"}]}]},
+    ]
+
+    for payload in payloads:
+        assert "+15550101234" not in json.dumps(redact_payload(payload))
 
 
 def test_analyze_run_ignores_malformed_transcript_members(tmp_path: Path, monkeypatch: Any) -> None:
