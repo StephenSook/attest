@@ -67,11 +67,47 @@ async def test_attestation_signed_and_publicly_verifiable(
     with _pytest.raises(InvalidSignature):
         public_key.verify(base64.b64decode(signature["value"]), tampered.encode())  # type: ignore[union-attr, call-arg]
     # The payload hash matches the stored terminal payload bytes.
-    assert (
-        doc["terminal_payload_sha256"] == hashlib.sha256(json.dumps(FIXTURE).encode()).hexdigest()
-    )
+    conn = db.connect(tmp_path / "a.db")
+    try:
+        row = db.get_run(conn, "run_att")
+        assert row is not None
+        stored_payload = str(row["terminal_payload"])
+    finally:
+        conn.close()
+    assert doc["terminal_payload_sha256"] == hashlib.sha256(stored_payload.encode()).hexdigest()
     # No phone number anywhere in the document, masked or otherwise.
     assert "+1555" not in json.dumps(doc)
+
+
+async def test_attestation_redacts_legacy_phone_in_selected_span(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    database = tmp_path / "legacy-span.db"
+    monkeypatch.setenv("ATTEST_DB_PATH", str(database))
+    _seed(database)
+    conn = db.connect(database)
+    try:
+        row = db.get_run(conn, "run_att")
+        assert row is not None
+        payload = json.loads(str(row["terminal_payload"]))
+        payload["recipients"][0]["attempts"][0]["transcript_turns"][6]["text"] = (
+            "Yep. Call +15550101234."
+        )
+        conn.execute(
+            "UPDATE call_runs SET terminal_payload = ? WHERE run_id = ?",
+            (json.dumps(payload), "run_att"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    async with _client() as client:
+        doc = (await client.get("/api/runs/run_att/attestation")).json()
+
+    serialized = json.dumps(doc)
+    assert "+15550101234" not in serialized
+    claims = {claim["claim"]: claim for claim in doc["claims"]}
+    assert claims["accepting_new_patients"]["span"]["text"] == ("Yep. Call [redacted phone].")
 
 
 async def test_attestation_deterministic(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

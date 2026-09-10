@@ -11,6 +11,8 @@ single guarded UPDATE so whichever arrives first wins and the loser no-ops.
 
 import sqlite3
 
+from app import analysis
+
 TERMINAL_STATES = frozenset({"completed", "failed", "canceled"})
 
 ALLOWED: dict[str, frozenset[str]] = {
@@ -52,7 +54,14 @@ def advance(
             updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
         WHERE run_id = ? AND state = ?
         """,
-        (new_state, terminal_payload, run_id, current),
+        (
+            new_state,
+            analysis.redact_payload_json(terminal_payload)
+            if terminal_payload is not None
+            else None,
+            run_id,
+            current,
+        ),
     )
     conn.commit()
     return cursor.rowcount == 1

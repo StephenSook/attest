@@ -15,7 +15,7 @@ import respx
 from calle.errors import CalleAPIError
 from httpx import Response
 
-from app import db, runs
+from app import analysis, db, fsm, runs
 from app.calle.client import CalleService
 from app.calle.poller import Poller
 
@@ -603,7 +603,13 @@ async def test_poller_redacts_mapping_shaped_containers(
         "summary",
         "summary_wrapper",
         "failure_message",
+        "error",
         "failure_wrapper",
+        "date_shaped_mapping_keys",
+        "date_shaped_id_fields",
+        "unknown_mapping_keys",
+        "unknown_scalar_value",
+        "sensitive_mapping_keys",
     ],
 )
 @respx.mock
@@ -618,6 +624,7 @@ async def test_poller_redacts_phone_data_from_schema_drift(
     elif schema_drift == "phone_mapping_key":
         terminal["recipients"][0]["phone"] = {
             "+15550101234": "primary",
+            "12/34/5678": "secondary",
         }
     elif schema_drift == "scalar_attempts":
         terminal["recipients"][0]["attempts"] = "+15550101234"
@@ -628,6 +635,8 @@ async def test_poller_redacts_phone_data_from_schema_drift(
             "text": "Call +15550101234 for details.",
             "provider_id": 42,
             "phone_shaped_id": "+15550101234",
+            "id": "12/34/5678",
+            "date_shaped_id": "12/34/5678",
             "nested_id": {"value": "+15550101234"},
         }
     elif schema_drift == "failure_wrapper":
@@ -636,6 +645,57 @@ async def test_poller_redacts_phone_data_from_schema_drift(
                 "text": "Call +15550101234 for details.",
                 "provider_id": "550e8400-e29b-41d4-a716-446655440000",
             }
+        ]
+    elif schema_drift == "date_shaped_mapping_keys":
+        recipient = terminal["recipients"][0]
+        recipient["12/34/5678"] = "recipient-key"
+        attempt["2099-12-31"] = "attempt-key"
+        attempt["transcript_turns"][0]["12/34/5678"] = "turn-key"
+        recipient["attempts"] = {"2099-12-31": attempt}
+        terminal["recipients"] = {"12/34/5678": recipient}
+    elif schema_drift == "date_shaped_id_fields":
+        uuid = "550e8400-e29b-41d4-a716-446655440000"
+        terminal["call_id"] = "2099-12-31"
+        terminal["callId"] = "12/34/5678"
+        terminal["recipient_ids"] = ["12/34/5678", uuid]
+        terminal["recipient-ids"] = {"2099-12-31": "tel_15550101234", uuid: uuid}
+        terminal["recipientIds"] = ["acct15550101234", uuid]
+        terminal["recipientIDs"] = ["acctA15550101234B", uuid]
+        terminal["recipientIDS"] = ["call_x15550101234aaaaaaaaaa", uuid]
+        terminal["RECIPIENTIDS"] = {"2099-12-31": "acctB15550101234C", uuid: uuid}
+        terminal["recipientids"] = ["acctC15550101234D", uuid]
+        terminal["recipientID"] = "acct155.50.101.234x"
+        terminal["provider.id"] = "acctD15550101234E"
+        terminal["provider_id_v2"] = "acctE15550101234F"
+        terminal["destinationIdValue"] = "acctF15550101234G"
+        terminal["idList"] = ["acctG15550101234H"]
+        terminal["recipients"][0]["id"] = "12/34/5678"
+        terminal["recipients"][0]["recipientId"] = "12/34/5678"
+        attempt["call_id"] = "2099-12-31"
+        attempt["call-id"] = "2099-12-31"
+        attempt["nested_id"] = {"value": uuid, "values": [uuid]}
+        attempt["transcript_turns"][0]["id"] = "12/34/5678"
+        attempt["transcript_turns"][0]["turnID"] = "12/34/5678"
+    elif schema_drift == "unknown_mapping_keys":
+        terminal["+15550101234"] = "root"
+        terminal["results"] = {
+            "+15550101234": "nested",
+            "acct15550101234": "embedded",
+            "acct155.50.101.234x": "dotted-embedded",
+            "2099-12-31": "generic-date",
+            "2026-09-10T01:17:24Z": "seconds",
+            "2026-09-10T01:17:24.123456Z": "fraction",
+            "2026-09-10T01:17:24-04:00": "offset",
+        }
+    elif schema_drift == "sensitive_mapping_keys":
+        recipient = terminal["recipients"][0]
+        recipient["acct15550101234"] = "recipient-key"
+        attempt["acct15550101234"] = "attempt-key"
+        attempt["transcript_turns"][0]["acct15550101234"] = "turn-key"
+    elif schema_drift == "unknown_scalar_value":
+        terminal["notes"] = [
+            "Call +15550101234",
+            {"detail": "Use 555-1234", "number": 15550101234, "items": [15550101234.0]},
         ]
     else:
         attempt[schema_drift] = "Call +15550101234 for details."
@@ -657,10 +717,44 @@ async def test_poller_redacts_phone_data_from_schema_drift(
         assert row is not None and row["state"] == "completed"
         stored = str(row["terminal_payload"])
         assert "+15550101234" not in stored
-        if schema_drift == "summary_wrapper":
+        if schema_drift == "phone_mapping_key":
+            assert "12/34/5678" not in stored
+        elif schema_drift == "summary_wrapper":
             assert '"provider_id": 42' in stored
+            assert "12/34/5678" not in stored
         elif schema_drift == "failure_wrapper":
             assert "550e8400-e29b-41d4-a716-446655440000" in stored
+        elif schema_drift in {"date_shaped_mapping_keys", "date_shaped_id_fields"}:
+            assert "12/34/5678" not in stored
+            assert "2099-12-31" not in stored
+            if schema_drift == "date_shaped_id_fields":
+                for prefixed_phone in [
+                    "tel_15550101234",
+                    "acct15550101234",
+                    "acctA15550101234B",
+                    "acctB15550101234C",
+                    "acctC15550101234D",
+                    "call_x15550101234aaaaaaaaaa",
+                    "acct155.50.101.234x",
+                    "acctD15550101234E",
+                    "acctE15550101234F",
+                    "acctF15550101234G",
+                    "acctG15550101234H",
+                ]:
+                    assert prefixed_phone not in stored
+                assert "550e8400-e29b-41d4-a716-446655440000" in stored
+        elif schema_drift == "unknown_mapping_keys":
+            assert "acct15550101234" not in stored
+            assert "acct155.50.101.234x" not in stored
+            assert "2099-12-31" in stored
+            assert "2026-09-10T01:17:24Z" in stored
+            assert "2026-09-10T01:17:24.123456Z" in stored
+            assert "2026-09-10T01:17:24-04:00" in stored
+        elif schema_drift == "sensitive_mapping_keys":
+            assert "acct15550101234" not in stored
+        elif schema_drift == "unknown_scalar_value":
+            assert "555-1234" not in stored
+            assert "15550101234" not in stored
     finally:
         conn.close()
         service.close()
@@ -1014,8 +1108,6 @@ def test_webhook_vs_poller_race_second_write_noops(tmp_path: Path) -> None:
     conn = db.connect(database)
     db.create_run(conn, run_id="run_race", idempotency_key="run_race")
     db.set_calle_call_id(conn, "run_race", str(FIXTURE["id"]))
-    from app import fsm
-
     fsm.advance(conn, "run_race", "submitted")
     conn.close()
 
@@ -1035,8 +1127,6 @@ def test_late_ambiguous_submit_cannot_replace_completed_evidence(tmp_path: Path)
     conn = db.connect(database)
     db.create_run(conn, run_id="run_late", idempotency_key="run_late")
     db.accept_submission(conn, "run_late", str(FIXTURE["id"]))
-    from app import fsm
-
     terminal_payload = json.dumps(FIXTURE)
     fsm.advance(conn, "run_late", "completed", terminal_payload=terminal_payload)
 
@@ -1050,8 +1140,77 @@ def test_late_ambiguous_submit_cannot_replace_completed_evidence(tmp_path: Path)
     )
     row = db.get_run(conn, "run_late")
     assert row is not None and row["state"] == "completed"
-    assert row["terminal_payload"] == terminal_payload
+    assert row["terminal_payload"] == analysis.redact_payload_json(terminal_payload)
     conn.close()
+
+
+def test_every_terminal_payload_writer_redacts_before_database_storage(tmp_path: Path) -> None:
+    database = tmp_path / "terminal-boundary.db"
+    conn = db.connect(database)
+    try:
+        db.create_run(conn, run_id="run_submit", idempotency_key="run_submit")
+        assert db.set_submit_error(
+            conn,
+            "run_submit",
+            json.dumps({"error": "dial +15550101234 timed out", "stage": "submit_ambiguous"}),
+        )
+
+        db.create_run(conn, run_id="run_terminal", idempotency_key="run_terminal")
+        assert fsm.advance(
+            conn,
+            "run_terminal",
+            "failed",
+            terminal_payload=json.dumps(
+                {"status": "failed", "error": "Could not call +15550101234"}
+            ),
+        )
+
+        db.create_run(conn, run_id="run_recovery", idempotency_key="run_recovery")
+        db.set_calle_call_id(conn, "run_recovery", "call_recovery_boundary")
+        assert fsm.advance(conn, "run_recovery", "submitted")
+        assert db.set_recovery_issue(
+            conn,
+            "run_recovery",
+            json.dumps({"error": "Retry +15550101234", "stage": "poll_recovery"}),
+        )
+
+        db.create_run(conn, run_id="run_rejected", idempotency_key="run_rejected")
+        assert db.claim_submission_attempt(
+            conn,
+            "run_rejected",
+            dispatch_digest="digest",
+            dispatch_base_url="https://provider.test",
+            dispatch_provider="live",
+            dispatch_credential_fingerprint="credential",
+            destination_hash="destination",
+            lease_owner="owner",
+            now=100,
+        ) == ("claimed", 1)
+        assert db.reject_submission(
+            conn,
+            "run_rejected",
+            json.dumps(
+                {
+                    "classification": "definite_rejection",
+                    "error": "Provider echoed +15550101234",
+                    "stage": "submit",
+                }
+            ),
+            lease_owner="owner",
+            attempt_number=1,
+        )
+
+        payloads = [
+            str(row["terminal_payload"])
+            for row in conn.execute(
+                "SELECT terminal_payload FROM call_runs WHERE terminal_payload IS NOT NULL"
+            )
+        ]
+        assert len(payloads) == 4
+        assert all("+15550101234" not in payload for payload in payloads)
+        assert all("[redacted phone]" in payload for payload in payloads)
+    finally:
+        conn.close()
 
 
 @respx.mock
