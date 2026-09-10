@@ -19,7 +19,7 @@ export default function PromptPage() {
           BRAND. Attest: a phone agent that verifies directory listings with one
           disclosed call and refuses to guess. Notarial evidence-ledger
           aesthetic on warm paper (#faf9f5) with near-black ink (#191712), one
-          trust blue (#2456d6), amber for doubt (#b45309). Fraunces for display,
+          trust blue (#2456d6), amber for doubt (#a84a00). Fraunces for display,
           IBM Plex Mono for evidence, Source Sans 3 for body. Persistent corner
           registration marks (A T S T) frame the viewport like a notarized page.
         </p>
