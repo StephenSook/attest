@@ -21,7 +21,10 @@ export default function AutoTour() {
   speedRef.current = speed;
 
   useEffect(() => {
-    const pause = () => {
+    const pause = (event?: Event) => {
+      if (event?.target instanceof Element && event.target.closest(".auto-tour")) {
+        return;
+      }
       if (tween.current?.isActive()) {
         tween.current.pause();
         setState("paused");
