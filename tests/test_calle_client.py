@@ -18,6 +18,31 @@ def _service() -> CalleService:
     return CalleService(api_key="test-key-not-real", base_url=BASE)
 
 
+def test_accepted_call_recovery_distinguishes_rotation_from_endpoint_change() -> None:
+    service = _service()
+    identity = service.dispatch_identity()
+    assert service.accepted_call_recovery_status(identity) == "match"
+    assert (
+        service.accepted_call_recovery_status(
+            {**identity, "credential_fingerprint": "rotated-credential"}
+        )
+        == "credential_rebind"
+    )
+    assert (
+        service.accepted_call_recovery_status(
+            {"base_url": None, "provider": None, "credential_fingerprint": None}
+        )
+        == "legacy_rebind"
+    )
+    assert (
+        service.accepted_call_recovery_status(
+            {**identity, "base_url": "https://different-provider.test"}
+        )
+        == "transport_changed"
+    )
+    service.close()
+
+
 @respx.mock
 async def test_place_call_posts_task_schema_and_idempotency_key() -> None:
     route = respx.post(f"{BASE}/v1/calls").mock(return_value=Response(201, json=FIXTURE))

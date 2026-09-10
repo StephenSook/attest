@@ -71,15 +71,27 @@ class CalleService:
             "credential_fingerprint": self._credential_fingerprint,
         }
 
-    def matches_dispatch_identity(self, identity: Mapping[str, object]) -> bool:
-        """Check that recovery would use the original account and endpoint."""
-        credential_fingerprint = str(identity.get("credential_fingerprint", ""))
-        return (
-            str(identity.get("base_url", "")) == self._base_url
-            and str(identity.get("provider", "")) == self._provider_mode
-            and bool(credential_fingerprint)
-            and hmac.compare_digest(credential_fingerprint, self._credential_fingerprint)
-        )
+    def accepted_call_recovery_status(self, identity: Mapping[str, object]) -> str:
+        """Classify whether an accepted call can be read with this transport.
+
+        Endpoint or provider changes are never probed. A missing legacy
+        identity or a rotated credential may be probed because a successful
+        authenticated read of the exact call id proves that the current
+        credential can access the already accepted call. The caller must bind
+        that identity before applying the returned snapshot.
+        """
+        base_url = str(identity.get("base_url") or "")
+        provider = str(identity.get("provider") or "")
+        credential_fingerprint = str(identity.get("credential_fingerprint") or "")
+        if base_url and base_url != self._base_url:
+            return "transport_changed"
+        if provider and provider != self._provider_mode:
+            return "transport_changed"
+        if not base_url or not provider or not credential_fingerprint:
+            return "legacy_rebind"
+        if hmac.compare_digest(credential_fingerprint, self._credential_fingerprint):
+            return "match"
+        return "credential_rebind"
 
     def matches_current_configuration(self) -> bool:
         """Detect a cached client after runtime call configuration changes."""
