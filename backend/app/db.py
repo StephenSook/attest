@@ -620,9 +620,9 @@ def create_request_run(
     """Create an operator run without bypassing an ambiguous destination.
 
     A new request identity may target the same number only when every older
-    dispatch has a known provider call id or was definitely rejected. An
-    unknown outcome remains blocked after its retry window expires, so losing
-    browser storage cannot turn uncertainty into a second call.
+    dispatch has reached an authoritative terminal state. Active calls and
+    unknown outcomes remain blocked, so losing browser storage or provider
+    status access cannot turn uncertainty into a second call.
     """
     try:
         conn.execute("BEGIN IMMEDIATE")
@@ -631,8 +631,8 @@ def create_request_run(
             return "request_exists"
         guarded = conn.execute(
             "SELECT 1 FROM call_runs WHERE destination_hash = ? "
-            "AND calle_call_id IS NULL "
-            "AND state IN ('created', 'failed') LIMIT 1",
+            "AND (state IN ('created', 'submitted') "
+            "OR (state = 'failed' AND calle_call_id IS NULL)) LIMIT 1",
             (destination_hash,),
         ).fetchone()
         if guarded is not None:

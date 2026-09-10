@@ -6,12 +6,12 @@ import logging
 import time
 from pathlib import Path
 
-from app import db, fsm, runs
+from app import db, runs
 from app.calle.client import CalleService
 
 logger = logging.getLogger(__name__)
 
-# A run that cannot be polled this many times in a row is failed, not pending.
+# After this many failures, expose the recovery block while continuing to poll.
 _MAX_POLL_FAILURES = 5
 
 
@@ -44,7 +44,10 @@ class Poller:
 
     @property
     def blocked_run_count(self) -> int:
-        return len(self._transport_mismatches)
+        exhausted = {
+            run_id for run_id, attempts in self._failures.items() if attempts >= _MAX_POLL_FAILURES
+        }
+        return len(self._transport_mismatches | exhausted)
 
     def wake(self) -> None:
         """Request an immediate tick and reset backoff.
@@ -121,9 +124,10 @@ class Poller:
                 call = await self._service.get_call(calle_call_id)
             except Exception as exc:
                 tick_failed = True
-                # Retrying forever leaves the run "in progress" in the console
-                # with a spinner nobody can interpret. Give up loudly instead.
-                self._failures[run_id] = self._failures.get(run_id, 0) + 1
+                self._failures[run_id] = min(
+                    self._failures.get(run_id, 0) + 1,
+                    _MAX_POLL_FAILURES,
+                )
                 attempts = self._failures[run_id]
                 logger.warning(
                     "poll failed for %s (attempt %d of %d)",
@@ -133,14 +137,17 @@ class Poller:
                     exc_info=True,
                 )
                 if attempts >= _MAX_POLL_FAILURES:
-                    logger.error("giving up on %s after %d poll failures", run_id, attempts)
+                    logger.error(
+                        "call state remains unknown for %s after %d poll failures",
+                        run_id,
+                        attempts,
+                    )
                     conn = db.connect(self._database)
                     try:
-                        fsm.advance(
+                        db.set_recovery_issue(
                             conn,
                             run_id,
-                            "failed",
-                            terminal_payload=json.dumps(
+                            json.dumps(
                                 {
                                     "error": f"the call status could not be read after "
                                     f"{attempts} attempts: {exc}",
@@ -150,9 +157,13 @@ class Poller:
                         )
                     finally:
                         conn.close()
-                    self._failures.pop(run_id, None)
                 continue
             self._failures.pop(run_id, None)
+            conn = db.connect(self._database)
+            try:
+                db.clear_recovery_issue(conn, run_id, "poll_exhausted")
+            finally:
+                conn.close()
             if runs.apply_terminal_payload(self._database, call):
                 advanced += 1
         if tick_failed or self._transport_mismatches or self._failures:
