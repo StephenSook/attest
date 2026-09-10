@@ -83,17 +83,17 @@ export default function RunsPage() {
           >
             <Link
               to={`/runs/${run.run_id}`}
-              className="flex items-baseline justify-between gap-4 border-b border-rule py-[14px] hover:bg-paper-deep/60 focus-visible:outline-2 focus-visible:outline-trust"
+              className="flex flex-col items-start gap-2 border-b border-rule py-[14px] hover:bg-paper-deep/60 focus-visible:outline-2 focus-visible:outline-trust sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"
             >
-              <span className="flex items-baseline gap-3 min-w-0">
-                <span className="font-evidence text-xs text-ink-faint shrink-0">
+              <span className="grid min-w-0 gap-1 sm:flex sm:items-baseline sm:gap-3">
+                <span className="shrink-0 font-evidence text-xs text-ink-faint">
                   {run.created_at.slice(0, 10)}
                 </span>
-                <span className="truncate font-medium">
+                <span className="font-medium sm:truncate">
                   {run.org ?? "Unnamed record"}
                 </span>
                 {run.replay && (
-                  <span className="shrink-0 rounded border border-rule px-1.5 font-evidence text-[10px] uppercase tracking-widest text-ink-faint">
+                  <span className="w-fit shrink-0 rounded border border-rule px-1.5 font-evidence text-[10px] uppercase tracking-widest text-ink-faint">
                     replay of real call
                   </span>
                 )}
