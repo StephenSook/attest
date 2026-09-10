@@ -103,6 +103,22 @@
 
 @media (max-width: 640px) {
   .auto-tour {
+    right: max(0.75rem, env(safe-area-inset-right));
+    bottom: max(0.75rem, env(safe-area-inset-bottom));
+    gap: 0;
+  }
+
+  .auto-tour-restart,
+  .auto-tour-speed,
+  .auto-tour-label {
     display: none;
+  }
+
+  .auto-tour-button {
+    width: 44px;
+    height: 44px;
+    justify-content: center;
+    padding: 5px;
+    background: color-mix(in oklab, var(--color-paper) 96%, white);
   }
 }
