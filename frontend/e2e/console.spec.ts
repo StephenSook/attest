@@ -90,6 +90,60 @@ test("mobile viewport: full traversal, no horizontal overflow, 720p film", async
   expect(result.poster).toContain("hero-poster.jpg");
 });
 
+test("mobile calibration evidence labels meet text contrast and size floors", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const metrics = await page.request.get(`${API}/api/metrics`);
+  expect(metrics.ok()).toBe(true);
+  const metricsBody = await metrics.body();
+  await page.route("**/api/metrics", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: metricsBody,
+    }),
+  );
+  await page.goto("/calibration");
+  await expect(page.getByRole("heading", { name: "The guarantee, measured" })).toBeVisible();
+
+  const labels = await page.locator('[role="list"] p').evaluateAll((elements) => {
+    const expected = new Set([
+      "n",
+      "marginal",
+      "conditional",
+      "coverage",
+      "abstention",
+      "accuracy",
+    ]);
+    const luminance = ([red, green, blue]: number[]) => {
+      const channels = [red, green, blue].map((value) => {
+        const channel = value / 255;
+        return channel <= 0.04045
+          ? channel / 12.92
+          : ((channel + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+    };
+
+    return elements.flatMap((element) => {
+      const label = element.textContent?.trim().toLowerCase() ?? "";
+      const rect = element.getBoundingClientRect();
+      if (!expected.has(label) || rect.width === 0 || rect.height === 0) return [];
+      const style = getComputedStyle(element);
+      const channels = style.color.match(/[\d.]+/g)?.slice(0, 3).map(Number) ?? [];
+      if (channels.length !== 3) return [{ label, fontSize: 0, contrast: 0 }];
+      const foreground = luminance(channels);
+      const contrast = (1.05) / (foreground + 0.05);
+      return [{ label, fontSize: Number.parseFloat(style.fontSize), contrast }];
+    });
+  });
+
+  expect(labels.length).toBeGreaterThanOrEqual(6);
+  for (const label of labels) {
+    expect(label.fontSize, `${label.label} is too small`).toBeGreaterThanOrEqual(11);
+    expect(label.contrast, `${label.label} lacks 4.5:1 contrast`).toBeGreaterThanOrEqual(4.5);
+  }
+});
+
 test("console header and certificate stay inside a phone viewport", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   const routes = [
