@@ -116,42 +116,77 @@ test("mobile calibration evidence labels meet text contrast and size floors", as
   await page.goto("/calibration");
   await expect(page.getByRole("heading", { name: "The guarantee, measured" })).toBeVisible();
 
-  const labels = await page.locator('[role="list"] p').evaluateAll((elements) => {
-    const expected = new Set([
-      "n",
-      "marginal",
-      "conditional",
-      "coverage",
-      "abstention",
-      "accuracy",
-    ]);
-    const luminance = ([red, green, blue]: number[]) => {
-      const channels = [red, green, blue].map((value) => {
-        const channel = value / 255;
-        return channel <= 0.04045
-          ? channel / 12.92
-          : ((channel + 0.055) / 1.055) ** 2.4;
+  const samples = await page.locator('[role="list"] p, [role="list"] span').evaluateAll(
+    (elements) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 1;
+      canvas.height = 1;
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      const parseColor = (value: string): [number, number, number, number] => {
+        if (!context) return [0, 0, 0, 1];
+        context.clearRect(0, 0, 1, 1);
+        context.fillStyle = value;
+        context.fillRect(0, 0, 1, 1);
+        const [red, green, blue, alpha] = context.getImageData(0, 0, 1, 1).data;
+        return [red, green, blue, alpha / 255];
+      };
+      const compositeBackground = (element: Element): number[] => {
+        const chain: Element[] = [];
+        for (let current: Element | null = element; current; current = current.parentElement) {
+          chain.push(current);
+        }
+        return chain.reverse().reduce<number[]>((background, current) => {
+          const [red, green, blue, alpha] = parseColor(
+            getComputedStyle(current).backgroundColor,
+          );
+          return [
+            red * alpha + background[0] * (1 - alpha),
+            green * alpha + background[1] * (1 - alpha),
+            blue * alpha + background[2] * (1 - alpha),
+          ];
+        }, [255, 255, 255]);
+      };
+      const luminance = ([red, green, blue]: number[]) => {
+        const channels = [red, green, blue].map((value) => {
+          const channel = value / 255;
+          return channel <= 0.04045
+            ? channel / 12.92
+            : ((channel + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+      };
+
+      return elements.flatMap((element) => {
+        const text = element.textContent?.trim().toLowerCase() ?? "";
+        const rect = element.getBoundingClientRect();
+        if (!text || rect.width === 0 || rect.height === 0) return [];
+        const style = getComputedStyle(element);
+        const foreground = luminance(parseColor(style.color));
+        const background = luminance(compositeBackground(element));
+        const contrast =
+          (Math.max(foreground, background) + 0.05) /
+          (Math.min(foreground, background) + 0.05);
+        return [{ text, fontSize: Number.parseFloat(style.fontSize), contrast }];
       });
-      return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
-    };
+    },
+  );
 
-    return elements.flatMap((element) => {
-      const label = element.textContent?.trim().toLowerCase() ?? "";
-      const rect = element.getBoundingClientRect();
-      if (!expected.has(label) || rect.width === 0 || rect.height === 0) return [];
-      const style = getComputedStyle(element);
-      const channels = style.color.match(/[\d.]+/g)?.slice(0, 3).map(Number) ?? [];
-      if (channels.length !== 3) return [{ label, fontSize: 0, contrast: 0 }];
-      const foreground = luminance(channels);
-      const contrast = (1.05) / (foreground + 0.05);
-      return [{ label, fontSize: Number.parseFloat(style.fontSize), contrast }];
-    });
-  });
-
-  expect(labels.length).toBeGreaterThanOrEqual(6);
-  for (const label of labels) {
-    expect(label.fontSize, `${label.label} is too small`).toBeGreaterThanOrEqual(11);
-    expect(label.contrast, `${label.label} lacks 4.5:1 contrast`).toBeGreaterThanOrEqual(4.5);
+  const observed = new Set(samples.map(({ text }) => text));
+  for (const label of [
+    "true answer",
+    "config",
+    "n",
+    "marginal",
+    "conditional",
+    "coverage",
+    "abstention",
+    "accuracy",
+  ]) {
+    expect(observed.has(label), `${label} was not inspected`).toBe(true);
+  }
+  for (const sample of samples) {
+    expect(sample.fontSize, `${sample.text} is too small`).toBeGreaterThanOrEqual(11);
+    expect(sample.contrast, `${sample.text} lacks 4.5:1 contrast`).toBeGreaterThanOrEqual(4.5);
   }
 });
 
