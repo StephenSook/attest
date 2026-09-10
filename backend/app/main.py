@@ -21,7 +21,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, Field, StrictBool, field_validator
 
 from app import analysis, db, runs
@@ -33,6 +33,8 @@ from app.calle.webhook import router as webhook_router
 
 @asynccontextmanager
 async def lifespan(application: FastAPI) -> AsyncIterator[None]:
+    startup_conn = db.connect(db.db_path())
+    startup_conn.close()
     service = CalleService()
     stop = asyncio.Event()
     poller = Poller(service, db.db_path())
@@ -110,7 +112,7 @@ def _require_public_run(row: sqlite3.Row) -> None:
 
 
 @app.get("/healthz")
-async def healthz() -> dict[str, object]:
+async def healthz() -> JSONResponse:
     """Liveness that tells the truth about the background poller: a dead
     poller means no run can ever reach a terminal state, and a blanket ok
     would hide that from every monitor.
@@ -124,15 +126,19 @@ async def healthz() -> dict[str, object]:
     words, and knowing which one is what makes the deployment auditable.
     """
     task = getattr(app.state, "poller_task", None)
-    poller_alive = task is not None and not task.done()
+    poller = getattr(app.state, "poller", None)
+    task_alive = task is not None and not task.done()
+    poller_healthy = isinstance(poller, Poller) and poller.healthy
+    healthy = task_alive and poller_healthy
     body: dict[str, object] = {
-        "status": "ok" if poller_alive else "degraded",
+        "status": "ok" if healthy else "degraded",
         "service": "attest",
-        "poller": "running" if poller_alive else "stopped",
+        "poller": "running" if healthy else ("degraded" if task_alive else "stopped"),
+        "recovery_blocked": poller.blocked_run_count if isinstance(poller, Poller) else 0,
         "provider": "mock" if calle_client.is_mock_mode() else "live",
         "sandbox": "enabled" if _sandbox_ready() else "disabled",
     }
-    return body
+    return JSONResponse(status_code=200 if healthy else 503, content=body)
 
 
 @app.get("/api/runs")
@@ -262,6 +268,11 @@ def _detail_for_run(row: sqlite3.Row) -> dict[str, object]:
     elif payload and row["state"] in {"failed", "canceled"}:
         detail["failure"] = {
             "error": str(payload.get("error", "unknown failure"))[:200],
+            "stage": str(payload.get("stage", "unknown"))[:60],
+        }
+    elif payload and row["state"] == "submitted" and payload.get("stage"):
+        detail["blocked"] = {
+            "error": str(payload.get("error", "recovery blocked"))[:200],
             "stage": str(payload.get("stage", "unknown"))[:60],
         }
     return detail

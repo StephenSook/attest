@@ -379,6 +379,32 @@ def clear_submit_error(conn: sqlite3.Connection, run_id: str) -> None:
     conn.commit()
 
 
+def set_recovery_issue(conn: sqlite3.Connection, run_id: str, issue_json: str) -> bool:
+    """Expose a recoverable submitted-run block without declaring the call failed."""
+    cursor = conn.execute(
+        "UPDATE call_runs SET terminal_payload = ?, "
+        "updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') "
+        "WHERE run_id = ? AND state = 'submitted'",
+        (issue_json, run_id),
+    )
+    conn.commit()
+    return cursor.rowcount == 1
+
+
+def clear_recovery_issue(conn: sqlite3.Connection, run_id: str, stage: str) -> bool:
+    """Clear only the named recoverable issue after its prerequisite returns."""
+    cursor = conn.execute(
+        "UPDATE call_runs SET terminal_payload = NULL, "
+        "updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') "
+        "WHERE run_id = ? AND state = 'submitted' "
+        "AND json_valid(terminal_payload) = 1 "
+        "AND json_extract(terminal_payload, '$.stage') = ?",
+        (run_id, stage),
+    )
+    conn.commit()
+    return cursor.rowcount == 1
+
+
 def set_calle_call_id(conn: sqlite3.Connection, run_id: str, calle_call_id: str) -> None:
     conn.execute(
         "UPDATE call_runs SET calle_call_id = ?, "
