@@ -63,9 +63,6 @@ jobs:
           curl -sfL --max-redirs 3 --max-time 30 \
             https://testflight.apple.com/join/XZDXt7jw -o "$testflight"
           grep -Fq 'Attest Pocket' "$testflight"
-          curl -sfLI --max-redirs 5 --max-time 60 \
-            https://github.com/StephenSook/attest/releases/download/pocket-v0.1.0/attest-pocket.apk \
-            -o "$RUNNER_TEMP/android-headers.txt"
           curl -sfL --max-redirs 3 --max-time 30 \
             'https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=o-qZfT4XexU&format=json' \
             -o "$video"
