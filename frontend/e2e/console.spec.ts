@@ -58,6 +58,15 @@ test("mobile viewport: full traversal, no horizontal overflow, 720p film", async
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
   await page.waitForTimeout(600);
+  const tour = page.getByRole("button", { name: /guided tour/i });
+  await expect(tour).toBeVisible();
+  const tourBox = await tour.boundingBox();
+  expect(tourBox?.width).toBeGreaterThanOrEqual(44);
+  expect(tourBox?.height).toBeGreaterThanOrEqual(44);
+  await tour.click();
+  await expect(tour).toHaveAccessibleName(/pause guided tour/i);
+  await tour.click();
+  await expect(tour).toHaveAccessibleName(/resume guided tour/i);
   const result = await page.evaluate(async () => {
     const video = document.querySelector<HTMLVideoElement>(".landing-film video");
     const max = () => document.documentElement.scrollHeight - window.innerHeight;
