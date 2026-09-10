@@ -220,16 +220,20 @@ def _hint_allowed(call_id: str) -> bool:
 
 async def _fetch_authoritative(
     call_id: str, expected_identity: Mapping[str, object]
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], dict[str, Any]]:
     """One authenticated GET /v1/calls/{call_id}. Module-level so tests can
     replace it without a network."""
     service = CalleService()
     try:
-        if not service.matches_dispatch_identity(expected_identity):
+        recovery_status = service.accepted_call_recovery_status(expected_identity)
+        if recovery_status == "transport_changed":
             raise TransportIdentityMismatch(
-                "current CALL-E transport does not match the original dispatch"
+                "current CALL-E endpoint or provider does not match the original dispatch"
             )
-        return await service.get_call(call_id)
+        snapshot = await service.get_call(call_id)
+        if str(snapshot.get("id") or "") != call_id:
+            raise TransportIdentityMismatch("CALL-E returned a different call id during recovery")
+        return snapshot, service.dispatch_identity()
     finally:
         service.close()
 
@@ -245,7 +249,7 @@ async def _follow_hint(database: Path, calle_call_id: str) -> None:
     if run is None or run[1] in fsm.TERMINAL_STATES:
         return
     try:
-        snapshot = await _fetch_authoritative(calle_call_id, run[2])
+        snapshot, recovered_identity = await _fetch_authoritative(calle_call_id, run[2])
     except TransportIdentityMismatch:
         await asyncio.to_thread(_mark_transport_blocked, database, run[0])
         logger.error(
@@ -256,6 +260,16 @@ async def _follow_hint(database: Path, calle_call_id: str) -> None:
     except Exception:
         # The poller retries on its own schedule; a failed hint costs nothing.
         logger.warning("hint re-fetch failed for call %s", calle_call_id, exc_info=True)
+        return
+    if not await asyncio.to_thread(
+        _rebind_recovered_transport,
+        database,
+        run[0],
+        calle_call_id,
+        recovered_identity,
+    ):
+        await asyncio.to_thread(_mark_transport_blocked, database, run[0])
+        logger.error("hint re-fetch could not safely rebind transport for %s", calle_call_id)
         return
     await asyncio.to_thread(runs.apply_terminal_payload, database, snapshot)
 
@@ -291,13 +305,38 @@ def _mark_transport_blocked(database: Path, run_id: str) -> None:
             json.dumps(
                 {
                     "error": (
-                        "CALL-E transport no longer matches the original dispatch. "
-                        "Restore the prior endpoint and credential to resume polling."
+                        "CALL-E endpoint or provider no longer matches the original dispatch, "
+                        "or the authenticated transport could not be rebound safely."
                     ),
                     "stage": "transport_identity_mismatch",
                 }
             ),
         )
+    finally:
+        conn.close()
+
+
+def _rebind_recovered_transport(
+    database: Path,
+    run_id: str,
+    calle_call_id: str,
+    identity: Mapping[str, object],
+) -> bool:
+    """Persist only the transport that authenticated this exact call read."""
+    conn = app_db.connect(database)
+    try:
+        rebound = app_db.rebind_accepted_dispatch_identity(
+            conn,
+            run_id,
+            calle_call_id,
+            dispatch_base_url=str(identity.get("base_url") or ""),
+            dispatch_provider=str(identity.get("provider") or ""),
+            dispatch_credential_fingerprint=str(identity.get("credential_fingerprint") or ""),
+        )
+        if rebound:
+            app_db.clear_recovery_issue(conn, run_id, "transport_identity_mismatch")
+            app_db.clear_recovery_issue(conn, run_id, "transport_rebind_failed")
+        return rebound
     finally:
         conn.close()
 
