@@ -6,9 +6,10 @@ bar for merging during judging is high, but issues and PRs are welcome.
 - Keep user-visible evidence reproducible: no secrets or real phone numbers in
   the repository, and regenerate reported measurements with
   `uv run python -m eval` rather than typing them into documentation.
-- Before a PR, run the full gate:
-  `uv run ruff check . && uv run ruff format --check . && uv run mypy tests backend eval mock_calle scripts && uv run pytest`
-  plus `cd frontend && pnpm exec tsc --noEmit`.
+- Before a PR, mirror CI: run `uv sync`, Ruff lint and format checks, `uv run
+  mypy`, and `uv run pytest -q`; run the mobile install, typecheck, and tests;
+  run `pnpm install --frozen-lockfile && pnpm build` in `frontend/`; then run
+  the Playwright suite against the local Compose stack.
 - Changes to the calling path need a mock-server test; no automated test ever
   places a real phone call.
 - Changes that touch calibration must keep the calibration and test folds
