@@ -111,11 +111,58 @@ def _require_public_run(row: sqlite3.Row) -> None:
         raise HTTPException(status_code=404, detail="run not found")
 
 
+async def _outbound_readiness() -> tuple[bool, list[str]]:
+    """Check the exact prerequisites used by the call-creation path."""
+    reasons: list[str] = []
+    provider = "mock" if calle_client.is_mock_mode() else "live"
+    if provider == "live" and not os.environ.get("CALLE_API_KEY", "").strip():
+        reasons.append("provider_credentials_missing")
+    if not os.environ.get("ATTEST_PHONE_HASH_KEY", "").strip():
+        reasons.append("destination_hash_key_missing")
+    operator_ready = bool(os.environ.get("ATTEST_OPERATOR_KEY", "").strip())
+    if not operator_ready and not _sandbox_ready():
+        reasons.append("call_authorization_missing")
+
+    service = getattr(app.state, "calle_service", None)
+    if not isinstance(service, CalleService):
+        reasons.append("call_service_uninitialized")
+    elif not service.matches_current_configuration():
+        reasons.append("call_service_configuration_stale")
+
+    if "destination_hash_key_missing" not in reasons:
+        conn: sqlite3.Connection | None = None
+        try:
+            conn = db.connect(db.db_path())
+            binding = db.bind_runtime_fingerprint(
+                conn,
+                name="destination_hash_key",
+                fingerprint=_destination_hash_key_fingerprint(),
+            )
+            if binding == "mismatch":
+                reasons.append("destination_hash_binding_mismatch")
+            elif binding == "unbound_data":
+                reasons.append("destination_hash_binding_unattributed")
+        except Exception:
+            reasons.append("readiness_database_unavailable")
+        finally:
+            if conn is not None:
+                conn.close()
+
+    if not reasons and isinstance(service, CalleService):
+        provider_ready, provider_reason = await service.probe_readiness()
+        if not provider_ready:
+            reasons.append(provider_reason or "provider_probe_failed")
+    return not reasons, reasons
+
+
 @app.get("/healthz")
 async def healthz() -> JSONResponse:
-    """Liveness that tells the truth about the background poller: a dead
-    poller means no run can ever reach a terminal state, and a blanket ok
-    would hide that from every monitor.
+    """Liveness and outbound readiness for the complete call path.
+
+    A dead poller means no run can ever reach a terminal state. A live
+    process can still reject every new call because a credential, cached
+    client, or database binding is wrong, so those checks are part of the
+    status rather than hidden behind the first real request.
 
     It also reports whether this deployment dials the real platform or the
     local mock. ATTEST_USE_MOCK defaults to true, so an instance that is
@@ -129,14 +176,20 @@ async def healthz() -> JSONResponse:
     poller = getattr(app.state, "poller", None)
     task_alive = task is not None and not task.done()
     poller_healthy = isinstance(poller, Poller) and poller.healthy
-    healthy = task_alive and poller_healthy
+    poller_ready = task_alive and poller_healthy
+    outbound_ready, outbound_reasons = await _outbound_readiness()
+    healthy = poller_ready and outbound_ready
     body: dict[str, object] = {
         "status": "ok" if healthy else "degraded",
         "service": "attest",
-        "poller": "running" if healthy else ("degraded" if task_alive else "stopped"),
+        "poller": "running" if poller_ready else ("degraded" if task_alive else "stopped"),
         "recovery_blocked": poller.blocked_run_count if isinstance(poller, Poller) else 0,
         "provider": "mock" if calle_client.is_mock_mode() else "live",
         "sandbox": "enabled" if _sandbox_ready() else "disabled",
+        "outbound": {
+            "status": "ready" if outbound_ready else "blocked",
+            "reasons": outbound_reasons,
+        },
     }
     return JSONResponse(status_code=200 if healthy else 503, content=body)
 
