@@ -520,6 +520,42 @@ async def test_expired_unknown_dispatch_stays_visible_in_readiness(tmp_path: Pat
         service.close()
 
 
+@pytest.mark.parametrize("null_list", ["recipients", "attempts"])
+@respx.mock
+async def test_poller_persists_explicit_null_lists(tmp_path: Path, null_list: str) -> None:
+    database = tmp_path / f"poll-null-{null_list}.db"
+    terminal = json.loads(json.dumps(FIXTURE))
+    if null_list == "recipients":
+        terminal["recipients"] = None
+    else:
+        terminal["recipients"][0]["attempts"] = None
+    respx.post(f"{BASE}/v1/calls").mock(return_value=Response(201, json=_pending_fixture()))
+    respx.get(f"{BASE}/v1/calls/{FIXTURE['id']}").mock(return_value=Response(200, json=terminal))
+    service = _service()
+    run_id = await runs.start_verification_run(
+        service,
+        database,
+        task="verify listing",
+        phone="+15550101234",
+    )
+
+    poller = Poller(service, database)
+    assert await poller.tick() == 1
+    conn = db.connect(database)
+    try:
+        row = db.get_run(conn, run_id)
+        assert row is not None and row["state"] == "completed"
+        stored = json.loads(str(row["terminal_payload"]))
+        assert "+15550101234" not in json.dumps(stored)
+        if null_list == "recipients":
+            assert stored["recipients"] is None
+        else:
+            assert stored["recipients"][0]["attempts"] is None
+    finally:
+        conn.close()
+        service.close()
+
+
 def test_owner_lease_blocks_rivals_and_expiry_waits_for_the_owner(tmp_path: Path) -> None:
     database = tmp_path / "lease.db"
     conn = db.connect(database)
