@@ -131,8 +131,16 @@ test("mobile viewport: full traversal, no horizontal overflow, 720p film", async
   const resumedY = await page.evaluate(() => window.scrollY);
   await page.waitForTimeout(350);
   expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(resumedY);
-  await tour.press("Space");
+  await tour.press("PageDown");
   await expect(tour).toHaveAccessibleName(/resume guided tour/i);
+  // Let the browser's requested page movement settle before proving the
+  // separate guided-tour tween has stayed paused.
+  await page.waitForTimeout(800);
+  const pagingPausedY = await page.evaluate(() => window.scrollY);
+  await page.waitForTimeout(350);
+  expect(Math.abs((await page.evaluate(() => window.scrollY)) - pagingPausedY)).toBeLessThanOrEqual(
+    1,
+  );
   const result = await page.evaluate(async () => {
     const video = document.querySelector<HTMLVideoElement>(".landing-film video");
     const max = () => document.documentElement.scrollHeight - window.innerHeight;
