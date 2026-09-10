@@ -242,11 +242,12 @@ async def _follow_hint(database: Path, calle_call_id: str) -> None:
     written, so a forged delivery cannot plant a result.
     """
     run = await asyncio.to_thread(_run_state_and_transport_for_call, database, calle_call_id)
-    if run is None or run[0] in fsm.TERMINAL_STATES:
+    if run is None or run[1] in fsm.TERMINAL_STATES:
         return
     try:
-        snapshot = await _fetch_authoritative(calle_call_id, run[1])
+        snapshot = await _fetch_authoritative(calle_call_id, run[2])
     except TransportIdentityMismatch:
+        await asyncio.to_thread(_mark_transport_blocked, database, run[0])
         logger.error(
             "hint re-fetch skipped for %s: current CALL-E transport does not match dispatch",
             calle_call_id,
@@ -261,7 +262,7 @@ async def _follow_hint(database: Path, calle_call_id: str) -> None:
 
 def _run_state_and_transport_for_call(
     database: Path, calle_call_id: str
-) -> tuple[str, dict[str, object]] | None:
+) -> tuple[str, str, dict[str, object]] | None:
     """Read the lifecycle and original transport without exposing secrets."""
     conn = app_db.connect(database)
     try:
@@ -269,12 +270,33 @@ def _run_state_and_transport_for_call(
         if row is None:
             return None
         return (
+            str(row["run_id"]),
             str(row["state"]),
             {
                 "base_url": row["dispatch_base_url"],
                 "provider": row["dispatch_provider"],
                 "credential_fingerprint": row["dispatch_credential_fingerprint"],
             },
+        )
+    finally:
+        conn.close()
+
+
+def _mark_transport_blocked(database: Path, run_id: str) -> None:
+    conn = app_db.connect(database)
+    try:
+        app_db.set_recovery_issue(
+            conn,
+            run_id,
+            json.dumps(
+                {
+                    "error": (
+                        "CALL-E transport no longer matches the original dispatch. "
+                        "Restore the prior endpoint and credential to resume polling."
+                    ),
+                    "stage": "transport_identity_mismatch",
+                }
+            ),
         )
     finally:
         conn.close()

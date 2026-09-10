@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import time
 from pathlib import Path
 
 from app import db, fsm, runs
@@ -29,6 +30,21 @@ class Poller:
         self._max_interval = max_interval_seconds
         self._wake = asyncio.Event()
         self._failures: dict[str, int] = {}
+        self._transport_mismatches: set[str] = set()
+        self._last_successful_tick: float | None = None
+        self._last_error: str | None = None
+
+    @property
+    def healthy(self) -> bool:
+        """True only after a recent tick completed every recoverable path."""
+        if self._last_successful_tick is None or self._last_error is not None:
+            return False
+        stale_after = max(self._max_interval * 2, self._interval * 3, 10.0)
+        return time.monotonic() - self._last_successful_tick <= stale_after
+
+    @property
+    def blocked_run_count(self) -> int:
+        return len(self._transport_mismatches)
 
     def wake(self) -> None:
         """Request an immediate tick and reset backoff.
@@ -55,7 +71,13 @@ class Poller:
         finally:
             conn.close()
 
+        pending_ids = {str(row["run_id"]) for row in pending}
+        self._transport_mismatches.intersection_update(pending_ids)
+        self._failures = {
+            run_id: failures for run_id, failures in self._failures.items() if run_id in pending_ids
+        }
         advanced = 0
+        tick_failed = False
         for row in pending:
             calle_call_id = str(row["calle_call_id"])
             run_id = str(row["run_id"])
@@ -65,15 +87,40 @@ class Poller:
                 "credential_fingerprint": row["dispatch_credential_fingerprint"],
             }
             if not self._service.matches_dispatch_identity(identity):
-                self._failures.pop(run_id, None)
+                tick_failed = True
+                self._transport_mismatches.add(run_id)
+                conn = db.connect(self._database)
+                try:
+                    db.set_recovery_issue(
+                        conn,
+                        run_id,
+                        json.dumps(
+                            {
+                                "error": (
+                                    "CALL-E transport no longer matches the original dispatch. "
+                                    "Restore the prior endpoint and credential to resume polling."
+                                ),
+                                "stage": "transport_identity_mismatch",
+                            }
+                        ),
+                    )
+                finally:
+                    conn.close()
                 logger.error(
                     "poll skipped for %s: current CALL-E transport does not match dispatch",
                     run_id,
                 )
                 continue
+            self._transport_mismatches.discard(run_id)
+            conn = db.connect(self._database)
+            try:
+                db.clear_recovery_issue(conn, run_id, "transport_identity_mismatch")
+            finally:
+                conn.close()
             try:
                 call = await self._service.get_call(calle_call_id)
             except Exception as exc:
+                tick_failed = True
                 # Retrying forever leaves the run "in progress" in the console
                 # with a spinner nobody can interpret. Give up loudly instead.
                 self._failures[run_id] = self._failures.get(run_id, 0) + 1
@@ -108,6 +155,11 @@ class Poller:
             self._failures.pop(run_id, None)
             if runs.apply_terminal_payload(self._database, call):
                 advanced += 1
+        if tick_failed or self._transport_mismatches or self._failures:
+            self._last_error = "one or more submitted runs could not be recovered"
+        else:
+            self._last_error = None
+            self._last_successful_tick = time.monotonic()
         return advanced
 
     async def run_forever(self, stop: asyncio.Event) -> None:
@@ -115,7 +167,8 @@ class Poller:
         while not stop.is_set():
             try:
                 advanced = await self.tick()
-            except Exception:
+            except Exception as exc:
+                self._last_error = f"poller tick failed: {type(exc).__name__}"
                 logger.exception("poller tick crashed; backing off")
                 advanced = 0
             delay = self._interval if advanced else min(delay * 2, self._max_interval)
