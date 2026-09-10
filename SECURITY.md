@@ -15,12 +15,14 @@ open a public issue for a security problem. Expect a reply within 72 hours.
   tariff or destination-country classifier.
   Any bypass of those rails is a security bug.
 - **Dispatch recovery.** Before an external call request, the database stores
-  only a keyed HMAC-SHA256 request digest, an attempt count, a ten-minute
-  cutoff, and an owner-token lease. The raw destination is not persisted for recovery. An
-  identical client retry may reuse the original idempotency key after the
-  lease ends. Provider or endpoint changes, concurrent attempts, and late
-  retries fail closed. A later 4xx can never erase an earlier attempt whose
-  outcome was ambiguous.
+  the directory organization and claims, provider label and mode, a judge-sandbox
+  flag when applicable, the provider endpoint and credential fingerprint, hashes
+  binding the client capability, complete run request, destination, and provider
+  dispatch, plus an attempt count, a ten-minute cutoff, and an owner-token lease.
+  It does not store the raw phone number or full raw dispatch request. An identical
+  client retry may reuse the original idempotency key after the lease ends. Provider
+  or endpoint changes, concurrent attempts, and late retries fail closed. A later
+  4xx can never erase an earlier attempt whose outcome was ambiguous.
 - **Secrets.** No secret may reach the browser or the repository. The signing
   key, API credentials, and operator/judge keys live only in the deployment
   environment. `gitleaks` runs over full history in CI.

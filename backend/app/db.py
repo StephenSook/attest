@@ -242,10 +242,12 @@ def claim_submission_attempt(
 ) -> tuple[str, int]:
     """Claim one external submission attempt without storing its raw request.
 
-    The database keeps only a request digest, an attempt counter, and an
-    owner-token lease. A retry cannot change the task, destination, provider,
-    or endpoint bound to the idempotency key. Returns an outcome and the
-    attempt number: claimed, busy, closed, expired, or mismatch.
+    The dispatch claim records its request digest, transport metadata,
+    credential and destination fingerprints, attempt counter, cutoff, and
+    owner-token lease. The run record already contains directory claims and
+    capability-binding hashes. A retry cannot change the task, destination,
+    provider, or endpoint bound to the idempotency key. Returns an outcome and
+    the attempt number: claimed, busy, closed, expired, or mismatch.
     """
     current = time.time() if now is None else now
     expired_payload = (
