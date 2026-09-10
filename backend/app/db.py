@@ -558,7 +558,7 @@ def create_request_run(
             return "request_exists"
         guarded = conn.execute(
             "SELECT 1 FROM call_runs WHERE destination_hash = ? "
-            "AND submit_attempts > 0 AND calle_call_id IS NULL "
+            "AND calle_call_id IS NULL "
             "AND state IN ('created', 'failed') LIMIT 1",
             (destination_hash,),
         ).fetchone()

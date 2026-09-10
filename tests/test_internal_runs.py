@@ -1,4 +1,6 @@
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import httpx
@@ -184,6 +186,65 @@ async def test_expired_destination_blocks_fresh_id_after_a_b_a_sequence(
     assert blocked.status_code == 409
     assert blocked.json()["detail"]["code"] == "call_destination_unreconciled"
     assert route.call_count == 2
+
+
+def test_operator_destination_reservation_is_atomic_across_processes(tmp_path: Path) -> None:
+    database = tmp_path / "operator-process-race.db"
+    start = tmp_path / "start"
+    destination_hash = "same-destination"
+    script = """
+import sys
+import time
+from pathlib import Path
+
+from app import db
+
+database, run_id, destination_hash, start = sys.argv[1:]
+deadline = time.monotonic() + 10
+while not Path(start).exists():
+    if time.monotonic() >= deadline:
+        raise RuntimeError("process barrier timed out")
+    time.sleep(0.005)
+conn = db.connect(Path(database))
+try:
+    print(
+        db.create_request_run(
+            conn,
+            run_id=run_id,
+            idempotency_key=run_id,
+            record_json="{}",
+            destination_hash=destination_hash,
+        )
+    )
+finally:
+    conn.close()
+"""
+    processes = [
+        subprocess.Popen(
+            [
+                sys.executable,
+                "-c",
+                script,
+                str(database),
+                f"run_process_{index}",
+                destination_hash,
+                str(start),
+            ],
+            cwd=Path(__file__).parent.parent,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        for index in range(2)
+    ]
+    start.touch()
+    results: list[str] = []
+    for process in processes:
+        stdout, stderr = process.communicate(timeout=20)
+        assert process.returncode == 0, stderr
+        results.append(stdout.strip())
+
+    assert sorted(results) == ["destination_blocked", "ok"]
 
 
 async def test_invalid_phone_shape_rejected(
