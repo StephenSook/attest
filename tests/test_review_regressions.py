@@ -83,7 +83,7 @@ def test_redaction_handles_schema_drift_without_discarding_safe_provider_ids() -
     payload = {
         "summary": {
             "text": "Call +15550101234 for the result.",
-            "provider_id": "sum_provider_123",
+            "provider_id": 15550101234,
         },
         "recipients": {
             "rcp_provider_abc": {
@@ -96,7 +96,7 @@ def test_redaction_handles_schema_drift_without_discarding_safe_provider_ids() -
                         "failure_message": [
                             {
                                 "text": "Escalate through 612 34 56 78.",
-                                "provider_id": "failure_provider_123",
+                                "provider_id": "550e8400-e29b-41d4-a716-446655440000",
                             }
                         ],
                         "transcript_turns": "Call 555/010/1234.",
@@ -113,24 +113,27 @@ def test_redaction_handles_schema_drift_without_discarding_safe_provider_ids() -
         assert phone not in serialized
     assert "rcp_provider_abc" in redacted["recipients"]
     assert "att_provider_xyz" in redacted["recipients"]["rcp_provider_abc"]["attempts"]
-    assert redacted["summary"]["provider_id"] == "sum_provider_123"
+    assert redacted["summary"]["provider_id"] == 15550101234
     assert (
         redacted["recipients"]["rcp_provider_abc"]["attempts"]["att_provider_xyz"][
             "failure_message"
         ][0]["provider_id"]
-        == "failure_provider_123"
+        == "550e8400-e29b-41d4-a716-446655440000"
     )
 
 
 def test_redaction_rejects_phone_data_in_malformed_scalar_containers() -> None:
     payloads: list[dict[str, Any]] = [
         {"recipients": "+15550101234"},
+        {"recipients": "12/34/5678"},
         {"recipients": [{"attempts": "+15550101234"}]},
         {"recipients": [{"attempts": [{"transcript_turns": "+15550101234"}]}]},
     ]
 
     for payload in payloads:
-        assert "+15550101234" not in json.dumps(redact_payload(payload))
+        redacted = json.dumps(redact_payload(payload))
+        assert "+15550101234" not in redacted
+        assert "12/34/5678" not in redacted
 
     assert redact_payload({"recipients": "rcp_421c14316e95fb62"}) == {
         "recipients": "rcp_421c14316e95fb62"

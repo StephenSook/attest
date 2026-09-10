@@ -35,6 +35,7 @@ _PHONE_CANDIDATE = re.compile(
 )
 _DATE_LIKE = re.compile(r"\d{4}-\d{2}-\d{2}(?:[ T]\d{2})?")
 _SLASH_DATE_LIKE = re.compile(r"\d{1,2}/\d{1,2}/\d{2,4}")
+_PROVIDER_RECIPIENT_ID = re.compile(r"rcp_[A-Za-z0-9][A-Za-z0-9_-]{2,127}")
 
 
 def _mask(phone: str) -> str:
@@ -128,7 +129,9 @@ def _redact_phone_fields(value: Any, *, context: str = "generic") -> Any:
                 "summary": "transcript_text",
                 "failure_message": "transcript_text",
             }.get(key_lower)
-            if nested_context is None:
+            if context == "transcript_text" and (key_lower == "id" or key_lower.endswith("_id")):
+                nested_context = "generic"
+            elif nested_context is None:
                 nested_context = (
                     context
                     if context in {"phone", "recipient", "attempt", "turn", "transcript_text"}
@@ -139,19 +142,31 @@ def _redact_phone_fields(value: Any, *, context: str = "generic") -> Any:
             value[key] = _redact_phone_fields(nested, context=nested_context)
         return value
     if isinstance(value, list):
+        if context == "recipients":
+            return [
+                _redact_phone_fields(
+                    item,
+                    context="recipient" if isinstance(item, dict) else "recipients",
+                )
+                for item in value
+            ]
         child_context = {
-            "recipients": "recipient",
             "attempts": "attempt",
             "turns": "turn",
         }.get(context, context)
         return [_redact_phone_fields(item, context=child_context) for item in value]
     if context == "phone" and value is not None:
         return _mask(str(value))
+    if context == "recipients" and value is not None:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str) and _PROVIDER_RECIPIENT_ID.fullmatch(value):
+            return value
+        return _mask(str(value))
     if (
         context
         in {
             "recipient",
-            "recipients",
             "attempt",
             "turn",
             "attempts",

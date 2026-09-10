@@ -176,13 +176,13 @@ async def test_valid_webhook_redacts_phone_data_from_schema_drift(
     elif schema_drift == "summary_wrapper":
         attempt["summary"] = {
             "text": "Call +15550101234 for details.",
-            "provider_id": "summary_provider_123",
+            "provider_id": 15550101234,
         }
     elif schema_drift == "failure_wrapper":
         attempt["failure_message"] = [
             {
                 "text": "Call +15550101234 for details.",
-                "provider_id": "failure_provider_123",
+                "provider_id": "550e8400-e29b-41d4-a716-446655440000",
             }
         ]
     else:
@@ -200,9 +200,9 @@ async def test_valid_webhook_redacts_phone_data_from_schema_drift(
         stored = str(row["terminal_payload"])
         assert "+15550101234" not in stored
         if schema_drift == "summary_wrapper":
-            assert "summary_provider_123" in stored
+            assert '"provider_id": 15550101234' in stored
         elif schema_drift == "failure_wrapper":
-            assert "failure_provider_123" in stored
+            assert "550e8400-e29b-41d4-a716-446655440000" in stored
     finally:
         conn.close()
 
@@ -273,6 +273,7 @@ async def test_valid_webhook_redacts_unexpected_phone_locations(
         ("transcript", "5550101234x89"),
         ("transcript", "555/010/1234"),
         ("scalar_recipient", 15550101234.0),
+        ("scalar_recipient", "12/34/5678"),
     ],
 )
 async def test_valid_webhook_redacts_realistic_phone_encodings(
