@@ -100,3 +100,9 @@
   white-space: nowrap;
   border: 0;
 }
+
+@media (max-width: 640px) {
+  .auto-tour {
+    display: none;
+  }
+}
