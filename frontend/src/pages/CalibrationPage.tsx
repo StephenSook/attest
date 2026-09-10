@@ -252,7 +252,7 @@ export default function CalibrationPage() {
                       style={{
                         color:
                           row.marginal_coverage < 1 - metrics.mondrian!.alpha
-                            ? "#c25e00"
+                            ? "#b45309"
                             : INK,
                       }}
                     >
@@ -286,7 +286,7 @@ export default function CalibrationPage() {
                     style={{
                       color:
                         row.marginal_coverage < 1 - metrics.mondrian!.alpha
-                          ? "#c25e00"
+                          ? "#b45309"
                           : INK,
                     }}
                   >
