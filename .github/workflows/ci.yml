@@ -134,7 +134,7 @@ jobs:
       - name: Wait for services
         run: |
           set -euo pipefail
-          for i in $(seq 1 60); do
+          for _ in $(seq 1 60); do
             curl -sf localhost:8000/healthz > /dev/null && curl -sf localhost:5173 > /dev/null && exit 0
             sleep 2
           done
