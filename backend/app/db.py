@@ -405,6 +405,70 @@ def clear_recovery_issue(conn: sqlite3.Connection, run_id: str, stage: str) -> b
     return cursor.rowcount == 1
 
 
+def rebind_accepted_dispatch_identity(
+    conn: sqlite3.Connection,
+    run_id: str,
+    calle_call_id: str,
+    *,
+    dispatch_base_url: str,
+    dispatch_provider: str,
+    dispatch_credential_fingerprint: str,
+) -> bool:
+    """Bind the transport that authenticated a read of an accepted call.
+
+    This is intentionally unavailable to pre-accept submission recovery. A
+    successful provider read of the exact persisted call id is the proof that
+    permits a legacy-row adoption or same-account credential rotation. The
+    endpoint and provider may fill legacy blanks but may never change.
+    """
+    if not (dispatch_base_url and dispatch_provider and dispatch_credential_fingerprint):
+        return False
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT state, calle_call_id, dispatch_base_url, dispatch_provider "
+            "FROM call_runs WHERE run_id = ?",
+            (run_id,),
+        ).fetchone()
+        if row is None:
+            conn.execute("ROLLBACK")
+            return False
+        if str(row["state"]) not in {"created", "submitted"}:
+            conn.execute("ROLLBACK")
+            return False
+        if str(row["calle_call_id"] or "") != calle_call_id:
+            conn.execute("ROLLBACK")
+            return False
+        stored_base_url = str(row["dispatch_base_url"] or "")
+        stored_provider = str(row["dispatch_provider"] or "")
+        if stored_base_url and stored_base_url != dispatch_base_url:
+            conn.execute("ROLLBACK")
+            return False
+        if stored_provider and stored_provider != dispatch_provider:
+            conn.execute("ROLLBACK")
+            return False
+        cursor = conn.execute(
+            "UPDATE call_runs SET dispatch_base_url = ?, dispatch_provider = ?, "
+            "dispatch_credential_fingerprint = ?, "
+            "updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') "
+            "WHERE run_id = ? AND state IN ('created', 'submitted') "
+            "AND calle_call_id = ?",
+            (
+                dispatch_base_url,
+                dispatch_provider,
+                dispatch_credential_fingerprint,
+                run_id,
+                calle_call_id,
+            ),
+        )
+        conn.execute("COMMIT")
+        return cursor.rowcount == 1
+    except Exception:
+        if conn.in_transaction:
+            conn.execute("ROLLBACK")
+        raise
+
+
 def set_calle_call_id(conn: sqlite3.Connection, run_id: str, calle_call_id: str) -> None:
     conn.execute(
         "UPDATE call_runs SET calle_call_id = ?, "

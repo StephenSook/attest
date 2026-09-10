@@ -5,6 +5,7 @@ import hashlib
 import json
 import multiprocessing
 import os
+import sqlite3
 import time
 from pathlib import Path
 from typing import Any, cast
@@ -194,22 +195,12 @@ async def test_resume_after_kill_new_poller_picks_up_submitted_run(tmp_path: Pat
     fresh_service.close()
 
 
-@pytest.mark.parametrize(
-    ("poll_api_key", "poll_base_url"),
-    [
-        ("rotated-key", BASE),
-        ("test-key-not-real", "https://different-provider.test"),
-    ],
-)
 @respx.mock
-async def test_restart_does_not_poll_through_changed_transport(
-    tmp_path: Path,
-    poll_api_key: str,
-    poll_base_url: str,
-) -> None:
+async def test_restart_does_not_poll_through_changed_endpoint(tmp_path: Path) -> None:
     database = tmp_path / "transport-bound-poll.db"
     respx.post(f"{BASE}/v1/calls").mock(return_value=Response(201, json=_pending_fixture()))
-    changed_get = respx.get(f"{poll_base_url}/v1/calls/{FIXTURE['id']}").mock(
+    changed_base = "https://different-provider.test"
+    changed_get = respx.get(f"{changed_base}/v1/calls/{FIXTURE['id']}").mock(
         return_value=Response(200, json=FIXTURE)
     )
     first_service = _service()
@@ -218,7 +209,7 @@ async def test_restart_does_not_poll_through_changed_transport(
     )
     first_service.close()
 
-    changed_service = CalleService(api_key=poll_api_key, base_url=poll_base_url)
+    changed_service = CalleService(api_key="test-key-not-real", base_url=changed_base)
     try:
         poller = Poller(changed_service, database)
         assert await poller.tick() == 0
@@ -231,7 +222,81 @@ async def test_restart_does_not_poll_through_changed_transport(
     try:
         row = db.get_run(conn, run_id)
         assert row is not None and row["state"] == "submitted"
+        assert row["dispatch_base_url"] == BASE
         assert json.loads(str(row["terminal_payload"]))["stage"] == ("transport_identity_mismatch")
+    finally:
+        conn.close()
+
+
+@respx.mock
+async def test_restart_rebinds_rotated_credential_after_authenticated_read(tmp_path: Path) -> None:
+    database = tmp_path / "credential-rebind.db"
+    respx.post(f"{BASE}/v1/calls").mock(return_value=Response(201, json=_pending_fixture()))
+    first_service = _service()
+    run_id = await runs.start_verification_run(
+        first_service, database, task="verify listing", phone="+15550101234"
+    )
+    first_service.close()
+
+    route = respx.get(f"{BASE}/v1/calls/{FIXTURE['id']}").mock(
+        return_value=Response(200, json=FIXTURE)
+    )
+    rotated_service = CalleService(api_key="rotated-same-account-key", base_url=BASE)
+    rotated_identity = rotated_service.dispatch_identity()
+    try:
+        poller = Poller(rotated_service, database)
+        assert await poller.tick() == 1
+        assert poller.healthy is True
+    finally:
+        rotated_service.close()
+
+    assert route.calls.last.request.headers["Authorization"] == "Bearer rotated-same-account-key"
+    conn = db.connect(database)
+    try:
+        row = db.get_run(conn, run_id)
+        assert row is not None and row["state"] == "completed"
+        assert row["dispatch_credential_fingerprint"] == rotated_identity["credential_fingerprint"]
+    finally:
+        conn.close()
+
+
+@respx.mock
+async def test_poller_adopts_legacy_submitted_row_after_authenticated_read(tmp_path: Path) -> None:
+    database = tmp_path / "legacy-submitted.db"
+    legacy = sqlite3.connect(database)
+    legacy.execute(
+        "CREATE TABLE call_runs ("
+        "run_id TEXT PRIMARY KEY, calle_call_id TEXT UNIQUE, "
+        "idempotency_key TEXT UNIQUE NOT NULL, state TEXT NOT NULL, "
+        "created_at TEXT, updated_at TEXT, terminal_payload TEXT, record_json TEXT)"
+    )
+    legacy.execute(
+        "INSERT INTO call_runs "
+        "(run_id, calle_call_id, idempotency_key, state) VALUES (?, ?, ?, 'submitted')",
+        ("run_legacy_submitted", str(FIXTURE["id"]), "run_legacy_submitted"),
+    )
+    legacy.commit()
+    legacy.close()
+
+    route = respx.get(f"{BASE}/v1/calls/{FIXTURE['id']}").mock(
+        return_value=Response(200, json=FIXTURE)
+    )
+    service = _service()
+    identity = service.dispatch_identity()
+    try:
+        poller = Poller(service, database)
+        assert await poller.tick() == 1
+    finally:
+        service.close()
+    assert route.call_count == 1
+
+    conn = db.connect(database)
+    try:
+        row = db.get_run(conn, "run_legacy_submitted")
+        assert row is not None and row["state"] == "completed"
+        assert row["dispatch_base_url"] == identity["base_url"]
+        assert row["dispatch_provider"] == identity["provider"]
+        assert row["dispatch_credential_fingerprint"] == identity["credential_fingerprint"]
     finally:
         conn.close()
 

@@ -118,15 +118,18 @@ def _hint_fetcher(monkeypatch: pytest.MonkeyPatch, snapshot: dict[str, object]) 
     webhook_module._recent_hints.clear()
     fetched: list[str] = []
 
-    async def fake_fetch(call_id: str, expected_identity: dict[str, object]) -> dict[str, object]:
+    async def fake_fetch(
+        call_id: str, expected_identity: dict[str, object]
+    ) -> tuple[dict[str, object], dict[str, object]]:
         service = CalleService()
         try:
-            if not service.matches_dispatch_identity(expected_identity):
+            if service.accepted_call_recovery_status(expected_identity) == "transport_changed":
                 raise webhook_module.TransportIdentityMismatch("transport changed")
+            identity = service.dispatch_identity()
         finally:
             service.close()
         fetched.append(call_id)
-        return snapshot
+        return snapshot, identity
 
     monkeypatch.setattr(webhook_module, "_fetch_authoritative", fake_fetch)
     return fetched
@@ -290,20 +293,15 @@ async def test_empty_string_secret_means_hint_mode(
     assert fetched == [str(FIXTURE["id"])]
 
 
-@pytest.mark.parametrize("change", ["credential", "endpoint"])
-async def test_unsigned_hint_does_not_refetch_through_changed_transport(
+async def test_unsigned_hint_does_not_refetch_through_changed_endpoint(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    change: str,
 ) -> None:
-    database = tmp_path / f"wh-transport-{change}.db"
+    database = tmp_path / "wh-transport-endpoint.db"
     monkeypatch.setenv("ATTEST_DB_PATH", str(database))
     monkeypatch.delenv("CALLE_WEBHOOK_SECRET", raising=False)
     _seed_run(database)
-    if change == "credential":
-        monkeypatch.setenv("CALLE_API_KEY", "rotated-key")
-    else:
-        monkeypatch.setenv("ATTEST_MOCK_BASE_URL", "http://other-mock.invalid")
+    monkeypatch.setenv("ATTEST_MOCK_BASE_URL", "http://other-mock.invalid")
     fetched = _hint_fetcher(monkeypatch, FIXTURE)
     hint = json.dumps({"type": "call.completed", "data": {"id": str(FIXTURE["id"])}}).encode()
 
@@ -318,5 +316,36 @@ async def test_unsigned_hint_does_not_refetch_through_changed_transport(
     try:
         row = db.get_run(conn, "run_wh")
         assert row is not None and row["state"] == "submitted"
+    finally:
+        conn.close()
+
+
+async def test_unsigned_hint_rebinds_rotated_credential_after_authenticated_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    database = tmp_path / "wh-transport-credential.db"
+    monkeypatch.setenv("ATTEST_DB_PATH", str(database))
+    monkeypatch.delenv("CALLE_WEBHOOK_SECRET", raising=False)
+    _seed_run(database)
+    monkeypatch.setenv("CALLE_API_KEY", "rotated-same-account-key")
+    current_service = CalleService()
+    current_identity = current_service.dispatch_identity()
+    current_service.close()
+    fetched = _hint_fetcher(monkeypatch, FIXTURE)
+    hint = json.dumps({"type": "call.completed", "data": {"id": str(FIXTURE["id"])}}).encode()
+
+    async with _client() as client:
+        response = await client.post(
+            "/calle/webhook", content=hint, headers={"CALL-E-Event-Id": "evt_credential_rebind"}
+        )
+
+    assert response.status_code == 202
+    assert fetched == [str(FIXTURE["id"])]
+    conn = db.connect(database)
+    try:
+        row = db.get_run(conn, "run_wh")
+        assert row is not None and row["state"] == "completed"
+        assert row["dispatch_credential_fingerprint"] == current_identity["credential_fingerprint"]
     finally:
         conn.close()
