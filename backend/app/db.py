@@ -593,6 +593,19 @@ def pollable_runs(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     )
 
 
+def recovery_blocked_run_ids(conn: sqlite3.Connection) -> set[str]:
+    """Persisted runs whose external call outcome still needs reconciliation."""
+    rows = conn.execute(
+        "SELECT run_id FROM call_runs WHERE "
+        "(state = 'failed' AND json_valid(terminal_payload) = 1 "
+        "AND json_extract(terminal_payload, '$.stage') = 'submit_recovery_expired') "
+        "OR (state = 'submitted' AND json_valid(terminal_payload) = 1 "
+        "AND json_extract(terminal_payload, '$.stage') IN "
+        "('transport_identity_mismatch', 'transport_rebind_failed', 'poll_exhausted'))"
+    )
+    return {str(row["run_id"]) for row in rows}
+
+
 def reserve_sandbox_slot(conn: sqlite3.Connection, phone_hash: str, cap: int) -> str:
     """Atomically claim one judge-sandbox call slot for a phone hash.
 

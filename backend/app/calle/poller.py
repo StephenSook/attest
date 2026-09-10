@@ -47,7 +47,12 @@ class Poller:
         exhausted = {
             run_id for run_id, attempts in self._failures.items() if attempts >= _MAX_POLL_FAILURES
         }
-        return len(self._transport_mismatches | exhausted)
+        conn = db.connect(self._database)
+        try:
+            persisted = db.recovery_blocked_run_ids(conn)
+        finally:
+            conn.close()
+        return len(self._transport_mismatches | exhausted | persisted)
 
     def wake(self) -> None:
         """Request an immediate tick and reset backoff.
@@ -195,7 +200,7 @@ class Poller:
                 conn.close()
             if runs.apply_terminal_payload(self._database, call):
                 advanced += 1
-        if tick_failed or self._transport_mismatches or self._failures:
+        if tick_failed or self._transport_mismatches or self._failures or self.blocked_run_count:
             self._last_error = "one or more submitted runs could not be recovered"
         else:
             self._last_error = None
