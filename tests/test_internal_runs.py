@@ -116,6 +116,71 @@ async def test_product_run_registers_the_public_webhook(
 
 
 @respx.mock
+async def test_phone_hash_rotation_blocks_existing_ambiguous_destination(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    database = tmp_path / "operator-key-rotation.db"
+    monkeypatch.setenv("ATTEST_DB_PATH", str(database))
+    monkeypatch.setenv("ATTEST_OPERATOR_KEY", "right-key")
+    monkeypatch.setenv("ATTEST_PHONE_HASH_KEY", "destination-key-before")
+    monkeypatch.setenv("ATTEST_USE_MOCK", "true")
+    app.state.calle_service = None
+    route = respx.post(f"{MOCK_BASE}/v1/calls").mock(
+        side_effect=CalleTimeoutError("response lost after acceptance")
+    )
+
+    async with _client() as client:
+        with pytest.raises(CalleTimeoutError):
+            await client.post("/internal/runs", json=_body(), headers=RUN_HEADERS)
+        monkeypatch.setenv("ATTEST_PHONE_HASH_KEY", "destination-key-after")
+        blocked = await client.post(
+            "/internal/runs",
+            json=_body(request_id="d" * 32),
+            headers=RUN_HEADERS,
+        )
+
+    assert blocked.status_code == 503
+    assert blocked.json()["detail"]["code"] == "destination_identity_mismatch"
+    assert route.call_count == 1
+
+
+@respx.mock
+async def test_phone_hash_rotation_blocks_after_accepted_sandbox_reservation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    database = tmp_path / "sandbox-key-rotation.db"
+    monkeypatch.setenv("ATTEST_DB_PATH", str(database))
+    monkeypatch.setenv("ATTEST_JUDGE_KEY", "judge-only")
+    monkeypatch.setenv("ATTEST_PHONE_HASH_KEY", "destination-key-before")
+    monkeypatch.setenv("ATTEST_SANDBOX_ENABLED", "1")
+    monkeypatch.setenv("ATTEST_USE_MOCK", "true")
+    app.state.calle_service = None
+    route = respx.post(f"{MOCK_BASE}/v1/calls").mock(return_value=Response(201, json=FIXTURE))
+    judge_headers = {
+        "X-Attest-Key": "judge-only",
+        "X-Attest-Run-Token": "judge-run-capability-token-1234567890abcdef",
+    }
+
+    async with _client() as client:
+        accepted = await client.post(
+            "/internal/runs",
+            json=_body(consent=True),
+            headers=judge_headers,
+        )
+        monkeypatch.setenv("ATTEST_PHONE_HASH_KEY", "destination-key-after")
+        blocked = await client.post(
+            "/internal/runs",
+            json=_body(request_id="e" * 32, phone="+15550105678", consent=True),
+            headers=judge_headers,
+        )
+
+    assert accepted.status_code == 201
+    assert blocked.status_code == 503
+    assert blocked.json()["detail"]["code"] == "destination_identity_mismatch"
+    assert route.call_count == 1
+
+
+@respx.mock
 async def test_expired_operator_retry_never_posts_a_second_call(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
