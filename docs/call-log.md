@@ -1,8 +1,7 @@
 # Real-call log
 
-Every real CALL-E call this project places gets a row here, logged against the
-budget lines in CONSTITUTION.md. Development runs against mock_calle only; no
-automated test ever dials.
+Every real CALL-E call this project places gets a row here. Development runs
+against mock_calle only; no automated test ever dials.
 
 | # | Date (UTC) | Budget line | Recipient | Outcome |
 | - | ---------- | ----------- | --------- | ------- |
@@ -16,7 +15,5 @@ automated test ever dials.
 | 41 | 2026-07-28 | demo takes | a consenting Atlanta counseling practice, first third-party recipient | The practice consented in writing to one call and to public use of the transcript, choosing to remain anonymous. Reached voicemail. The agent obeyed the no-message rule and ended the call during the greeting without leaving anything. Platform reported `task_completed: false` with three explicit evidence lines saying no answer was obtained. Attest abstained on all three claims, verdict `unverifiable`, posterior 0.5, the untouched prior. Scrubbed payload shipped as `run_replay_practice_0001`. |
 
 | 42 | 2026-09-09 | post-KYC hotline canary | CALL-E's published testing hotline | After Persona verification and selecting the dedicated US number as the default outbound line, the official SDK seam completed one platform-owned test call. The terminal result reported `task_completed: true`, confidence 0.90 (high), and no failure. The raw payload remains gitignored. |
-
-Remaining allocation (of 20 pre-credit calls): probe/fixture 0 of 3 left, webhook test 1 of 2 left, real-call validation SPENT (36 study calls, credit-funded), demo takes 5 of 6 left, reserve 3. The ~200 promotional credits extend real-call validation only, not this logging rule.
 
 Note on call 41: no audio exists for it. The Calls API and Python SDK expose no recording URL, and unlike the builder-line calls we were the caller rather than the receiver, so there was no end of the line we could lawfully or technically record. The transcript is the whole artifact.
