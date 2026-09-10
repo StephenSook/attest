@@ -301,13 +301,14 @@ async def api_run_audio(run_id: str) -> FileResponse:
 def _detail_for_run(row: sqlite3.Row) -> dict[str, object]:
     run_id = str(row["run_id"])
     payload = json.loads(str(row["terminal_payload"])) if row["terminal_payload"] else None
+    sanitized_payload = analysis.redact_payload(payload) if payload else None
     record = _record_for(row)
     detail: dict[str, object] = {
         "run_id": run_id,
         "state": row["state"],
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
-        "payload": analysis.redact_payload(payload) if payload else None,
+        "payload": sanitized_payload,
         "has_audio": _audio_file(run_id) is not None,
         "provider": record.get("provider"),
         "published": record.get("published") is True,
@@ -318,15 +319,15 @@ def _detail_for_run(row: sqlite3.Row) -> dict[str, object]:
         # Only completed calls get claims and a verdict; a failed run must
         # never dress up as an analysis result.
         detail["analysis"] = analysis.analyze_run(row)
-    elif payload and row["state"] in {"failed", "canceled"}:
+    elif sanitized_payload and row["state"] in {"failed", "canceled"}:
         detail["failure"] = {
-            "error": str(payload.get("error", "unknown failure"))[:200],
-            "stage": str(payload.get("stage", "unknown"))[:60],
+            "error": str(sanitized_payload.get("error", "unknown failure"))[:200],
+            "stage": str(sanitized_payload.get("stage", "unknown"))[:60],
         }
-    elif payload and row["state"] == "submitted" and payload.get("stage"):
+    elif sanitized_payload and row["state"] == "submitted" and sanitized_payload.get("stage"):
         detail["blocked"] = {
-            "error": str(payload.get("error", "recovery blocked"))[:200],
-            "stage": str(payload.get("stage", "unknown"))[:60],
+            "error": str(sanitized_payload.get("error", "recovery blocked"))[:200],
+            "stage": str(sanitized_payload.get("stage", "unknown"))[:60],
         }
     return detail
 

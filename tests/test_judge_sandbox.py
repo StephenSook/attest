@@ -225,13 +225,21 @@ async def test_lost_create_response_retries_with_the_same_provider_key(
     """
     route = respx.post("http://mock.invalid/v1/calls").mock(
         side_effect=[
-            CalleTimeoutError("response lost after submit"),
+            CalleTimeoutError("response lost after submit for +15550101234"),
             Response(201, json={"id": "call_retry_1", "status": "queued"}),
         ]
     )
     async with _client() as client:
         with pytest.raises(CalleTimeoutError):
             await client.post("/internal/runs", json=BODY, headers=headers)
+        conn = db.connect(db.db_path())
+        try:
+            row = db.get_run(conn, f"run_{BODY['request_id']}")
+            assert row is not None
+            assert "+15550101234" not in str(row["terminal_payload"])
+            assert "[redacted phone]" in str(row["terminal_payload"])
+        finally:
+            conn.close()
         retried = await client.post("/internal/runs", json=BODY, headers=headers)
 
     assert retried.status_code == 201
@@ -272,7 +280,12 @@ async def test_ambiguous_server_error_retries_with_the_same_provider_key() -> No
         side_effect=[
             Response(
                 500,
-                json={"error": {"code": "internal_error", "message": "try again"}},
+                json={
+                    "error": {
+                        "code": "internal_error",
+                        "message": "try +15550101234 again",
+                    }
+                },
             ),
             Response(201, json={"id": "call_retry_500", "status": "queued"}),
         ]
@@ -280,6 +293,14 @@ async def test_ambiguous_server_error_retries_with_the_same_provider_key() -> No
     async with _client() as client:
         with pytest.raises(CalleAPIError):
             await client.post("/internal/runs", json=BODY, headers=HEADERS_JUDGE)
+        conn = db.connect(db.db_path())
+        try:
+            row = db.get_run(conn, f"run_{BODY['request_id']}")
+            assert row is not None
+            assert "+15550101234" not in str(row["terminal_payload"])
+            assert "[redacted phone]" in str(row["terminal_payload"])
+        finally:
+            conn.close()
         retried = await client.post("/internal/runs", json=BODY, headers=HEADERS_JUDGE)
 
     assert retried.status_code == 201
@@ -298,7 +319,12 @@ async def test_definite_provider_rejection_releases_slot_and_allows_fresh_reques
         side_effect=[
             Response(
                 provider_status,
-                json={"error": {"code": "rejected", "message": "not accepted"}},
+                json={
+                    "error": {
+                        "code": "rejected",
+                        "message": "number +15550101234 not accepted",
+                    }
+                },
             ),
             Response(201, json={"id": "call_after_rejection", "status": "queued"}),
         ]
@@ -312,6 +338,18 @@ async def test_definite_provider_rejection_releases_slot_and_allows_fresh_reques
     assert rejected.json()["detail"]["code"] == "call_rejected_before_acceptance"
     assert retried.status_code == 201
     assert len(route.calls) == 2
+    conn = db.connect(db.db_path())
+    try:
+        payloads = [
+            str(row["terminal_payload"])
+            for row in conn.execute(
+                "SELECT terminal_payload FROM call_runs WHERE terminal_payload IS NOT NULL"
+            )
+        ]
+    finally:
+        conn.close()
+    assert payloads
+    assert all("+15550101234" not in payload for payload in payloads)
 
     conn = db.connect(db.db_path())
     try:

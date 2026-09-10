@@ -12,6 +12,7 @@ import logging
 import os
 import re
 import sqlite3
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -33,11 +34,23 @@ _PHONE_CANDIDATE = re.compile(
     r"(?<!\w)\+?(?:\d[\s()./-]*){6,14}\d(?:\s*(?:(?:ext\.?|x)\s*\d{1,6}))?(?!\w)",
     re.IGNORECASE,
 )
+_IDENTIFIER_PHONE_CANDIDATE = re.compile(
+    r"\+?(?:\d[\s()./-]*){6,14}\d(?:\s*(?:(?:ext\.?|x)\s*\d{1,6}))?",
+    re.IGNORECASE,
+)
 _DATE_LIKE = re.compile(r"\d{4}-\d{2}-\d{2}(?:[ T]\d{2})?")
 _SLASH_DATE_LIKE = re.compile(r"\d{1,2}/\d{1,2}/\d{2,4}")
-_PROVIDER_RECIPIENT_ID = re.compile(r"rcp_[A-Za-z0-9][A-Za-z0-9_-]{2,127}")
+_ISO_DATE_TIME = re.compile(
+    r"\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}"
+    r"(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:?\d{2})?"
+)
+_PROVIDER_CALL_ID = re.compile(r"call_[A-Za-z0-9_-]{22}")
+_PROVIDER_CHILD_ID = re.compile(r"(?:rcp|att)_[0-9a-fA-F]{16}")
 _UUID_ID = re.compile(
     r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+)
+_KNOWN_ID_PREFIXES = frozenset(
+    {"call", "recipient", "attempt", "turn", "provider", "event", "task", "transcript"}
 )
 
 
@@ -48,23 +61,82 @@ def _mask(phone: str) -> str:
 
 
 def _mask_phone_text(text: str) -> str:
-    def replace(match: re.Match[str]) -> str:
-        candidate = match.group(0)
-        stripped = candidate.strip()
-        if _DATE_LIKE.fullmatch(stripped) or _SLASH_DATE_LIKE.fullmatch(stripped):
-            return candidate
-        try:
-            ipaddress.ip_address(stripped)
-        except ValueError:
-            return "[redacted phone]"
-        return candidate
+    return _PHONE_CANDIDATE.sub("[redacted phone]", text)
 
-    return _PHONE_CANDIDATE.sub(replace, text)
+
+def _is_safe_provider_id(text: str) -> bool:
+    if not (_PROVIDER_CALL_ID.fullmatch(text) or _PROVIDER_CHILD_ID.fullmatch(text)):
+        return False
+    return _IDENTIFIER_PHONE_CANDIDATE.search(text) is None
+
+
+def _mask_identifier_text(text: str) -> str:
+    if _UUID_ID.fullmatch(text) or _is_safe_provider_id(text):
+        return text
+    return _IDENTIFIER_PHONE_CANDIDATE.sub("[redacted phone]", text)
+
+
+def _mask_generic_mapping_key(text: str) -> str:
+    if _is_valid_date_text(text):
+        return text
+    return _mask_identifier_text(text)
+
+
+def _is_valid_date_text(text: str) -> bool:
+    try:
+        if _SLASH_DATE_LIKE.fullmatch(text):
+            for date_format in ("%m/%d/%Y", "%m/%d/%y"):
+                try:
+                    datetime.strptime(text, date_format)
+                except ValueError:
+                    continue
+                return True
+            return False
+        if _ISO_DATE_TIME.fullmatch(text):
+            datetime.fromisoformat(text.replace("Z", "+00:00"))
+            return True
+        if _DATE_LIKE.fullmatch(text):
+            date.fromisoformat(text)
+            return True
+    except ValueError:
+        return False
+    return False
+
+
+def _normalized_key(key: object) -> str:
+    key_text = str(key)
+    snake = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", key_text)
+    return re.sub(r"[.\-\s]+", "_", snake).lower()
+
+
+def _is_identifier_key(key: object) -> bool:
+    normalized = _normalized_key(key)
+    tokens = normalized.split("_")
+    if any(token in {"id", "ids"} for token in tokens):
+        return True
+    compact = normalized.replace("_", "")
+    return any(compact in {f"{prefix}id", f"{prefix}ids"} for prefix in _KNOWN_ID_PREFIXES)
+
+
+def _is_date_key(key: object) -> bool:
+    normalized = _normalized_key(key)
+    return normalized in {"date", "time", "timestamp"} or normalized.endswith(
+        ("_at", "_date", "_time", "_timestamp")
+    )
+
+
+def _is_ip_key(key: object) -> bool:
+    return "ip" in _normalized_key(key).split("_")
+
+
+def _is_phone_key(key: object) -> bool:
+    return bool({"phone", "telephone", "mobile"} & set(_normalized_key(key).split("_")))
 
 
 def _redact_phone_fields(value: Any, *, context: str = "generic") -> Any:
     """Redact phone data using the payload field's semantic context."""
     if isinstance(value, dict):
+        mask_key = _mask_generic_mapping_key if context == "generic" else _mask_identifier_text
         container_contexts = {
             "recipients": ("recipient", "recipient"),
             "attempts": ("attempt", "attempt"),
@@ -73,13 +145,13 @@ def _redact_phone_fields(value: Any, *, context: str = "generic") -> Any:
         if context in container_contexts:
             child_context, key_prefix = container_contexts[context]
             items = list(value.items())
-            safe_keys = {str(key) for key, _ in items if _mask_phone_text(str(key)) == str(key)}
+            safe_keys = {str(key) for key, _ in items if mask_key(str(key)) == str(key)}
             used_keys = set(safe_keys)
             next_placeholder = 0
             value.clear()
             for key, nested in items:
                 key_text = str(key)
-                if _mask_phone_text(key_text) != key_text:
+                if mask_key(key_text) != key_text:
                     replacement = f"{key_prefix}-{next_placeholder}"
                     while replacement in used_keys:
                         next_placeholder += 1
@@ -99,28 +171,28 @@ def _redact_phone_fields(value: Any, *, context: str = "generic") -> Any:
             "attempt": "attempt-field",
             "turn": "turn-field",
             "transcript_text": "text-field",
+            "identifier": "identifier-field",
         }
-        sensitive_key_prefix = sensitive_mapping_contexts.get(context)
-        if sensitive_key_prefix is not None:
-            safe_keys = {str(key) for key, _ in items if _mask_phone_text(str(key)) == str(key)}
-            used_keys = set(safe_keys)
-            sanitized_items: list[tuple[object, Any]] = []
-            next_placeholder = 0
-            for key, nested in items:
-                key_text = str(key)
-                if _mask_phone_text(key_text) != key_text:
-                    replacement = f"{sensitive_key_prefix}-{next_placeholder}"
-                    while replacement in used_keys:
-                        next_placeholder += 1
-                        replacement = f"{sensitive_key_prefix}-{next_placeholder}"
-                    sanitized_key: object = replacement
-                    used_keys.add(replacement)
+        sensitive_key_prefix = sensitive_mapping_contexts.get(context, "field")
+        safe_keys = {str(key) for key, _ in items if mask_key(str(key)) == str(key)}
+        used_keys = set(safe_keys)
+        sanitized_items: list[tuple[object, Any]] = []
+        next_placeholder = 0
+        for key, nested in items:
+            key_text = str(key)
+            if mask_key(key_text) != key_text:
+                replacement = f"{sensitive_key_prefix}-{next_placeholder}"
+                while replacement in used_keys:
                     next_placeholder += 1
-                else:
-                    sanitized_key = key
-                sanitized_items.append((sanitized_key, nested))
-            items = sanitized_items
-            value.clear()
+                    replacement = f"{sensitive_key_prefix}-{next_placeholder}"
+                sanitized_key: object = replacement
+                used_keys.add(replacement)
+                next_placeholder += 1
+            else:
+                sanitized_key = key
+            sanitized_items.append((sanitized_key, nested))
+        items = sanitized_items
+        value.clear()
         for key, nested in items:
             key_lower = str(key).lower()
             nested_context: str | None = {
@@ -131,18 +203,29 @@ def _redact_phone_fields(value: Any, *, context: str = "generic") -> Any:
                 "transcript_turns": "turns",
                 "summary": "transcript_text",
                 "failure_message": "transcript_text",
+                "error": "transcript_text",
             }.get(key_lower)
-            if (
-                context == "transcript_text"
-                and (key_lower == "id" or key_lower.endswith("_id"))
-                and isinstance(nested, str)
-                and _UUID_ID.fullmatch(nested)
-            ):
-                nested_context = "generic"
+            is_identifier_key = _is_identifier_key(key)
+            if _is_phone_key(key):
+                nested_context = "phone"
+            elif is_identifier_key:
+                nested_context = "identifier"
+            elif _is_date_key(key):
+                nested_context = "date_value"
+            elif _is_ip_key(key):
+                nested_context = "ip_value"
             elif nested_context is None:
                 nested_context = (
                     context
-                    if context in {"phone", "recipient", "attempt", "turn", "transcript_text"}
+                    if context
+                    in {
+                        "phone",
+                        "recipient",
+                        "attempt",
+                        "turn",
+                        "transcript_text",
+                        "identifier",
+                    }
                     else "generic"
                 )
             if context == "turn" and key_lower == "text":
@@ -168,24 +251,26 @@ def _redact_phone_fields(value: Any, *, context: str = "generic") -> Any:
     if context == "recipients" and value is not None:
         if isinstance(value, bool):
             return value
-        if isinstance(value, str) and _PROVIDER_RECIPIENT_ID.fullmatch(value):
+        if isinstance(value, str) and _is_safe_provider_id(value):
             return value
         return _mask(str(value))
-    if (
-        context
-        in {
-            "recipient",
-            "attempt",
-            "turn",
-            "attempts",
-            "turns",
-            "transcript_text",
-        }
-        and isinstance(value, (str, int, float))
-        and not isinstance(value, bool)
-    ):
+    if context == "date_value":
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return value
+        if isinstance(value, str) and _is_valid_date_text(value):
+            return value
+    if context == "ip_value" and isinstance(value, str):
+        try:
+            ipaddress.ip_address(value.strip())
+        except ValueError:
+            pass
+        else:
+            return value
+    if isinstance(value, (str, int, float)) and not isinstance(value, bool):
         text = str(value)
-        redacted = _mask_phone_text(text)
+        redacted = (
+            _mask_identifier_text(text) if context == "identifier" else _mask_phone_text(text)
+        )
         return redacted if redacted != text else value
     return value
 
@@ -199,6 +284,16 @@ def redact_payload(payload: dict[str, Any]) -> dict[str, Any]:
     redacted.pop("request", None)
     _redact_phone_fields(redacted)
     return redacted
+
+
+def redact_payload_json(payload_json: str) -> str:
+    """Apply the same no-raw-phone boundary to every persisted JSON payload."""
+    parsed = json.loads(payload_json)
+    redacted = copy.deepcopy(parsed)
+    if isinstance(redacted, dict):
+        redacted.pop("request", None)
+    _redact_phone_fields(redacted)
+    return json.dumps(redacted)
 
 
 def _container_items(value: Any) -> list[Any]:
@@ -256,7 +351,8 @@ def analyze_run(row: sqlite3.Row) -> dict[str, Any]:
     prediction set at the committed qhat is a single value. Without a
     committed eval run the response says so instead of pretending.
     """
-    payload = json.loads(str(row["terminal_payload"])) if row["terminal_payload"] else {}
+    raw_payload = json.loads(str(row["terminal_payload"])) if row["terminal_payload"] else {}
+    payload = redact_payload(raw_payload)
     record: dict[str, Any] = json.loads(str(row["record_json"])) if row["record_json"] else {}
     turns = transcript_turns(payload)
 

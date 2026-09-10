@@ -1,5 +1,6 @@
 """The console's read API: redaction, analysis, metrics."""
 
+import hashlib
 import json
 import subprocess
 import sys
@@ -57,20 +58,104 @@ async def test_run_detail_redacts_phones_and_analyzes(
     database = tmp_path / "api2.db"
     monkeypatch.setenv("ATTEST_DB_PATH", str(database))
     _seed(database)
+    conn = db.connect(database)
+    try:
+        row = db.get_run(conn, "run_api")
+        assert row is not None
+        payload = json.loads(str(row["terminal_payload"]))
+        payload["+15550101234"] = "root-key"
+        payload["results"] = {
+            "+15550101234": "nested-key",
+            "acct15550101234": "embedded-key",
+            "2099-12-31": "generic-date",
+        }
+        payload["recipientIDS"] = ["call_x15550101234aaaaaaaaaa"]
+        payload["RECIPIENTIDS"] = {"2099-12-31": "acctB15550101234C"}
+        payload["metadata"]["unknown_number"] = 15550101234
+        payload["metadata"]["items"] = [15550101234.0]
+        payload["recipients"][0]["attempts"][0]["transcript_turns"][6]["text"] = (
+            "Yep. Call +15550101234."
+        )
+        conn.execute(
+            "UPDATE call_runs SET terminal_payload = ? WHERE run_id = ?",
+            (json.dumps(payload), "run_api"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
     async with _client() as client:
         response = await client.get("/api/runs/run_api")
     assert response.status_code == 200
     body = response.json()
     raw = json.dumps(body)
     assert "+15550101234" not in raw, "unmasked phone leaked through the API"
+    assert "acct15550101234" not in raw
+    assert "acctB15550101234C" not in raw
+    assert "call_x15550101234aaaaaaaaaa" not in raw
+    assert "15550101234" not in raw
+    assert body["payload"]["results"]["2099-12-31"] == "generic-date"
     assert "+15*" in raw
     claims = {c["claim"]: c for c in body["analysis"]["claims"]}
     assert claims["accepting_new_patients"]["answer"] == "yes"
-    assert claims["accepting_new_patients"]["span"]["text"] == "Yep."
+    assert claims["accepting_new_patients"]["span"]["text"] == "Yep. Call [redacted phone]."
     assert claims["accepts_plan"]["abstain"] is True
     recon = body["analysis"]["reconciliation"]
     assert recon["verdict"] in {"verified", "unverifiable", "contradicted"}
     assert any(c["agreed"] is True for c in recon["contributions"])
+
+
+async def test_failed_run_details_redact_error_text_on_public_and_private_routes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    database = tmp_path / "failed-details.db"
+    monkeypatch.setenv("ATTEST_DB_PATH", str(database))
+    token = "private-run-capability-token"
+    conn = db.connect(database)
+    try:
+        records = {
+            "run_public_failure": {"org": "Public failure", "published": True},
+            "run_private_failure": {
+                "org": "Private failure",
+                "published": False,
+                "access_token_sha256": hashlib.sha256(token.encode()).hexdigest(),
+            },
+        }
+        for run_id, record in records.items():
+            db.create_run(
+                conn,
+                run_id=run_id,
+                idempotency_key=run_id,
+                record_json=json.dumps(record),
+            )
+            fsm.advance(
+                conn,
+                run_id,
+                "failed",
+                terminal_payload=json.dumps(
+                    {"status": "failed", "error": "Could not call +15550101234", "stage": "poll"}
+                ),
+            )
+        stored_payloads = [
+            str(row["terminal_payload"])
+            for row in conn.execute("SELECT terminal_payload FROM call_runs")
+        ]
+        assert all("+15550101234" not in payload for payload in stored_payloads)
+    finally:
+        conn.close()
+
+    async with _client() as client:
+        public = await client.get("/api/runs/run_public_failure")
+        private = await client.get(
+            "/internal/runs/run_private_failure",
+            headers={"X-Attest-Run-Token": token},
+        )
+
+    for response in [public, private]:
+        assert response.status_code == 200
+        body = response.json()
+        assert "+15550101234" not in json.dumps(body)
+        assert body["payload"]["error"] == "Could not call [redacted phone]"
+        assert body["failure"]["error"] == "Could not call [redacted phone]"
 
 
 async def test_metrics_endpoint_serves_eval_results(

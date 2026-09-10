@@ -51,6 +51,9 @@ def test_redaction_covers_unexpected_phone_locations_without_mutating_input() ->
             "ip": "192.168.100.123",
             "correlation_id": "1234567890",
             "decimal": "15550101234.0",
+            "unknown_number": 15550101234,
+            "items": [15550101234.0],
+            "notes": ["Call +15550101234", {"detail": "Use 555-1234"}],
         },
     }
     original = json.loads(json.dumps(payload))
@@ -60,7 +63,15 @@ def test_redaction_covers_unexpected_phone_locations_without_mutating_input() ->
     serialized = json.dumps(redacted)
     for phone in ["+15550101234", "555-1234", "612 34 56 78", "5550101234x89", "555/010/1234"]:
         assert phone not in serialized
-    assert redacted["metadata"] == payload["metadata"]
+    assert redacted["metadata"] == {
+        "timestamp": "2026-09-10 01:17:24",
+        "ip": "192.168.100.123",
+        "correlation_id": "[redacted phone]",
+        "decimal": "[redacted phone]",
+        "unknown_number": "[redacted phone]",
+        "items": ["[redacted phone]"],
+        "notes": ["Call [redacted phone]", {"detail": "Use [redacted phone]"}],
+    }
     assert payload == original
 
 
@@ -85,15 +96,18 @@ def test_redaction_handles_schema_drift_without_discarding_safe_provider_ids() -
             "text": "Call +15550101234 for the result.",
             "provider_id": 42,
             "phone_shaped_id": "+15550101234",
+            "id": "12/34/5678",
+            "date_shaped_id": "12/34/5678",
             "nested_id": {"value": "+15550101234"},
         },
         "recipients": {
-            "rcp_provider_abc": {
+            "rcp_421c14316e95fb62": {
                 "phone": {
                     "+15550101234": "primary",
+                    "12/34/5678": "secondary",
                 },
                 "attempts": {
-                    "att_provider_xyz": {
+                    "att_74b5e3e66d7ec8d7": {
                         "summary": "Retry at 555-1234.",
                         "failure_message": [
                             {
@@ -111,16 +125,179 @@ def test_redaction_handles_schema_drift_without_discarding_safe_provider_ids() -
     redacted = redact_payload(payload)
     serialized = json.dumps(redacted)
 
-    for phone in ["+15550101234", "555-1234", "612 34 56 78", "555/010/1234"]:
+    for phone in [
+        "+15550101234",
+        "12/34/5678",
+        "555-1234",
+        "612 34 56 78",
+        "555/010/1234",
+    ]:
         assert phone not in serialized
-    assert "rcp_provider_abc" in redacted["recipients"]
-    assert "att_provider_xyz" in redacted["recipients"]["rcp_provider_abc"]["attempts"]
+    assert "rcp_421c14316e95fb62" in redacted["recipients"]
+    assert "att_74b5e3e66d7ec8d7" in redacted["recipients"]["rcp_421c14316e95fb62"]["attempts"]
     assert redacted["summary"]["provider_id"] == 42
     assert (
-        redacted["recipients"]["rcp_provider_abc"]["attempts"]["att_provider_xyz"][
+        redacted["recipients"]["rcp_421c14316e95fb62"]["attempts"]["att_74b5e3e66d7ec8d7"][
             "failure_message"
         ][0]["provider_id"]
         == "550e8400-e29b-41d4-a716-446655440000"
+    )
+
+
+def test_redaction_rejects_date_shaped_structural_identifiers() -> None:
+    payload = {
+        "id": "12/34/5678",
+        "call_id": "2099-12-31",
+        "callId": "12/34/5678",
+        "safe_id": "550e8400-e29b-41d4-a716-446655440000",
+        "recipients": [
+            {
+                "recipientId": "12/34/5678",
+                "12/34/5678": "recipient-key",
+                "attempts": [
+                    {
+                        "call-id": "2099-12-31",
+                        "2099-12-31": "attempt-key",
+                        "transcript_turns": [
+                            {
+                                "turnID": "12/34/5678",
+                                "12/34/5678": "turn-key",
+                                "text": "Meeting scheduled.",
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+
+    redacted = redact_payload(payload)
+
+    assert redacted["id"] == "[redacted phone]"
+    assert redacted["call_id"] == "[redacted phone]"
+    assert redacted["callId"] == "[redacted phone]"
+    assert redacted["safe_id"] == "550e8400-e29b-41d4-a716-446655440000"
+    recipient = redacted["recipients"][0]
+    assert recipient["recipientId"] == "[redacted phone]"
+    assert "12/34/5678" not in recipient
+    attempt = recipient["attempts"][0]
+    assert attempt["call-id"] == "[redacted phone]"
+    assert "2099-12-31" not in attempt
+    turn = attempt["transcript_turns"][0]
+    assert turn["turnID"] == "[redacted phone]"
+    assert "12/34/5678" not in turn
+
+
+def test_identifier_redaction_handles_plural_prefixed_and_nested_values() -> None:
+    uuid = "550e8400-e29b-41d4-a716-446655440000"
+    payload = {
+        "recipient_ids": ["12/34/5678", uuid],
+        "recipient-ids": {"2099-12-31": "tel_15550101234", uuid: uuid},
+        "recipientIds": ["acct15550101234", uuid],
+        "recipientIDs": ["acctA15550101234B", uuid],
+        "recipientIDS": ["call_x15550101234aaaaaaaaaa", uuid],
+        "RECIPIENTIDS": {"2099-12-31": "acctB15550101234C", uuid: uuid},
+        "recipientids": ["acct15550101234", uuid],
+        "recipientID": "acct155.50.101.234x",
+        "provider.id": "acctD15550101234E",
+        "provider_id_v2": "acctE15550101234F",
+        "destinationIdValue": "acctF15550101234G",
+        "idList": ["acctG15550101234H"],
+        "nested_id": {"value": uuid, "values": [uuid]},
+        "provider_ids": [
+            "call_FBUuJrnuqAADyQ4d0gBc9Q",
+            "rcp_421c14316e95fb62",
+            "att_74b5e3e66d7ec8d7",
+            "rcp_15550101234",
+            "rcp_15550101234a",
+            "call_x15550101234aaaaaaaaaa",
+        ],
+    }
+
+    redacted = redact_payload(payload)
+    serialized = json.dumps(redacted)
+
+    for phone in [
+        "12/34/5678",
+        "2099-12-31",
+        "tel_15550101234",
+        "acct15550101234",
+        "acctA15550101234B",
+        "acctB15550101234C",
+        "rcp_15550101234",
+        "rcp_15550101234a",
+        "call_x15550101234aaaaaaaaaa",
+        "acct155.50.101.234x",
+        "acctD15550101234E",
+        "acctE15550101234F",
+        "acctF15550101234G",
+        "acctG15550101234H",
+    ]:
+        assert phone not in serialized
+    assert serialized.count(uuid) == 11
+    assert redacted["provider_ids"][:3] == [
+        "call_FBUuJrnuqAADyQ4d0gBc9Q",
+        "rcp_421c14316e95fb62",
+        "att_74b5e3e66d7ec8d7",
+    ]
+
+
+def test_redaction_sanitizes_phone_mapping_keys_under_unknown_containers() -> None:
+    payload = {
+        "+15550101234": "root",
+        "192.168.100.123": "generic-ip",
+        "results": {
+            "+15550101234": "nested",
+            "acct15550101234": "embedded",
+            "acct155.50.101.234x": "dotted-embedded",
+            "2099-12-31": "generic-date",
+            "2026-09-10T01:17:24Z": "seconds",
+            "2026-09-10T01:17:24.123456Z": "fraction",
+            "2026-09-10T01:17:24-04:00": "offset",
+        },
+    }
+
+    redacted = redact_payload(payload)
+    serialized = json.dumps(redacted)
+
+    assert "+15550101234" not in serialized
+    assert "acct15550101234" not in serialized
+    assert "acct155.50.101.234x" not in serialized
+    assert "192.168.100.123" not in redacted
+    assert redacted["results"]["2099-12-31"] == "generic-date"
+    assert redacted["results"]["2026-09-10T01:17:24Z"] == "seconds"
+    assert redacted["results"]["2026-09-10T01:17:24.123456Z"] == "fraction"
+    assert redacted["results"]["2026-09-10T01:17:24-04:00"] == "offset"
+    assert set(redacted) == {"field-0", "field-1", "results"}
+
+
+def test_redaction_covers_error_text_and_sensitive_mapping_keys() -> None:
+    payload = {
+        "error": "Could not call +15550101234, 12/34/5678, or 155.50.101.234",
+        "recipients": {
+            "rcp_421c14316e95fb62": {
+                "acct15550101234": "recipient-key",
+                "attempts": {
+                    "att_74b5e3e66d7ec8d7": {
+                        "acct15550101234": "attempt-key",
+                        "transcript_turns": [
+                            {"acct15550101234": "turn-key", "text": "No phone here."}
+                        ],
+                    }
+                },
+            }
+        },
+    }
+
+    redacted = redact_payload(payload)
+    serialized = json.dumps(redacted)
+
+    assert "+15550101234" not in serialized
+    assert "12/34/5678" not in serialized
+    assert "155.50.101.234" not in serialized
+    assert "acct15550101234" not in serialized
+    assert redacted["error"] == (
+        "Could not call [redacted phone], [redacted phone], or [redacted phone]"
     )
 
 
