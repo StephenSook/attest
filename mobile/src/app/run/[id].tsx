@@ -20,31 +20,31 @@ function certificateHtml(doc: Attestation): string {
   const claims = doc.claims
     .map(
       (claim) => `
-      <div style="border-bottom:1px solid #e4e1d6;padding:10px 0">
+      <div style="border-bottom:1px solid ${colors.rule};padding:10px 0">
         <div style="display:flex;justify-content:space-between">
-          <span style="font-family:monospace;font-size:11px;text-transform:uppercase;letter-spacing:2px;color:#8a8678">${esc(claim.claim.replaceAll("_", " "))}</span>
+          <span style="font-family:monospace;font-size:11px;text-transform:uppercase;letter-spacing:2px;color:${colors.inkFaint}">${esc(claim.claim.replaceAll("_", " "))}</span>
           <strong style="font-size:18px">${claim.abstain ? "abstained" : esc(claim.answer)}</strong>
         </div>
-        <div style="font-family:monospace;font-size:11px;color:#57544b;margin-top:4px">
+        <div style="font-family:monospace;font-size:11px;color:${colors.inkSoft};margin-top:4px">
           ${claim.span ? `supporting span: "${esc(claim.span.text)}" (turn ${esc(claim.span.turn)}, chars ${esc(claim.span.char_start)}-${esc(claim.span.char_end)})` : "no supporting span: the system did not answer"}
         </div>
       </div>`,
     )
     .join("");
   return `
-  <html><body style="font-family:Georgia,serif;background:#faf9f5;color:#191712;padding:32px">
-    <div style="border:2px solid #191712;border-radius:8px;padding:28px;background:#ffffff">
-      <div style="font-family:monospace;font-size:11px;text-transform:uppercase;letter-spacing:3px;color:#8a8678">certificate of verification</div>
+  <html><body style="font-family:Georgia,serif;background:${colors.paper};color:${colors.ink};padding:32px">
+    <div style="border:2px solid ${colors.ink};border-radius:8px;padding:28px;background:${colors.white}">
+      <div style="font-family:monospace;font-size:11px;text-transform:uppercase;letter-spacing:3px;color:${colors.inkFaint}">certificate of verification</div>
       <h1 style="margin:6px 0 2px">${esc(doc.org ?? "Verification run")}</h1>
-      <div style="font-family:monospace;font-size:11px;color:#8a8678">${esc(doc.run_id)} · completed ${esc(doc.completed_at)}${doc.replay ? " · replay of a real recorded call" : ""}</div>
-      <div style="margin:14px 0;display:inline-block;border:2px solid #a84a00;color:#a84a00;background:#fbeadb;border-radius:6px;padding:6px 12px;font-family:monospace;text-transform:uppercase;letter-spacing:2px">${esc(doc.reconciliation.verdict)} · posterior ${Math.round(doc.reconciliation.posterior_probability * 100)}%</div>
+      <div style="font-family:monospace;font-size:11px;color:${colors.inkFaint}">${esc(doc.run_id)} · completed ${esc(doc.completed_at)}${doc.replay ? " · replay of a real recorded call" : ""}</div>
+      <div style="margin:14px 0;display:inline-block;border:2px solid ${colors.doubt};color:${colors.doubt};background:${colors.doubtSoft};border-radius:6px;padding:6px 12px;font-family:monospace;text-transform:uppercase;letter-spacing:2px">${esc(doc.reconciliation.verdict)} · posterior ${Math.round(doc.reconciliation.posterior_probability * 100)}%</div>
       ${claims}
-      <div style="font-family:monospace;font-size:10px;color:#57544b;margin-top:14px;word-break:break-all">
+      <div style="font-family:monospace;font-size:10px;color:${colors.inkSoft};margin-top:14px;word-break:break-all">
         ${doc.calibration.available ? `abstention gate calibrated at qhat ${esc(doc.calibration.qhat)}, target ${Math.round((doc.calibration.target_coverage ?? 0) * 100)}%, measured ${((doc.calibration.empirical_coverage ?? 0) * 100).toFixed(1)}% on held-out data<br/>` : ""}
         payload sha256 ${esc(doc.terminal_payload_sha256)}<br/>
         ${doc.signature.signed ? `signature ${esc(doc.signature.alg)} ${esc(doc.signature.value)}` : "unsigned: no signing key configured on this deployment"}
       </div>
-      <div style="font-family:monospace;font-size:10px;color:#8a8678;margin-top:10px">${esc(doc.policy)}</div>
+      <div style="font-family:monospace;font-size:10px;color:${colors.inkFaint};margin-top:10px">${esc(doc.policy)}</div>
     </div>
   </body></html>`;
 }
