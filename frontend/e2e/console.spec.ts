@@ -9,9 +9,16 @@ async function renderedTextSamples(locator: Locator) {
     canvas.height = 1;
     const context = canvas.getContext("2d", { willReadFrequently: true });
     const parseColor = (value: string): [number, number, number, number] => {
-      if (!context) return [0, 0, 0, 1];
+      if (!context) throw new Error("canvas 2d context unavailable; contrast not measured");
       context.clearRect(0, 0, 1, 1);
+      // The canvas silently keeps the previous fill on an unparseable
+      // string, which would measure contrast against the wrong colour and
+      // pass. Prime a sentinel so an unparsed value fails loudly instead.
+      context.fillStyle = "#010203";
       context.fillStyle = value;
+      if (context.fillStyle === "#010203" && value !== "#010203") {
+        throw new Error(`unparseable colour: ${value}`);
+      }
       context.fillRect(0, 0, 1, 1);
       const [red, green, blue, alpha] = context.getImageData(0, 0, 1, 1).data;
       return [red, green, blue, alpha / 255];
