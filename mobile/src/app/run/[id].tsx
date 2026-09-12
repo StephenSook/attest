@@ -37,7 +37,7 @@ function certificateHtml(doc: Attestation): string {
       <div style="font-family:monospace;font-size:11px;text-transform:uppercase;letter-spacing:3px;color:#8a8678">certificate of verification</div>
       <h1 style="margin:6px 0 2px">${esc(doc.org ?? "Verification run")}</h1>
       <div style="font-family:monospace;font-size:11px;color:#8a8678">${esc(doc.run_id)} · completed ${esc(doc.completed_at)}${doc.replay ? " · replay of a real recorded call" : ""}</div>
-      <div style="margin:14px 0;display:inline-block;border:2px solid #a84a00;color:#a84a00;background:#f7e8d8;border-radius:6px;padding:6px 12px;font-family:monospace;text-transform:uppercase;letter-spacing:2px">${esc(doc.reconciliation.verdict)} · posterior ${Math.round(doc.reconciliation.posterior_probability * 100)}%</div>
+      <div style="margin:14px 0;display:inline-block;border:2px solid #a84a00;color:#a84a00;background:#fbeadb;border-radius:6px;padding:6px 12px;font-family:monospace;text-transform:uppercase;letter-spacing:2px">${esc(doc.reconciliation.verdict)} · posterior ${Math.round(doc.reconciliation.posterior_probability * 100)}%</div>
       ${claims}
       <div style="font-family:monospace;font-size:10px;color:#57544b;margin-top:14px;word-break:break-all">
         ${doc.calibration.available ? `abstention gate calibrated at qhat ${esc(doc.calibration.qhat)}, target ${Math.round((doc.calibration.target_coverage ?? 0) * 100)}%, measured ${((doc.calibration.empirical_coverage ?? 0) * 100).toFixed(1)}% on held-out data<br/>` : ""}
