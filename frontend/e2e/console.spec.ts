@@ -398,6 +398,9 @@ test("phone ledger wraps a maximum-length unbroken organization name", async ({ 
     client: el.clientWidth,
     scroll: el.scrollWidth,
   }));
+  // An inline box reports 0 for both and would pass this check with no
+  // signal, so the span has to be a real block-level item first.
+  expect(span.client, "organization name span is not a laid-out box").toBeGreaterThan(0);
   expect(span.scroll, "organization name is clipped instead of wrapped").toBeLessThanOrEqual(
     span.client + 1,
   );
