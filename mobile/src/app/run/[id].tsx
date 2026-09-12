@@ -14,7 +14,7 @@ import {
   type RunDetail,
 } from "../../lib/api";
 import { esc } from "../../lib/html";
-import { colors, fonts } from "../../lib/theme";
+import { colors, fonts, verdictTone } from "../../lib/theme";
 
 function certificateHtml(doc: Attestation): string {
   const claims = doc.claims
@@ -31,13 +31,14 @@ function certificateHtml(doc: Attestation): string {
       </div>`,
     )
     .join("");
+  const tone = verdictTone(doc.reconciliation.verdict);
   return `
   <html><body style="font-family:Georgia,serif;background:${colors.paper};color:${colors.ink};padding:32px">
     <div style="border:2px solid ${colors.ink};border-radius:8px;padding:28px;background:${colors.white}">
       <div style="font-family:monospace;font-size:11px;text-transform:uppercase;letter-spacing:3px;color:${colors.inkFaint}">certificate of verification</div>
       <h1 style="margin:6px 0 2px">${esc(doc.org ?? "Verification run")}</h1>
       <div style="font-family:monospace;font-size:11px;color:${colors.inkFaint}">${esc(doc.run_id)} · completed ${esc(doc.completed_at)}${doc.replay ? " · replay of a real recorded call" : ""}</div>
-      <div style="margin:14px 0;display:inline-block;border:2px solid ${colors.doubt};color:${colors.doubt};background:${colors.doubtSoft};border-radius:6px;padding:6px 12px;font-family:monospace;text-transform:uppercase;letter-spacing:2px">${esc(doc.reconciliation.verdict)} · posterior ${Math.round(doc.reconciliation.posterior_probability * 100)}%</div>
+      <div style="margin:14px 0;display:inline-block;border:2px solid ${tone.color};color:${tone.color};background:${tone.soft};border-radius:6px;padding:6px 12px;font-family:monospace;text-transform:uppercase;letter-spacing:2px">${esc(doc.reconciliation.verdict)} · posterior ${Math.round(doc.reconciliation.posterior_probability * 100)}%</div>
       ${claims}
       <div style="font-family:monospace;font-size:10px;color:${colors.inkSoft};margin-top:14px;word-break:break-all">
         ${doc.calibration.available ? `abstention gate calibrated at qhat ${esc(doc.calibration.qhat)}, target ${Math.round((doc.calibration.target_coverage ?? 0) * 100)}%, measured ${((doc.calibration.empirical_coverage ?? 0) * 100).toFixed(1)}% on held-out data<br/>` : ""}
