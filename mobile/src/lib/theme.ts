@@ -9,7 +9,7 @@ export const colors = {
   inkFaint: "#8a8678",
   trust: "#2456d6",
   trustSoft: "#dfe7fa",
-  doubt: "#c25e00",
+  doubt: "#a84a00",
   doubtSoft: "#f7e8d8",
   contra: "#a3232f",
   contraSoft: "#f6dfe0",
