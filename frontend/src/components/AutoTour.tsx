@@ -52,17 +52,40 @@ export default function AutoTour() {
         if (!spaceOnTourControl) pause();
       }
     };
+    // A tap on the control must reach its click handler untouched, but a
+    // drag that starts there is still the reader taking over. Remember where
+    // a touch on the control began and pause once it moves past tap slop;
+    // a finger wobble inside that slop would otherwise pause on touchmove
+    // and let the click that follows resume the tour.
+    let controlTouchOrigin: { x: number; y: number } | null = null;
+    const onTouchStart = (event: TouchEvent) => {
+      const onControl =
+        event.target instanceof Element && Boolean(event.target.closest(".auto-tour"));
+      const touch = event.touches[0];
+      controlTouchOrigin = onControl && touch ? { x: touch.clientX, y: touch.clientY } : null;
+      if (!onControl) pause();
+    };
+    const onTouchMove = (event: TouchEvent) => {
+      const touch = event.touches[0];
+      if (
+        controlTouchOrigin &&
+        touch &&
+        Math.hypot(touch.clientX - controlTouchOrigin.x, touch.clientY - controlTouchOrigin.y) <
+          10
+      ) {
+        return;
+      }
+      pause();
+    };
     window.addEventListener("wheel", pause, { passive: true });
-    window.addEventListener("touchstart", pauseForPointer, { passive: true });
-    // A drag that starts on the exempted control is still the reader taking
-    // over, so any touch movement pauses unconditionally.
-    window.addEventListener("touchmove", pause, { passive: true });
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: true });
     window.addEventListener("pointerdown", pauseForPointer);
     window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("wheel", pause);
-      window.removeEventListener("touchstart", pauseForPointer);
-      window.removeEventListener("touchmove", pause);
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
       window.removeEventListener("pointerdown", pauseForPointer);
       window.removeEventListener("keydown", onKey);
       tween.current?.kill();
