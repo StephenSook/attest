@@ -340,6 +340,19 @@ test("hero headline words never break across lines on a phone", async ({ page })
       .map((word) => word.text),
   );
   expect(broken, "headline words broken across lines").toEqual([]);
+  // nowrap turns a would-be mid-word break into horizontal overflow, which
+  // the offsetTop check cannot see, so every word box must also end inside
+  // the headline's own box.
+  const overflows = await words.evaluateAll((elements) =>
+    elements.some((word) => {
+      const line = word.closest(".hero-line");
+      return (
+        line !== null &&
+        word.getBoundingClientRect().right > line.getBoundingClientRect().right + 0.5
+      );
+    }),
+  );
+  expect(overflows, "headline word overflows the hero line box").toBe(false);
 });
 
 test("mobile calibration evidence labels meet text contrast and size floors", async ({ page }) => {
