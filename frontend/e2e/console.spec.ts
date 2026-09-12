@@ -283,6 +283,37 @@ test("a drag from the control pauses the tour with another finger resting on the
   await expect(tour).toHaveAccessibleName(/pause guided tour/i);
   await dispatch("touchmove", 40);
   await expect(tour).toHaveAccessibleName(/resume guided tour/i);
+  // One move event can carry both fingers. The control finger inside slop
+  // and the thumb well outside it must still pause: every changed touch has
+  // to be the control finger within slop, not only the first one listed.
+  await tour.click();
+  await expect(tour).toHaveAccessibleName(/pause guided tour/i);
+  await page.waitForTimeout(300);
+  await dispatch("touchstart", 0);
+  await tour.evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    const finger = new Touch({
+      identifier: 1,
+      target: el,
+      clientX: box.left + box.width / 2,
+      clientY: box.top + box.height / 2 + 3,
+    });
+    const thumb = new Touch({
+      identifier: 7,
+      target: document.body,
+      clientX: 8,
+      clientY: 640,
+    });
+    el.dispatchEvent(
+      new TouchEvent("touchmove", {
+        bubbles: true,
+        touches: [thumb, finger],
+        targetTouches: [finger],
+        changedTouches: [finger, thumb],
+      }),
+    );
+  });
+  await expect(tour).toHaveAccessibleName(/resume guided tour/i);
 });
 
 test("mobile calibration evidence labels meet text contrast and size floors", async ({ page }) => {
