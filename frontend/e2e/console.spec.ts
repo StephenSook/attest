@@ -13,10 +13,14 @@ async function renderedTextSamples(locator: Locator) {
       context.clearRect(0, 0, 1, 1);
       // The canvas silently keeps the previous fill on an unparseable
       // string, which would measure contrast against the wrong colour and
-      // pass. Prime a sentinel so an unparsed value fails loudly instead.
+      // pass. Prime two different sentinels: a parsed value reads back the
+      // same after both, an unparsed one reads back each sentinel in turn.
       context.fillStyle = "#010203";
       context.fillStyle = value;
-      if (context.fillStyle === "#010203" && value !== "#010203") {
+      const afterFirst = context.fillStyle;
+      context.fillStyle = "#040506";
+      context.fillStyle = value;
+      if (context.fillStyle !== afterFirst) {
         throw new Error(`unparseable colour: ${value}`);
       }
       context.fillRect(0, 0, 1, 1);
