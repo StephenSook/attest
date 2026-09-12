@@ -195,13 +195,39 @@ test("a touch drag pauses the guided tour even when it starts on the control", a
   await tour.click();
   await expect(tour).toHaveAccessibleName(/pause guided tour/i);
   await page.waitForTimeout(300);
-  // touchstart on the control is exempt so a tap can toggle; the movement
-  // that follows a drag is not, or the tween keeps snapping the page back
-  // under the reader's thumb.
-  await tour.evaluate((el) => {
-    el.dispatchEvent(new TouchEvent("touchstart", { bubbles: true }));
-    el.dispatchEvent(new TouchEvent("touchmove", { bubbles: true }));
-  });
+  // A touch that begins on the control is a tap until it moves past slop:
+  // touchstart alone and a few pixels of finger wobble must leave the tour
+  // running, or the click that follows the tap would resume what the
+  // wobble paused. Movement past slop is a drag, and a drag pauses, or the
+  // tween keeps snapping the page back under the reader's thumb.
+  const dispatchTouch = (type: string, dx: number, dy: number) =>
+    tour.evaluate(
+      (el, [eventType, offsetX, offsetY]) => {
+        const box = el.getBoundingClientRect();
+        const touch = new Touch({
+          identifier: 1,
+          target: el,
+          clientX: box.left + box.width / 2 + offsetX,
+          clientY: box.top + box.height / 2 + offsetY,
+        });
+        el.dispatchEvent(
+          new TouchEvent(eventType, {
+            bubbles: true,
+            touches: [touch],
+            targetTouches: [touch],
+            changedTouches: [touch],
+          }),
+        );
+      },
+      [type, dx, dy] as [string, number, number],
+    );
+  await dispatchTouch("touchstart", 0, 0);
+  await dispatchTouch("touchmove", 3, 4);
+  await expect(tour).toHaveAccessibleName(/pause guided tour/i);
+  const stillTouringY = await page.evaluate(() => window.scrollY);
+  await page.waitForTimeout(350);
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(stillTouringY);
+  await dispatchTouch("touchmove", 0, 40);
   await expect(tour).toHaveAccessibleName(/resume guided tour/i);
   const pausedY = await page.evaluate(() => window.scrollY);
   await page.waitForTimeout(350);
