@@ -9,11 +9,21 @@ import "./Landing.css";
 
 gsap.registerPlugin(ScrollTrigger);
 
+/* Every character is its own inline-block so the reveal can stagger them,
+   and adjacent inline-blocks are line-break opportunities, so a bare run of
+   chars could break inside a word on a phone ("g" / "uess."). Each word,
+   with its trailing space, is wrapped in a nowrap box so breaks only fall
+   between words. */
 const Chars = ({ text }: { text: string }) => (
   <>
-    {text.split("").map((char, i) => (
-      <span key={i} className="char" aria-hidden="true">
-        {char === " " ? " " : char}
+    {text.split(" ").map((word, wordIndex, words) => (
+      <span key={wordIndex} className="word" aria-hidden="true">
+        {word.split("").map((char, i) => (
+          <span key={i} className="char">
+            {char}
+          </span>
+        ))}
+        {wordIndex < words.length - 1 && <span className="char">{"\u00a0"}</span>}
       </span>
     ))}
   </>

@@ -136,6 +136,10 @@
   line-height: 1.02;
   letter-spacing: -0.015em;
 }
+.hero .word {
+  display: inline-block;
+  white-space: nowrap;
+}
 .hero .char {
   display: inline-block;
   white-space: pre;
