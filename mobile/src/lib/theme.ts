@@ -10,7 +10,7 @@ export const colors = {
   trust: "#2456d6",
   trustSoft: "#dfe7fa",
   doubt: "#a84a00",
-  doubtSoft: "#f7e8d8",
+  doubtSoft: "#fbeadb",
   contra: "#a3232f",
   contraSoft: "#f6dfe0",
   rule: "#e4e1d6",
