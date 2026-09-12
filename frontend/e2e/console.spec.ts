@@ -316,6 +316,32 @@ test("a drag from the control pauses the tour with another finger resting on the
   await expect(tour).toHaveAccessibleName(/resume guided tour/i);
 });
 
+test("hero headline words never break across lines on a phone", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await page.waitForTimeout(600);
+  // Each headline character is its own inline-block for the reveal, and
+  // adjacent inline-blocks are break opportunities, so without a nowrap
+  // word box the phone hero read "refuses to g" / "uess.". offsetTop is
+  // layout position, unaffected by the reveal's transforms.
+  const words = page.locator(".hero .word");
+  await expect(words).toHaveCount(7);
+  const broken = await words.evaluateAll((elements) =>
+    elements
+      .map((word) => ({
+        text: word.textContent ?? "",
+        lines: new Set(
+          Array.from(word.querySelectorAll<HTMLElement>(".char"))
+            .filter((char) => (char.textContent ?? "").trim() !== "")
+            .map((char) => char.offsetTop),
+        ).size,
+      }))
+      .filter((word) => word.lines > 1)
+      .map((word) => word.text),
+  );
+  expect(broken, "headline words broken across lines").toEqual([]);
+});
+
 test("mobile calibration evidence labels meet text contrast and size floors", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const metrics = await page.request.get(`${API}/api/metrics`);
