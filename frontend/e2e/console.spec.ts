@@ -328,7 +328,19 @@ test("phone ledger wraps a maximum-length unbroken organization name", async ({ 
     }),
   );
   await page.goto("/runs");
-  await expect(page.getByText(organization, { exact: true })).toBeVisible();
+  const name = page.getByText(organization, { exact: true });
+  await expect(name).toBeVisible();
+  // A clipped `truncate` span keeps the document inside the viewport and
+  // still reads as visible, so the document-level check alone passed on the
+  // old markup. The span's own scrollWidth exceeds its clientWidth only when
+  // the name is cut off; a wrapped name fits.
+  const span = await name.evaluate((el) => ({
+    client: el.clientWidth,
+    scroll: el.scrollWidth,
+  }));
+  expect(span.scroll, "organization name is clipped instead of wrapped").toBeLessThanOrEqual(
+    span.client + 1,
+  );
   const width = await page.evaluate(() => ({
     client: document.documentElement.clientWidth,
     scroll: document.documentElement.scrollWidth,
