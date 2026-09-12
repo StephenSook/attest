@@ -240,7 +240,7 @@ export default function CalibrationPage() {
                   </span>
                   <span className="font-evidence text-sm font-medium">{row.label}</span>
                 </div>
-                <div className="mt-3 grid grid-cols-3 gap-3 font-evidence text-xs">
+                <div className="mt-3 grid grid-cols-3 gap-3 font-evidence text-xs [&>div]:flex [&>div]:flex-col [&>div]:justify-between">
                   <div>
                     <p className="text-[11px] uppercase tracking-wide text-ink-soft">n</p>
                     <p className="mt-1">{row.n}</p>
@@ -317,7 +317,7 @@ export default function CalibrationPage() {
                 </span>
                 <span className="font-evidence text-sm font-medium">{row.config}</span>
               </div>
-              <div className="mt-3 grid grid-cols-3 gap-3 font-evidence text-xs">
+              <div className="mt-3 grid grid-cols-3 gap-3 font-evidence text-xs [&>div]:flex [&>div]:flex-col [&>div]:justify-between">
                 <div>
                   <p className="text-[11px] uppercase tracking-wide text-ink-soft">coverage</p>
                   <p className="mt-1">
