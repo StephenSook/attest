@@ -645,6 +645,7 @@ test("disabled live sandbox explains the safe replay path", async ({ page }) => 
   // It must not claim identity verification is still pending (it completed
   // on 2026-09-09) or that judges receive an operator key.
   await expect(page.getByText(/cannot prove the caller owns the destination/i)).toBeVisible();
+  await expect(page.getByText(/stays closed on the hosted deployment/i)).toBeVisible();
   await expect(page.getByText(/identity-verified and its dedicated line is active/i)).toBeVisible();
   await expect(page.getByText(/must be complete before/i)).toHaveCount(0);
   await expect(page.getByText(/receive it in the testing instructions/i)).toHaveCount(0);
@@ -885,6 +886,10 @@ test("transport rotation is visible without falsely failing the call", async ({ 
 
 test("the whole loop: a judge-key run travels to a verdict", async ({ page }) => {
   await page.goto("/runs/new");
+  // With the sandbox enabled (the local stack) the page must not claim the
+  // sandbox is closed above a working form.
+  await expect(page.getByText(/Operator or judge key required\./)).toBeVisible();
+  await expect(page.getByText(/stays closed on the hosted deployment/i)).toHaveCount(0);
   await page.getByLabel(/judge key/i).fill("demo-mode-key");
   await page.getByLabel(/organization/i).fill("E2E Loop Practice");
   // A fresh fictional number per attempt: the sandbox dedupes per phone.
