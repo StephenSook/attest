@@ -1,5 +1,8 @@
-/* The evidence-ledger design language, ported to native. Same tokens as
-   the web console's @theme block. */
+/* The evidence-ledger design language, ported to native. paper, ink, trust,
+   doubt, doubtSoft and rule are kept identical to the web console's @theme
+   block by hand. paperDeep, inkSoft, inkFaint, trustSoft, contra and
+   contraSoft are tuned for native rendering and differ from the web values
+   on purpose; white has no web counterpart. */
 
 export const colors = {
   paper: "#faf9f5",
