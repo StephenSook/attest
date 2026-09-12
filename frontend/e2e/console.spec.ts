@@ -641,6 +641,13 @@ test("disabled live sandbox explains the safe replay path", async ({ page }) => 
   await expect(page.getByText(/live call sandbox paused/i)).toBeVisible();
   await expect(page.getByLabel(/judge key/i)).toHaveCount(0);
   await expect(page.getByRole("link", { name: /recorded calls/i })).toBeVisible();
+  // The paused panel states the real reasons the hosted sandbox is closed.
+  // It must not claim identity verification is still pending (it completed
+  // on 2026-09-09) or that judges receive an operator key.
+  await expect(page.getByText(/cannot prove the caller owns the destination/i)).toBeVisible();
+  await expect(page.getByText(/identity-verified and its dedicated line is active/i)).toBeVisible();
+  await expect(page.getByText(/must be complete before/i)).toHaveCount(0);
+  await expect(page.getByText(/receive it in the testing instructions/i)).toHaveCount(0);
 });
 
 test("a real certificate verifies in the browser; a tampered one fails", async ({ page }) => {

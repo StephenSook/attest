@@ -3,8 +3,10 @@ import { Link, useNavigate } from "react-router-dom";
 import { fetchHealth, startRun } from "../api";
 
 /* Operator-gated live call. Public visitors can read everything on this
-   site; placing a real phone call requires the judge key that judges
-   receive in the testing instructions. */
+   site; placing a real phone call requires the operator key, and the
+   public judge sandbox stays closed on the hosted deployment (a consent
+   checkbox cannot prove destination ownership and the database is
+   ephemeral), so judges use the retained evidence and the local stack. */
 export default function NewRunPage() {
   const navigate = useNavigate();
   const [sandbox, setSandbox] = useState<"loading" | "enabled" | "disabled">("loading");
@@ -63,7 +65,9 @@ export default function NewRunPage() {
       <p className="mt-2 text-ink-soft">
         One disclosed call to a number you are authorized to dial. The call
         announces itself as automated and may be recorded. Operator key
-        required; judges receive it in the testing instructions.
+        required; the public sandbox stays closed, so judges use the retained
+        real-call evidence, the certificate verifier, the mobile builds, and
+        the zero-credential local stack.
       </p>
       {sandbox !== "enabled" && (
         <div className="mt-8 rounded-lg border border-doubt bg-white/70 p-5" role="status">
@@ -73,7 +77,7 @@ export default function NewRunPage() {
           <p className="mt-2 text-sm text-ink-soft">
             {sandbox === "loading"
               ? "Confirming whether this deployment can place a safe live call."
-              : "CALL-E identity verification and durable call-budget controls must be complete before this public dialing surface reopens. The recorded runs and zero-credential local stack remain available."}
+              : "The CALL-E account is identity-verified and its dedicated line is active. This public dialing surface stays closed because a consent checkbox cannot prove the caller owns the destination number, and the hosted database is ephemeral, so call reservations would not survive a deploy. The recorded runs and zero-credential local stack remain available."}
           </p>
           {sandbox === "disabled" && (
             <p className="mt-3 font-evidence text-xs">
