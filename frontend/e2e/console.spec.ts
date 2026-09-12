@@ -300,6 +300,18 @@ test("mobile calibration evidence labels meet text contrast and size floors", as
   await page.goto("/calibration");
   await expect(page.getByRole("heading", { name: "The guarantee, measured" })).toBeVisible();
 
+  // "accuracy when answering" wraps to three lines in the 3-column card, so
+  // each cell is a column flex box that pins all three values to one shared
+  // bottom edge. Without that, the third value sat 29px below the others.
+  const valueTops = await page
+    .locator('[role="list"] [role="listitem"]')
+    .filter({ hasText: "accuracy when answering" })
+    .first()
+    .locator("div.grid > div > p.mt-1")
+    .evaluateAll((values) => values.map((value) => Math.round(value.getBoundingClientRect().top)));
+  expect(valueTops).toHaveLength(3);
+  expect(new Set(valueTops).size, `ablation values misaligned: ${valueTops.join(", ")}`).toBe(1);
+
   const samples = await renderedTextSamples(
     page.locator('[role="list"] p, [role="list"] span'),
   );
