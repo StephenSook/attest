@@ -141,6 +141,20 @@ test("mobile viewport: full traversal, no horizontal overflow, 720p film", async
   expect(Math.abs((await page.evaluate(() => window.scrollY)) - pagingPausedY)).toBeLessThanOrEqual(
     1,
   );
+  // The control itself is the one pointer target that must not trip the
+  // global pointerdown pause before its own click toggles state. Without
+  // that exemption the pause button paused on pointerdown and resumed on
+  // click, so pressing it while touring left the tour running.
+  await tour.click();
+  await expect(tour).toHaveAccessibleName(/pause guided tour/i);
+  await page.waitForTimeout(300);
+  await tour.click();
+  await expect(tour).toHaveAccessibleName(/resume guided tour/i);
+  const pointerPausedY = await page.evaluate(() => window.scrollY);
+  await page.waitForTimeout(350);
+  expect(Math.abs((await page.evaluate(() => window.scrollY)) - pointerPausedY)).toBeLessThanOrEqual(
+    1,
+  );
   const result = await page.evaluate(async () => {
     const video = document.querySelector<HTMLVideoElement>(".landing-film video");
     const max = () => document.documentElement.scrollHeight - window.innerHeight;
