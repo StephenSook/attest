@@ -22,8 +22,8 @@ export default function PromptPage() {
           trust blue (#2456d6), amber for doubt (#a84a00). Fraunces for display,
           IBM Plex Mono for evidence, Source Sans 3 for body. Persistent corner
           registration marks (A T S T) frame the viewport like a notarized page.
-          On phones only the top two marks remain, so the corner stays clear for
-          the guided-tour control.
+          Below 640px the two bottom marks are hidden, which also clears the
+          bottom-right corner for the guided-tour control.
         </p>
         <p>
           FILM. A single continuous 8 second extreme-macro journey generated
