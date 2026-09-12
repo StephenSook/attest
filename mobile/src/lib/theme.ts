@@ -1,8 +1,10 @@
 /* The evidence-ledger design language, ported to native. paper, ink, trust,
    doubt, doubtSoft and rule are kept identical to the web console's @theme
    block by hand. paperDeep, inkSoft, inkFaint, trustSoft, contra and
-   contraSoft are tuned for native rendering and differ from the web values
-   on purpose; white has no web counterpart. */
+   contraSoft currently differ from the web values; that divergence dates
+   from this file's first commit and has not been re-derived from a
+   measurement, so treat it as unreviewed rather than deliberate. white is
+   Tailwind's own default on the web and is spelled out here. */
 
 export const colors = {
   paper: "#faf9f5",
