@@ -239,6 +239,52 @@ test("a touch drag pauses the guided tour even when it starts on the control", a
   expect(Math.abs((await page.evaluate(() => window.scrollY)) - pausedY)).toBeLessThanOrEqual(1);
 });
 
+test("a drag from the control pauses the tour with another finger resting on the page", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await page.waitForTimeout(600);
+  const tour = page.getByRole("button", { name: /guided tour/i });
+  await tour.click();
+  await expect(tour).toHaveAccessibleName(/pause guided tour/i);
+  await page.waitForTimeout(300);
+  // A thumb already resting at the screen edge is the oldest touch, so
+  // touches[0] is the thumb. The control finger has to be tracked by its
+  // own identifier, or its drag reads as the thumb standing still.
+  const dispatch = (type: string, dy: number) =>
+    tour.evaluate(
+      (el, [eventType, offsetY]) => {
+        const box = el.getBoundingClientRect();
+        const thumb = new Touch({
+          identifier: 7,
+          target: document.body,
+          clientX: 8,
+          clientY: 600,
+        });
+        const finger = new Touch({
+          identifier: 1,
+          target: el,
+          clientX: box.left + box.width / 2,
+          clientY: box.top + box.height / 2 + offsetY,
+        });
+        el.dispatchEvent(
+          new TouchEvent(eventType, {
+            bubbles: true,
+            touches: [thumb, finger],
+            targetTouches: [finger],
+            changedTouches: [finger],
+          }),
+        );
+      },
+      [type, dy] as [string, number],
+    );
+  await dispatch("touchstart", 0);
+  await expect(tour).toHaveAccessibleName(/pause guided tour/i);
+  await dispatch("touchmove", 40);
+  await expect(tour).toHaveAccessibleName(/resume guided tour/i);
+});
+
 test("mobile calibration evidence labels meet text contrast and size floors", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const metrics = await page.request.get(`${API}/api/metrics`);

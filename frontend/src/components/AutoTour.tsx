@@ -57,22 +57,29 @@ export default function AutoTour() {
     // a touch on the control began and pause once it moves past tap slop;
     // a finger wobble inside that slop would otherwise pause on touchmove
     // and let the click that follows resume the tour.
-    let controlTouchOrigin: { x: number; y: number } | null = null;
+    // The finger is tracked by identifier through changedTouches: touches[0]
+    // is the oldest finger on the screen, so with a thumb resting elsewhere
+    // it would report the thumb standing still while the control finger
+    // dragged the page.
+    let controlTouch: { id: number; x: number; y: number } | null = null;
     const onTouchStart = (event: TouchEvent) => {
       const onControl =
         event.target instanceof Element && Boolean(event.target.closest(".auto-tour"));
-      const touch = event.touches[0];
-      controlTouchOrigin = onControl && touch ? { x: touch.clientX, y: touch.clientY } : null;
+      const touch = event.changedTouches[0];
+      controlTouch =
+        onControl && touch
+          ? { id: touch.identifier, x: touch.clientX, y: touch.clientY }
+          : null;
       if (!onControl) pause();
     };
     const onTouchMove = (event: TouchEvent) => {
-      const touch = event.touches[0];
-      if (
-        controlTouchOrigin &&
-        touch &&
-        Math.hypot(touch.clientX - controlTouchOrigin.x, touch.clientY - controlTouchOrigin.y) <
-          10
-      ) {
+      const origin = controlTouch;
+      const moved = Array.from(event.changedTouches);
+      const withinSlop = (touch: Touch) =>
+        origin !== null &&
+        touch.identifier === origin.id &&
+        Math.hypot(touch.clientX - origin.x, touch.clientY - origin.y) < 10;
+      if (moved.length > 0 && moved.every(withinSlop)) {
         return;
       }
       pause();
