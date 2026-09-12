@@ -147,7 +147,7 @@ zero-credential Docker path remain judge-accessible without placing a new call.
 
 - Strict mypy; ruff lint + format in CI; gitleaks over full history in CI. Test counts change on
   every merge, so they are recorded here as a dated snapshot and must be re-read before being quoted
-  anywhere: **433 backend tests collected and 6 mobile tests, as of 2026-09-11**. Regenerate with
+  anywhere: **438 backend tests collected and 6 mobile tests, as of 2026-09-12**. Regenerate with
   `uv run pytest --collect-only -q | tail -1`,
   `cd mobile && node --experimental-strip-types --test "src/**/*.test.ts"` (the mobile count comes
   from the node test runner, not jest: an ad-hoc `npx jest` reports 0 because it is not the runner
