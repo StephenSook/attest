@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -11,6 +12,7 @@ import pytest
 
 from app import db, fsm
 from app.main import app
+from scripts import seed_replay
 
 FIXTURE = json.loads(
     (Path(__file__).parent.parent / "mock_calle" / "fixtures" / "terminal_result.json").read_text()
@@ -269,3 +271,70 @@ def test_seed_script_is_idempotent(tmp_path: Path) -> None:
     )
     assert "seeded" in first.stdout
     assert "nothing to do" in second.stdout
+
+
+_DEMO_DESK_RUN = "run_replay_demo_desk_0001"
+_PLACEHOLDER_DIGITS = "15550101234"
+
+
+def test_replay_fixtures_carry_only_the_reserved_placeholder_number() -> None:
+    """Every seeded replay is a scrubbed real payload. The only digit run long
+    enough to be a phone number must be the reserved placeholder, nothing may
+    survive platform-side masking, and no em-dash may enter the tree."""
+    for replay in seed_replay.REPLAYS:
+        raw = (seed_replay.FIXTURES / replay.fixture).read_text()
+        assert json.loads(raw)["id"], replay.fixture
+        assert set(re.findall(r"[0-9]{10,}", raw)) == {_PLACEHOLDER_DIGITS}, replay.fixture
+        assert chr(0x2014) not in raw, replay.fixture
+        assert "***" not in raw, replay.fixture
+
+
+async def test_demo_desk_replay_is_served_as_the_film_shows(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The film's evidence beat shows demo take 3 landing CONTRADICTED with
+    three cited spans. The deployed console seeds from REPLAYS on boot, so
+    that run must be seeded, published, labeled a replay, and served with the
+    placeholder masked."""
+    replays = {item.run_id: item for item in seed_replay.REPLAYS}
+    assert _DEMO_DESK_RUN in replays, "the demo desk replay is not in REPLAYS"
+    fixture = json.loads((seed_replay.FIXTURES / replays[_DEMO_DESK_RUN].fixture).read_text())
+    assert fixture["id"] == "call_replay_demo_desk_0001"
+    assert fixture["recipients"][0]["phones"] == ["+15550101234"]
+    assert fixture["recipients"][0]["attempts"][0]["phone"] == "+15550101234"
+
+    monkeypatch.setenv("ATTEST_DB_PATH", str(tmp_path / "demo-desk.db"))
+    monkeypatch.setenv("ATTEST_AUDIO_DIR", str(tmp_path / "audio"))
+    seed_replay.main()
+
+    async with _client() as client:
+        ledger = await client.get("/api/runs")
+        detail = await client.get(f"/api/runs/{_DEMO_DESK_RUN}")
+
+    rows = {item["run_id"]: item for item in ledger.json()["runs"]}
+    assert rows[_DEMO_DESK_RUN]["org"] == "Attest Demo Desk"
+    assert rows[_DEMO_DESK_RUN]["replay"] is True
+    assert rows[_DEMO_DESK_RUN]["verdict"] == "contradicted"
+
+    assert detail.status_code == 200
+    body = detail.json()
+    assert body["state"] == "completed"
+    assert body["published"] is True
+    assert body["provider"] == "live"
+    assert body["has_audio"] is False
+    analysis = body["analysis"]
+    assert analysis["org"] == "Attest Demo Desk"
+    assert analysis["replay"] is True
+    assert analysis["reconciliation"]["verdict"] == "contradicted"
+    assert analysis["reconciliation"]["posterior_probability"] == pytest.approx(0.0888, abs=0.0005)
+    claims = {item["claim"]: item for item in analysis["claims"]}
+    assert set(claims) == {"office_name_confirmed", "accepting_new_patients", "accepts_plan"}
+    assert claims["office_name_confirmed"]["answer"] == "yes"
+    assert claims["accepting_new_patients"]["answer"] == "no"
+    assert claims["accepts_plan"]["answer"] == "no"
+    for item in claims.values():
+        assert item["span"] is not None and item["span"]["text"], item["claim"]
+
+    assert body["payload"]["recipients"][0]["phones"] == ["+15******234"]
+    assert _PLACEHOLDER_DIGITS not in detail.text
+    assert _PLACEHOLDER_DIGITS not in ledger.text

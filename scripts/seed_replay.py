@@ -3,12 +3,16 @@
 Idempotent: running twice is a no-op. This is what public console visitors
 see: replays of real recorded runs, labeled as such, never a live dial.
 
-Two replays ship:
+Four replays ship:
 - run_replay_probe_0001: the second probe call (transcript only; no audio
   was captured on that call, and the API exposes no recording URL).
 - run_replay_builder_0001: a consented builder-line call recorded on the
   receiving end (2026-07-26). Its trimmed, loudness-normalized audio ships
   as a fixture and is copied into ATTEST_AUDIO_DIR at seed time.
+- run_replay_practice_0001: a consented call to a real practice that reached
+  voicemail (2026-07-28), redacted with visible brackets.
+- run_replay_demo_desk_0001: demo take 3 (2026-09-12), the run the film
+  shows, placed to the builder's own consented scripted test line.
 
     uv run python scripts/seed_replay.py
 """
@@ -79,6 +83,34 @@ REPLAYS = [
             "claims": {},
         },
         label="labeled replay of a consented call to a real practice; reached voicemail",
+    ),
+    Replay(
+        run_id="run_replay_demo_desk_0001",
+        fixture="replay_demo_desk_call.json",
+        record={
+            # Demo take 3 of 2026-09-12, the run shown in the film. The dialed
+            # line is the builder's own consented scripted test line, answered
+            # by the builder reading the Attest Demo Desk script; not a real
+            # practice. Both phone fields in the fixture carry the reserved
+            # placeholder, and the server masks it again at storage time.
+            "org": "Attest Demo Desk",
+            "replay": True,
+            "published": True,
+            "provider": "live",
+            "claims": {
+                "office_name_confirmed": "yes",
+                "accepting_new_patients": "yes",
+                "plan_name": "Aetna PPO",
+                "accepts_plan": "yes",
+            },
+            "provenance": (
+                "Scrubbed replay of take 3 (2026-09-12): the builder's own consented "
+                "scripted test line, answered by the builder reading the Attest Demo "
+                "Desk script. Not a real practice. Number replaced by the reserved "
+                "placeholder."
+            ),
+        },
+        label="labeled replay of the consented builder scripted test line, demo take 3",
     ),
 ]
 
