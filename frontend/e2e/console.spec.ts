@@ -229,8 +229,9 @@ test("a touch drag pauses the guided tour even when it starts on the control", a
   await dispatchTouch("touchmove", 3, 4);
   await expect(tour).toHaveAccessibleName(/pause guided tour/i);
   const stillTouringY = await page.evaluate(() => window.scrollY);
-  await page.waitForTimeout(350);
-  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(stillTouringY);
+  await expect
+    .poll(() => page.evaluate(() => window.scrollY), { timeout: 5_000 })
+    .toBeGreaterThan(stillTouringY);
   await dispatchTouch("touchmove", 0, 40);
   await expect(tour).toHaveAccessibleName(/resume guided tour/i);
   const pausedY = await page.evaluate(() => window.scrollY);
