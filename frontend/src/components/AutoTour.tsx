@@ -54,11 +54,15 @@ export default function AutoTour() {
     };
     window.addEventListener("wheel", pause, { passive: true });
     window.addEventListener("touchstart", pauseForPointer, { passive: true });
+    // A drag that starts on the exempted control is still the reader taking
+    // over, so any touch movement pauses unconditionally.
+    window.addEventListener("touchmove", pause, { passive: true });
     window.addEventListener("pointerdown", pauseForPointer);
     window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("wheel", pause);
       window.removeEventListener("touchstart", pauseForPointer);
+      window.removeEventListener("touchmove", pause);
       window.removeEventListener("pointerdown", pauseForPointer);
       window.removeEventListener("keydown", onKey);
       tween.current?.kill();

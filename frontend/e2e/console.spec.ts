@@ -178,6 +178,29 @@ test("mobile viewport: full traversal, no horizontal overflow, 720p film", async
   expect(result.poster).toContain("hero-poster.jpg");
 });
 
+test("a touch drag pauses the guided tour even when it starts on the control", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await page.waitForTimeout(600);
+  const tour = page.getByRole("button", { name: /guided tour/i });
+  await tour.click();
+  await expect(tour).toHaveAccessibleName(/pause guided tour/i);
+  await page.waitForTimeout(300);
+  // touchstart on the control is exempt so a tap can toggle; the movement
+  // that follows a drag is not, or the tween keeps snapping the page back
+  // under the reader's thumb.
+  await tour.evaluate((el) => {
+    el.dispatchEvent(new TouchEvent("touchstart", { bubbles: true }));
+    el.dispatchEvent(new TouchEvent("touchmove", { bubbles: true }));
+  });
+  await expect(tour).toHaveAccessibleName(/resume guided tour/i);
+  const pausedY = await page.evaluate(() => window.scrollY);
+  await page.waitForTimeout(350);
+  expect(Math.abs((await page.evaluate(() => window.scrollY)) - pausedY)).toBeLessThanOrEqual(1);
+});
+
 test("mobile calibration evidence labels meet text contrast and size floors", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const metrics = await page.request.get(`${API}/api/metrics`);
