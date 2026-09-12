@@ -331,7 +331,9 @@ export default function CalibrationPage() {
                   <p className="mt-1">{(row.abstention_rate * 100).toFixed(1)}%</p>
                 </div>
                 <div>
-                  <p className="text-[11px] uppercase tracking-wide text-ink-soft">accuracy</p>
+                  <p className="text-[11px] uppercase tracking-wide text-ink-soft">
+                    accuracy when answering
+                  </p>
                   <p className="mt-1">
                     {(row.accuracy_when_answering * 100).toFixed(1)}%
                   </p>

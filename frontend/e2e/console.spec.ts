@@ -206,7 +206,7 @@ test("mobile calibration evidence labels meet text contrast and size floors", as
     "conditional",
     "coverage",
     "abstention",
-    "accuracy",
+    "accuracy when answering",
   ]) {
     expect(observed.has(label), `${label} was not inspected`).toBe(true);
   }
