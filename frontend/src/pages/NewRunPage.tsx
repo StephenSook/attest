@@ -64,10 +64,10 @@ export default function NewRunPage() {
       </h1>
       <p className="mt-2 text-ink-soft">
         One disclosed call to a number you are authorized to dial. The call
-        announces itself as automated and may be recorded. Operator key
-        required; the public sandbox stays closed, so judges use the retained
-        real-call evidence, the certificate verifier, the mobile builds, and
-        the zero-credential local stack.
+        announces itself as automated and may be recorded.{" "}
+        {sandbox === "disabled"
+          ? "Operator key required; the public sandbox stays closed on the hosted deployment, so judges use the retained real-call evidence, the certificate verifier, the mobile builds, and the zero-credential local stack."
+          : "Operator or judge key required."}
       </p>
       {sandbox !== "enabled" && (
         <div className="mt-8 rounded-lg border border-doubt bg-white/70 p-5" role="status">
