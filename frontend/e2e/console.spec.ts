@@ -395,12 +395,18 @@ test("phone ledger wraps a maximum-length unbroken organization name", async ({ 
   // still reads as visible, so the document-level check alone passed on the
   // old markup. The span's own scrollWidth exceeds its clientWidth only when
   // the name is cut off; a wrapped name fits.
-  const span = await name.evaluate((el) => ({
-    client: el.clientWidth,
-    scroll: el.scrollWidth,
-  }));
-  // An inline box reports 0 for both and would pass this check with no
-  // signal, so the span has to be a real block-level item first.
+  // getByText resolves to the innermost element holding the name. If that is
+  // ever an inline wrapper (a link, a highlight), measure the nearest
+  // laid-out ancestor, since an inline box reports 0 for both widths.
+  const span = await name.evaluate((el) => {
+    let box: Element = el;
+    while (box.parentElement && getComputedStyle(box).display === "inline") {
+      box = box.parentElement;
+    }
+    return { client: box.clientWidth, scroll: box.scrollWidth };
+  });
+  // Zero would pass the wrap check with no signal, so the measured box has
+  // to have real width first.
   expect(span.client, "organization name span is not a laid-out box").toBeGreaterThan(0);
   expect(span.scroll, "organization name is clipped instead of wrapped").toBeLessThanOrEqual(
     span.client + 1,
