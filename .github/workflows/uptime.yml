@@ -64,6 +64,8 @@ jobs:
             https://testflight.apple.com/join/XZDXt7jw -o "$testflight"
           grep -Fq 'Attest Pocket' "$testflight"
           curl -sfL --max-redirs 3 --max-time 30 \
-            'https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=o-qZfT4XexU&format=json' \
+            'https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=fdJideMmUKg&format=json' \
             -o "$video"
-          jq -e '.title == "Attest: the phone agent that refuses to guess"' "$video"
+          jq -e \
+            '.title == "Attest: the phone agent that refuses to guess" and (.thumbnail_url | contains("fdJideMmUKg"))' \
+            "$video"
