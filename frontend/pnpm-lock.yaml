@@ -33,8 +33,8 @@ importers:
         specifier: ^3.1.0
         version: 3.10.1(@types/react@19.3.0)(react-dom@19.2.8(react@19.2.8))(react-is@19.2.8)(react@19.2.8)(redux@5.0.1)
       wavesurfer.js:
-        specifier: ^7.12.11
-        version: 7.12.11
+        specifier: ^7.12.12
+        version: 7.12.12
     devDependencies:
       '@playwright/test':
         specifier: ^1.62.0
@@ -1053,8 +1053,8 @@ packages:
       yaml:
         optional: true
 
-  wavesurfer.js@7.12.11:
-    resolution: {integrity: sha512-Sx0yZIz7jRJ9J9p7UL+pl9y0UQBB6UN/XNo+R7Gy4tCR5xZI9jMyA0dnt1R8TMVSQ4LZ10SeB2HJYQ+dV2dPSA==}
+  wavesurfer.js@7.12.12:
+    resolution: {integrity: sha512-fyKNuREQTliCl4b9w7pUzpFXQIkX5tcdYu1o6vBdH+NlUXvTxshvfbG2hj8OxDevzQNZlDTHzZGyAT3FhuutWw==}
 
 snapshots:
 
@@ -1788,4 +1788,4 @@ snapshots:
       fsevents: 2.3.3
       jiti: 2.7.0
 
-  wavesurfer.js@7.12.11: {}
+  wavesurfer.js@7.12.12: {}
