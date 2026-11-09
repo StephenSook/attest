@@ -67,7 +67,7 @@ jobs:
       # That drift is what made `pnpm typecheck` fail locally while CI
       # stayed green: pnpm 11 gates dependency build scripts, pnpm 10
       # does not.
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
         with:
           # The action looks for package.json at the repository root by
           # default, and this repository keeps none there.
@@ -112,7 +112,7 @@ jobs:
       # That drift is what made `pnpm typecheck` fail locally while CI
       # stayed green: pnpm 11 gates dependency build scripts, pnpm 10
       # does not.
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
         with:
           # The action looks for package.json at the repository root by
           # default, and this repository keeps none there.
